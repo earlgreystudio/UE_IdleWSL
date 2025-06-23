@@ -3,19 +3,17 @@
 ## 剣道部 (Kendo)
 
 ### 基本能力値 (素質加算値 0-30)
-- **力 (Strength)**: 15
+- **力 (Strength)**: 10
 - **頑丈 (Toughness)**: 10
-- **賢さ (Intelligence)**: 5
 - **器用 (Dexterity)**: 10
-- **敏捷 (Agility)**: 20
-- **精神力 (Willpower)**: 25
+- **敏捷 (Agility)**: 15
+- **精神力 (Willpower)**: 20
 
 ### スキル能力値 (素質加算値 0-30)
-- **片手武器 (OneHandedWeapons)**: 20
+- **片手武器 (OneHandedWeapons)**: 10
 - **両手武器 (TwoHandedWeapons)**: 30
-- **盾 (Shield)**: 5
-- **水泳 (Swimming)**: 5
-- **サバイバル (Survival)**: 10
+- **受け流し (Parry)**: 25
+
 
 ### 特徴
 剣道部出身者は精神力と敏捷性に優れ、特に両手武器（竹刀・刀剣類）の扱いに長けている。
@@ -26,8 +24,8 @@
 ## 野球部 (Baseball)
 
 ### 基本能力値 (素質加算値 0-30)
-- **力 (Strength)**: 25
-- **頑丈 (Toughness)**: 20
+- **力 (Strength)**: 15
+- **頑丈 (Toughness)**: 15
 - **賢さ (Intelligence)**: 5
 - **器用 (Dexterity)**: 15
 - **敏捷 (Agility)**: 15
@@ -35,8 +33,8 @@
 
 ### スキル能力値 (素質加算値 0-30)
 - **片手武器 (OneHandedWeapons)**: 20
-- **射撃 (Firearms)**: 25
-- **サバイバル (Survival)**: 10
+- **投擲 (Throwing)**: 25
+- **回避 (Evasion)**: 10
 
 ### 特徴
 野球部出身者は力と体力に優れ、特に投擲と打撃能力が高い。チームワークと持久力が身についている。
@@ -46,18 +44,14 @@
 ## 化学部 (Chemistry)
 
 ### 基本能力値 (素質加算値 0-30)
-- **力 (Strength)**: 0
-- **頑丈 (Toughness)**: 0
-- **賢さ (Intelligence)**: 30
+- **賢さ (Intelligence)**: 20
 - **器用 (Dexterity)**: 20
-- **敏捷 (Agility)**: 0
-- **精神力 (Willpower)**: 15
+- **精神力 (Willpower)**: 10
 
 ### スキル能力値 (素質加算値 0-30)
 - **化学 (Chemistry)**: 30
-- **医学 (Medicine)**: 20
-- **工学 (Engineering)**: 15
-- **料理 (Cooking)**: 10
+- **医学 (Medicine)**: 10
+- **工学 (Engineering)**: 10
 
 ### 特徴
 化学部出身者は知性と器用さに優れ、薬品調合や実験作業に長けている。分析力と慎重さが特長。
@@ -67,8 +61,7 @@
 ## アーチェリー部 (Archery)
 
 ### 基本能力値 (素質加算値 0-30)
-- **力 (Strength)**: 10
-- **頑丈 (Toughness)**: 5
+- **力 (Strength)**: 5
 - **賢さ (Intelligence)**: 10
 - **器用 (Dexterity)**: 25
 - **敏捷 (Agility)**: 10
@@ -77,7 +70,7 @@
 ### スキル能力値 (素質加算値 0-30)
 - **弓 (Archery)**: 30
 - **射撃 (Firearms)**: 15
-- **サバイバル (Survival)**: 15
+- **サバイバル (Survival)**: 5
 
 ### 特徴
 アーチェリー部出身者は集中力と器用さに優れ、遠距離攻撃の精度が極めて高い。
@@ -97,7 +90,8 @@
 ### スキル能力値 (素質加算値 0-30)
 - **片手武器 (OneHandedWeapons)**: 10
 - **盾 (Shield)**: 10
-- **サバイバル (Survival)**: 15
+- **格闘 (Combat)**: 30
+- **回避 (Evasion)**: 20
 
 ### 特徴
 空手部出身者は敏捷性と打撃力に優れ、素手での戦闘能力が高い。瞬発力と精神統一が特長。
@@ -109,15 +103,12 @@
 ### 基本能力値 (素質加算値 0-30)
 - **力 (Strength)**: 30
 - **頑丈 (Toughness)**: 30
-- **賢さ (Intelligence)**: 5
-- **器用 (Dexterity)**: 5
 - **敏捷 (Agility)**: 10
 - **精神力 (Willpower)**: 15
 
 ### スキル能力値 (素質加算値 0-30)
 - **盾 (Shield)**: 25
-- **建築 (Construction)**: 20
-- **サバイバル (Survival)**: 10
+- **建築 (Construction)**: 10
 
 ### 特徴
 アメフト部出身者は圧倒的な力と頑丈さを持ち、防御と突破力に優れている。
@@ -131,8 +122,7 @@
 - **頑丈 (Toughness)**: 5
 - **賢さ (Intelligence)**: 15
 - **器用 (Dexterity)**: 20
-- **敏捷 (Agility)**: 5
-- **精神力 (Willpower)**: 25
+- **精神力 (Willpower)**: 20
 
 ### スキル能力値 (素質加算値 0-30)
 - **片手武器 (OneHandedWeapons)**: 15
@@ -146,16 +136,16 @@
 ## 陸上部 (TrackAndField)
 
 ### 基本能力値 (素質加算値 0-30)
-- **力 (Strength)**: 15
-- **頑丈 (Toughness)**: 20
-- **賢さ (Intelligence)**: 5
+- **力 (Strength)**: 10
+- **頑丈 (Toughness)**: 15
 - **器用 (Dexterity)**: 5
 - **敏捷 (Agility)**: 30
 - **精神力 (Willpower)**: 15
 
 ### スキル能力値 (素質加算値 0-30)
 - **水泳 (Swimming)**: 20
-- **サバイバル (Survival)**: 25
+- **サバイバル (Survival)**: 5
+- **回避 (Evasion)**: 10
 
 ### 特徴
 陸上部出身者は圧倒的な敏捷性と持久力を持ち、長距離移動と逃走能力に優れている。
@@ -165,17 +155,16 @@
 ## 演劇部 (Drama)
 
 ### 基本能力値 (素質加算値 0-30)
-- **力 (Strength)**: 0
-- **頑丈 (Toughness)**: 0
-- **賢さ (Intelligence)**: 20
+- **賢さ (Intelligence)**: 10
 - **器用 (Dexterity)**: 15
 - **敏捷 (Agility)**: 10
 - **精神力 (Willpower)**: 15
 
 ### スキル能力値 (素質加算値 0-30)
-- **楽器 (Music)**: 20
+- **楽器 (Music)**: 15
 - **裁縫 (Tailoring)**: 25
 - **料理 (Cooking)**: 5
+- **回避 (Evasion)**: 15
 
 ### 特徴
 演劇部出身者は表現力と器用さに優れ、交渉や変装能力が高い。
@@ -185,8 +174,6 @@
 ## 茶道部 (TeaCeremony)
 
 ### 基本能力値 (素質加算値 0-30)
-- **力 (Strength)**: 0
-- **頑丈 (Toughness)**: 0
 - **賢さ (Intelligence)**: 15
 - **器用 (Dexterity)**: 20
 - **敏捷 (Agility)**: 5
@@ -205,11 +192,10 @@
 ## 馬術部 (Equestrian)
 
 ### 基本能力値 (素質加算値 0-30)
-- **力 (Strength)**: 10
 - **頑丈 (Toughness)**: 10
 - **賢さ (Intelligence)**: 10
-- **器用 (Dexterity)**: 15
-- **敏捷 (Agility)**: 20
+- **器用 (Dexterity)**: 10
+- **敏捷 (Agility)**: 15
 - **精神力 (Willpower)**: 15
 
 ### スキル能力値 (素質加算値 0-30)
@@ -225,15 +211,12 @@
 ## ロボット研究会 (Robotics)
 
 ### 基本能力値 (素質加算値 0-30)
-- **力 (Strength)**: 0
-- **頑丈 (Toughness)**: 0
-- **賢さ (Intelligence)**: 30
+- **賢さ (Intelligence)**: 25
 - **器用 (Dexterity)**: 25
-- **敏捷 (Agility)**: 0
 - **精神力 (Willpower)**: 10
 
 ### スキル能力値 (素質加算値 0-30)
-- **工学 (Engineering)**: 30
+- **工学 (Engineering)**: 25
 - **機械 (Mechanics)**: 30
 - **工作 (Crafting)**: 20
 
@@ -249,14 +232,12 @@
 - **頑丈 (Toughness)**: 10
 - **賢さ (Intelligence)**: 10
 - **器用 (Dexterity)**: 15
-- **敏捷 (Agility)**: 5
 - **精神力 (Willpower)**: 10
 
 ### スキル能力値 (素質加算値 0-30)
 - **農業 (Agriculture)**: 30
-- **化学 (Chemistry)**: 10
 - **料理 (Cooking)**: 15
-- **医学 (Medicine)**: 10
+- **サバイバル (Survival)**: 15
 
 ### 特徴
 園芸部出身者は植物の知識と栽培技術に優れ、農業と薬草の扱いに長けている。
@@ -266,16 +247,13 @@
 ## 天文部 (Astronomy)
 
 ### 基本能力値 (素質加算値 0-30)
-- **力 (Strength)**: 0
-- **頑丈 (Toughness)**: 0
-- **賢さ (Intelligence)**: 30
+- **賢さ (Intelligence)**: 20
 - **器用 (Dexterity)**: 10
-- **敏捷 (Agility)**: 0
 - **精神力 (Willpower)**: 20
 
 ### スキル能力値 (素質加算値 0-30)
 - **工学 (Engineering)**: 20
-- **サバイバル (Survival)**: 20
+- **サバイバル (Survival)**: 10
 
 ### 特徴
 天文部出身者は知識と観察力に優れ、方向感覚と夜間行動能力が高い。
@@ -285,16 +263,15 @@
 ## 卓球部 (TableTennis)
 
 ### 基本能力値 (素質加算値 0-30)
-- **力 (Strength)**: 5
-- **頑丈 (Toughness)**: 5
-- **賢さ (Intelligence)**: 10
-- **器用 (Dexterity)**: 20
-- **敏捷 (Agility)**: 25
-- **精神力 (Willpower)**: 15
+- **賢さ (Intelligence)**: 5
+- **器用 (Dexterity)**: 15
+- **敏捷 (Agility)**: 10
+- **精神力 (Willpower)**: 10
 
 ### スキル能力値 (素質加算値 0-30)
-- **片手武器 (OneHandedWeapons)**: 15
-- **盾 (Shield)**: 15
+- **片手武器 (OneHandedWeapons)**: 10
+- **盾 (Shield)**: 10
+- **回避 (Evasion)**: 5
 
 ### 特徴
 卓球部出身者は反射神経と手先の器用さに優れ、素早い反応と正確な動作が得意。
@@ -306,14 +283,13 @@
 ### 基本能力値 (素質加算値 0-30)
 - **力 (Strength)**: 15
 - **頑丈 (Toughness)**: 15
-- **賢さ (Intelligence)**: 10
 - **器用 (Dexterity)**: 15
 - **敏捷 (Agility)**: 20
 - **精神力 (Willpower)**: 10
 
 ### スキル能力値 (素質加算値 0-30)
-- **射撃 (Firearms)**: 20
-- **水泳 (Swimming)**: 10
+- **投擲 (Throwing)**: 15
+- **回避 (Evasion)**: 15
 
 ### 特徴
 バスケ部出身者はチームワークと身体能力のバランスが良く、ジャンプ力と投擲能力に優れている。
@@ -323,16 +299,15 @@
 ## バドミントン部 (Badminton)
 
 ### 基本能力値 (素質加算値 0-30)
-- **力 (Strength)**: 5
 - **頑丈 (Toughness)**: 5
-- **賢さ (Intelligence)**: 10
-- **器用 (Dexterity)**: 20
-- **敏捷 (Agility)**: 30
-- **精神力 (Willpower)**: 10
+- **賢さ (Intelligence)**: 5
+- **器用 (Dexterity)**: 15
+- **敏捷 (Agility)**: 20
+- **精神力 (Willpower)**: 5
 
 ### スキル能力値 (素質加算値 0-30)
-- **片手武器 (OneHandedWeapons)**: 20
-- **サバイバル (Survival)**: 10
+- **片手武器 (OneHandedWeapons)**: 15
+- **回避 (Evasion)**: 15
 
 ### 特徴
 バドミントン部出身者は瞬発力と反射神経に優れ、素早い動きと正確な打撃が得意。
@@ -342,16 +317,16 @@
 ## テニス部 (Tennis)
 
 ### 基本能力値 (素質加算値 0-30)
-- **力 (Strength)**: 10
+- **力 (Strength)**: 5
 - **頑丈 (Toughness)**: 10
 - **賢さ (Intelligence)**: 10
-- **器用 (Dexterity)**: 20
-- **敏捷 (Agility)**: 20
+- **器用 (Dexterity)**: 15
+- **敏捷 (Agility)**: 15
 - **精神力 (Willpower)**: 15
 
 ### スキル能力値 (素質加算値 0-30)
 - **片手武器 (OneHandedWeapons)**: 25
-- **盾 (Shield)**: 10
+- **回避 (Evasion)**: 15
 
 ### 特徴
 テニス部出身者は持久力と技術力のバランスが良く、戦略的な戦い方が得意。
@@ -363,14 +338,13 @@
 ### 基本能力値 (素質加算値 0-30)
 - **力 (Strength)**: 15
 - **頑丈 (Toughness)**: 10
-- **賢さ (Intelligence)**: 10
+- **賢さ (Intelligence)**: 5
 - **器用 (Dexterity)**: 10
-- **敏捷 (Agility)**: 20
-- **精神力 (Willpower)**: 15
+- **敏捷 (Agility)**: 15
+- **精神力 (Willpower)**: 10
 
 ### スキル能力値 (素質加算値 0-30)
-- **盾 (Shield)**: 20
-- **水泳 (Swimming)**: 10
+- **投擲 (Throwing)**: 10
 
 ### 特徴
 バレー部出身者はジャンプ力とチームワークに優れ、防御と連携攻撃が得意。
@@ -382,15 +356,13 @@
 ### 基本能力値 (素質加算値 0-30)
 - **力 (Strength)**: 10
 - **頑丈 (Toughness)**: 15
-- **賢さ (Intelligence)**: 10
+- **賢さ (Intelligence)**: 5
 - **器用 (Dexterity)**: 10
-- **敏捷 (Agility)**: 25
+- **敏捷 (Agility)**: 20
 - **精神力 (Willpower)**: 15
 
 ### スキル能力値 (素質加算値 0-30)
-- **盾 (Shield)**: 10
-- **サバイバル (Survival)**: 20
-- **水泳 (Swimming)**: 15
+
 
 ### 特徴
 サッカー部出身者は持久力と足技に優れ、長時間の活動と機動戦が得意。
@@ -402,14 +374,12 @@
 ### 基本能力値 (素質加算値 0-30)
 - **力 (Strength)**: 30
 - **頑丈 (Toughness)**: 30
-- **賢さ (Intelligence)**: 0
-- **器用 (Dexterity)**: 0
-- **敏捷 (Agility)**: 0
-- **精神力 (Willpower)**: 20
+- **精神力 (Willpower)**: 15
 
 ### スキル能力値 (素質加算値 0-30)
 - **盾 (Shield)**: 20
-- **料理 (Cooking)**: 20
+- **料理 (Cooking)**: 10
+- **格闘 (Combat)**: 20
 
 ### 特徴
 相撲部出身者は圧倒的な力と体格を持ち、押し合いと投げ技に優れている。
@@ -419,18 +389,15 @@
 ## 料理部 (Cooking)
 
 ### 基本能力値 (素質加算値 0-30)
-- **力 (Strength)**: 5
-- **頑丈 (Toughness)**: 5
-- **賢さ (Intelligence)**: 15
-- **器用 (Dexterity)**: 25
-- **敏捷 (Agility)**: 5
-- **精神力 (Willpower)**: 10
+- **賢さ (Intelligence)**: 10
+- **器用 (Dexterity)**: 20
+- **精神力 (Willpower)**: 5
 
 ### スキル能力値 (素質加算値 0-30)
 - **料理 (Cooking)**: 30
-- **化学 (Chemistry)**: 15
+- **化学 (Chemistry)**: 10
 - **農業 (Agriculture)**: 10
-- **片手武器 (OneHandedWeapons)**: 10
+- **片手武器 (OneHandedWeapons)**: 5
 
 ### 特徴
 料理部出身者は手先の器用さと味覚に優れ、食材の扱いと調理技術が卓越している。
@@ -440,18 +407,14 @@
 ## 医学部 (Medical)
 
 ### 基本能力値 (素質加算値 0-30)
-- **力 (Strength)**: 0
-- **頑丈 (Toughness)**: 5
 - **賢さ (Intelligence)**: 30
-- **器用 (Dexterity)**: 20
-- **敏捷 (Agility)**: 5
+- **器用 (Dexterity)**: 25
 - **精神力 (Willpower)**: 20
 
 ### スキル能力値 (素質加算値 0-30)
 - **医学 (Medicine)**: 30
 - **化学 (Chemistry)**: 25
 - **片手武器 (OneHandedWeapons)**: 10
-- **サバイバル (Survival)**: 5
 
 ### 特徴
 医学部出身者は医療知識と手術技術に優れ、治療と診断能力が極めて高い。冷静な判断力と精密な手技が特長。
@@ -462,7 +425,7 @@
 
 ### 基本能力値 (素質加算値 0-30)
 - **力 (Strength)**: 5
-- **頑丈 (Toughness)**: 10
+- **頑丈 (Toughness)**: 20
 - **賢さ (Intelligence)**: 20
 - **器用 (Dexterity)**: 15
 - **敏捷 (Agility)**: 10
@@ -471,7 +434,6 @@
 ### スキル能力値 (素質加算値 0-30)
 - **医学 (Medicine)**: 25
 - **料理 (Cooking)**: 10
-- **水泳 (Swimming)**: 5
 - **サバイバル (Survival)**: 10
 
 ### 特徴
