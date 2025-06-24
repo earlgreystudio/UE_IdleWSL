@@ -181,4 +181,11 @@ struct UE_IDLE_API FItemDataRow : public FTableRowBase
     int32 GetModifiedValue() const;
 
     static float GetQualityModifier(EItemQualityTable Quality);
+
+    // Trading value calculations
+    int32 GetRealWorldValue() const;
+    int32 GetOtherWorldValue() const;
+    
+    static float GetCategoryRealWorldMultiplier(ETradeCategoryTable Category);
+    static float GetCategoryOtherWorldMultiplier(ETradeCategoryTable Category);
 };

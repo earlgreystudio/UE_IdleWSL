@@ -11,12 +11,12 @@ float FEquipmentSlots::GetTotalWeight(UItemDataTableManager* ItemManager) const
 
     float TotalWeight = 0.0f;
 
-    auto AddItemWeight = [&](const FItemInstance& Item)
+    auto AddItemWeight = [&](const FEquipmentReference& EquipRef)
     {
-        if (!Item.ItemId.IsEmpty())
+        if (!EquipRef.IsEmpty())
         {
             FItemDataRow ItemData;
-            if (ItemManager->GetItemData(Item.ItemId, ItemData))
+            if (ItemManager->GetItemData(EquipRef.ItemId, ItemData))
             {
                 TotalWeight += ItemData.Weight;
             }
@@ -45,12 +45,12 @@ int32 FEquipmentSlots::GetTotalDefense(UItemDataTableManager* ItemManager) const
 
     int32 TotalDefense = 0;
 
-    auto AddArmorDefense = [&](const FItemInstance& Item)
+    auto AddArmorDefense = [&](const FEquipmentReference& EquipRef)
     {
-        if (!Item.ItemId.IsEmpty())
+        if (!EquipRef.IsEmpty())
         {
             FItemDataRow ItemData;
-            if (ItemManager->GetItemData(Item.ItemId, ItemData))
+            if (ItemManager->GetItemData(EquipRef.ItemId, ItemData))
             {
                 TotalDefense += ItemData.Defense;
             }
@@ -356,87 +356,4 @@ bool FInventory::HasSpace(const FString& ItemId, int32 Quantity, UItemDataTableM
     }
 }
 
-int32 FItemData::GetRealWorldValue() const
-{
-    float Multiplier = GetCategoryRealWorldMultiplier(TradeCategory);
-    return FMath::RoundToInt(BaseValue * Multiplier);
-}
-
-int32 FItemData::GetOtherWorldValue() const
-{
-    float Multiplier = GetCategoryOtherWorldMultiplier(TradeCategory);
-    return FMath::RoundToInt(BaseValue * Multiplier);
-}
-
-float FItemData::GetCategoryRealWorldMultiplier(ETradeCategory Category)
-{
-    switch (Category)
-    {
-    case ETradeCategory::MeleeWeapons:      return 0.1f;   // 現世では実用性なし
-    case ETradeCategory::ModernWeapons:     return 1.0f;   // 需要あり
-    case ETradeCategory::Gems:              return 1.0f;   // 装飾品価値
-    case ETradeCategory::Antiques:          return 1.2f;   // コレクター需要
-    case ETradeCategory::Electronics:       return 1.0f;   // 通常価格
-    case ETradeCategory::ModernGoods:       return 0.8f;   // 中古品扱い
-    case ETradeCategory::Food:              return 1.0f;   // 普通
-    case ETradeCategory::MagicMaterials:    return 0.1f;   // オカルト扱い
-    case ETradeCategory::MonsterMaterials:  return 2.0f;   // 研究価値
-    case ETradeCategory::Medicine:          return 1.0f;   // 医療用
-    case ETradeCategory::CommonMaterials:   return 0.9f;   // 一般的
-    case ETradeCategory::Luxury:            return 1.1f;   // 贅沢品
-    default:                                return 1.0f;
-    }
-}
-
-float FItemData::GetCategoryOtherWorldMultiplier(ETradeCategory Category)
-{
-    switch (Category)
-    {
-    case ETradeCategory::MeleeWeapons:      return 1.0f;   // 実戦で使用
-    case ETradeCategory::ModernWeapons:     return 0.1f;   // 魔法に劣る
-    case ETradeCategory::Gems:              return 1.0f;   // 魔法触媒
-    case ETradeCategory::Antiques:          return 0.2f;   // 文化的価値なし
-    case ETradeCategory::Electronics:       return 0.05f;  // 電気なし
-    case ETradeCategory::ModernGoods:       return 1.5f;   // 珍しい技術
-    case ETradeCategory::Food:              return 2.0f;   // 未知の味
-    case ETradeCategory::MagicMaterials:    return 1.5f;   // 魔法に必須
-    case ETradeCategory::MonsterMaterials:  return 1.0f;   // 普通の素材
-    case ETradeCategory::Medicine:          return 1.8f;   // 高度な治療
-    case ETradeCategory::CommonMaterials:   return 1.0f;   // 標準価格
-    case ETradeCategory::Luxury:            return 0.5f;   // 実用性重視
-    default:                                return 1.0f;
-    }
-}
-
-int32 FItemData::GetModifiedAttackPower() const
-{
-    return FMath::RoundToInt(AttackPower * GetQualityModifier(Quality));
-}
-
-int32 FItemData::GetModifiedDefense() const
-{
-    return FMath::RoundToInt(Defense * GetQualityModifier(Quality));
-}
-
-int32 FItemData::GetModifiedDurability() const
-{
-    return FMath::RoundToInt(MaxDurability * GetQualityModifier(Quality));
-}
-
-int32 FItemData::GetModifiedValue() const
-{
-    return FMath::RoundToInt(BaseValue * GetQualityModifier(Quality));
-}
-
-float FItemData::GetQualityModifier(EItemQuality Quality)
-{
-    switch (Quality)
-    {
-    case EItemQuality::Poor:        return 0.7f;   // 粗悪: -30%
-    case EItemQuality::Common:      return 1.0f;   // 普通: 基準値
-    case EItemQuality::Good:        return 1.3f;   // できの良い: +30%
-    case EItemQuality::Masterwork:  return 1.6f;   // 名匠: +60%
-    case EItemQuality::Legendary:   return 2.0f;   // マスターワーク: +100%
-    default:                        return 1.0f;
-    }
-}
+// FItemDataRowの実装メソッドはItemDataTable.cppに移動されました

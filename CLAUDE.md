@@ -145,6 +145,37 @@ RowName,Name,Description,ItemType,StackSize,Weight,BaseValue...
 - `EquipArmor(ItemInstanceId, Slot)` - Equip armor to specific slot
 - `CanEquipItem(ItemId)` - Check equipment compatibility
 
+## Design Philosophy
+
+### Interface-Driven Architecture
+
+**Core Principle**: Use interfaces to minimize dependencies between actors and components.
+
+**Key Benefits**:
+- **Decoupling**: Classes depend on abstractions, not concrete implementations
+- **Testability**: Easy to mock interfaces for unit testing
+- **Performance**: Avoid expensive Cast<> operations in Blueprint and C++
+- **Maintainability**: Changes to implementation don't affect consumers
+
+**Implementation Guidelines**:
+```cpp
+// ✅ Good: Interface-based communication
+if (Actor->GetClass()->ImplementsInterface(UPlayerControllerInterface::StaticClass())) {
+    IPlayerControllerInterface::Execute_AddItemToStorage(Actor, "item", 1);
+}
+
+// ❌ Avoid: Direct casting creates tight coupling
+if (auto* CustomPC = Cast<AC_PlayerController>(Actor)) {
+    CustomPC->AddItemToStorage("item", 1);
+}
+```
+
+**Interface Strategy**:
+- Define `UINTERFACE` for actor communication contracts
+- Use `BlueprintImplementableEvent` for seamless Blueprint integration
+- Implement `_Implementation` functions in C++ for performance
+- Prefer composition over inheritance for complex behaviors
+
 ## Code Conventions
 
 ### Naming Patterns

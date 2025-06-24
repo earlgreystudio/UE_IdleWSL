@@ -98,34 +98,36 @@ TArray<FInventorySlot> UCharacterInventoryComponent::GetAllInventorySlots() cons
                 FItemDataRow ItemData;
                 if (ItemManager->GetItemData(Slot.ItemId, ItemData) && ItemData.StackSize == 1)
                 {
-                    // Non-stackable items (like weapons/armor) - create separate slot for each durability
-                    TMap<int32, FInventorySlot> DurabilitySlots;
+                    // Non-stackable items - separate by durability AND equipment status
+                    TMap<FString, FInventorySlot> StatusSlots; // Key: "Durability_EquipStatus"
                     
                     for (const FItemInstance& Instance : Slot.ItemInstances)
                     {
-                        int32 Durability = Instance.CurrentDurability;
+                        FString StatusKey = FString::Printf(TEXT("%d_%s"), 
+                            Instance.CurrentDurability, 
+                            Instance.bIsEquipped ? TEXT("Equipped") : TEXT("Unequipped"));
                         
-                        if (!DurabilitySlots.Contains(Durability))
+                        if (!StatusSlots.Contains(StatusKey))
                         {
                             FInventorySlot NewSlot;
                             NewSlot.ItemId = Slot.ItemId;
                             NewSlot.Quantity = 0;
-                            DurabilitySlots.Add(Durability, NewSlot);
+                            StatusSlots.Add(StatusKey, NewSlot);
                         }
                         
-                        DurabilitySlots[Durability].ItemInstances.Add(Instance);
-                        DurabilitySlots[Durability].Quantity++;
+                        StatusSlots[StatusKey].ItemInstances.Add(Instance);
+                        StatusSlots[StatusKey].Quantity++;
                     }
                     
-                    // Add all durability-based slots to result
-                    for (const auto& DurabilityPair : DurabilitySlots)
+                    // Add all status-based slots to result
+                    for (const auto& StatusPair : StatusSlots)
                     {
-                        Result.Add(DurabilityPair.Value);
+                        Result.Add(StatusPair.Value);
                     }
                 }
                 else
                 {
-                    // Stackable items - add as single slot
+                    // Stackable items - add as single slot (these cannot be equipped)
                     Result.Add(Slot);
                 }
             }
@@ -157,7 +159,8 @@ bool UCharacterInventoryComponent::EquipWeapon(const FString& WeaponId)
         return false;
     }
 
-    if (!Equipment.Weapon.ItemId.IsEmpty())
+    // 現在の武器を装備解除
+    if (!Equipment.Weapon.IsEmpty())
     {
         if (!UnequipWeapon())
         {
@@ -166,8 +169,7 @@ bool UCharacterInventoryComponent::EquipWeapon(const FString& WeaponId)
     }
 
     // 両手武器の場合、盾を自動的に外す
-    FItemDataRow WeaponItemData;
-    if (ItemManager->GetItemData(WeaponId, WeaponItemData) && WeaponItemData.BlocksShield() && !Equipment.Shield.ItemId.IsEmpty())
+    if (ItemData.BlocksShield() && !Equipment.Shield.IsEmpty())
     {
         if (!UnequipShield())
         {
@@ -175,35 +177,38 @@ bool UCharacterInventoryComponent::EquipWeapon(const FString& WeaponId)
         }
     }
 
-    // Find the weapon instance in inventory
-    FInventorySlot* Slot = Inventory.FindSlot(WeaponId);
-    if (!Slot || Slot->Quantity == 0)
+    // インベントリ内で装備可能なアイテムインスタンスを検索
+    FItemInstance* InstanceToEquip = nullptr;
+    for (FInventorySlot& Slot : Inventory.Slots)
     {
+        if (Slot.ItemId == WeaponId)
+        {
+            for (FItemInstance& Instance : Slot.ItemInstances)
+            {
+                if (!Instance.bIsEquipped)
+                {
+                    InstanceToEquip = &Instance;
+                    break;
+                }
+            }
+            if (InstanceToEquip) break;
+        }
+    }
+
+    if (!InstanceToEquip)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("EquipWeapon: No unequipped instance found for %s"), *WeaponId);
         return false;
     }
 
-    // Take the first instance if non-stackable, or create new instance if stackable
-    if (Slot->ItemInstances.Num() > 0)
-    {
-        Equipment.Weapon = Slot->ItemInstances[0];
-        Slot->RemoveInstance(Equipment.Weapon.InstanceId);
-    }
-    else
-    {
-        Equipment.Weapon = FItemInstance(WeaponId);
-        Slot->RemoveStackableItem(1);
-    }
+    // 装備フラグを設定
+    InstanceToEquip->bIsEquipped = true;
+    InstanceToEquip->EquippedSlot = EEquipmentSlot::Weapon;
     
-    // Clean up empty slots
-    if (Slot->Quantity == 0)
-    {
-        Inventory.Slots.RemoveAll([&WeaponId](const FInventorySlot& InSlot)
-        {
-            return InSlot.ItemId == WeaponId && InSlot.Quantity == 0;
-        });
-    }
+    // 装備スロットに参照を設定
+    Equipment.Weapon = FEquipmentReference(WeaponId, InstanceToEquip->InstanceId);
     
-    OnItemEquipped.Broadcast(WeaponId, EEquipmentSlot::Head);
+    OnItemEquipped.Broadcast(WeaponId, EEquipmentSlot::Weapon);
     OnInventoryChanged.Broadcast();
     
     return true;
@@ -221,7 +226,7 @@ bool UCharacterInventoryComponent::EquipShield(const FString& ShieldId)
         return false;
     }
 
-    if (!Equipment.Shield.ItemId.IsEmpty())
+    if (!Equipment.Shield.IsEmpty())
     {
         if (!UnequipShield())
         {
@@ -229,35 +234,37 @@ bool UCharacterInventoryComponent::EquipShield(const FString& ShieldId)
         }
     }
 
-    // Find the shield instance in inventory
-    FInventorySlot* Slot = Inventory.FindSlot(ShieldId);
-    if (!Slot || Slot->Quantity == 0)
+    // インベントリ内で装備可能なアイテムインスタンスを検索
+    FItemInstance* InstanceToEquip = nullptr;
+    for (FInventorySlot& Slot : Inventory.Slots)
+    {
+        if (Slot.ItemId == ShieldId)
+        {
+            for (FItemInstance& Instance : Slot.ItemInstances)
+            {
+                if (!Instance.bIsEquipped)
+                {
+                    InstanceToEquip = &Instance;
+                    break;
+                }
+            }
+            if (InstanceToEquip) break;
+        }
+    }
+
+    if (!InstanceToEquip)
     {
         return false;
     }
 
-    // Take the first instance if non-stackable, or create new instance if stackable
-    if (Slot->ItemInstances.Num() > 0)
-    {
-        Equipment.Shield = Slot->ItemInstances[0];
-        Slot->RemoveInstance(Equipment.Shield.InstanceId);
-    }
-    else
-    {
-        Equipment.Shield = FItemInstance(ShieldId);
-        Slot->RemoveStackableItem(1);
-    }
+    // 装備フラグを設定
+    InstanceToEquip->bIsEquipped = true;
+    InstanceToEquip->EquippedSlot = EEquipmentSlot::Shield;
     
-    // Clean up empty slots
-    if (Slot->Quantity == 0)
-    {
-        Inventory.Slots.RemoveAll([&ShieldId](const FInventorySlot& InSlot)
-        {
-            return InSlot.ItemId == ShieldId && InSlot.Quantity == 0;
-        });
-    }
+    // 装備スロットに参照を設定
+    Equipment.Shield = FEquipmentReference(ShieldId, InstanceToEquip->InstanceId);
     
-    OnItemEquipped.Broadcast(ShieldId, EEquipmentSlot::Head);
+    OnItemEquipped.Broadcast(ShieldId, EEquipmentSlot::Shield);
     OnInventoryChanged.Broadcast();
     
     return true;
@@ -286,29 +293,23 @@ bool UCharacterInventoryComponent::EquipToSlot(const FString& ItemId, EEquipment
         return false;
     }
 
-    // Find the item instance in inventory
-    FInventorySlot* InventorySlot = Inventory.FindSlot(ItemId);
-    if (!InventorySlot || InventorySlot->Quantity == 0)
-    {
-        return false;
-    }
-
-    FItemInstance* SlotItem = Equipment.GetSlot(Slot);
-    if (!SlotItem)
+    // アクセサリスロットの判定
+    FEquipmentReference* TargetSlot = Equipment.GetSlot(Slot);
+    if (!TargetSlot)
     {
         if (Slot == EEquipmentSlot::Accessory)
         {
-            if (Equipment.Accessory1.ItemId.IsEmpty())
+            if (Equipment.Accessory1.IsEmpty())
             {
-                SlotItem = &Equipment.Accessory1;
+                TargetSlot = &Equipment.Accessory1;
             }
-            else if (Equipment.Accessory2.ItemId.IsEmpty())
+            else if (Equipment.Accessory2.IsEmpty())
             {
-                SlotItem = &Equipment.Accessory2;
+                TargetSlot = &Equipment.Accessory2;
             }
             else
             {
-                return false;
+                return false; // 両方のアクセサリスロットが埋まっている
             }
         }
         else
@@ -318,7 +319,7 @@ bool UCharacterInventoryComponent::EquipToSlot(const FString& ItemId, EEquipment
     }
     else
     {
-        if (!SlotItem->ItemId.IsEmpty())
+        if (!TargetSlot->IsEmpty())
         {
             if (!UnequipFromSlot(Slot))
             {
@@ -327,26 +328,35 @@ bool UCharacterInventoryComponent::EquipToSlot(const FString& ItemId, EEquipment
         }
     }
 
-    // Take the first instance if non-stackable, or create new instance if stackable
-    if (InventorySlot->ItemInstances.Num() > 0)
+    // インベントリ内で装備可能なアイテムインスタンスを検索
+    FItemInstance* InstanceToEquip = nullptr;
+    for (FInventorySlot& InventorySlot : Inventory.Slots)
     {
-        *SlotItem = InventorySlot->ItemInstances[0];
-        InventorySlot->RemoveInstance(SlotItem->InstanceId);
-    }
-    else
-    {
-        *SlotItem = FItemInstance(ItemId);
-        InventorySlot->RemoveStackableItem(1);
-    }
-    
-    // Clean up empty slots
-    if (InventorySlot->Quantity == 0)
-    {
-        Inventory.Slots.RemoveAll([&ItemId](const FInventorySlot& InSlot)
+        if (InventorySlot.ItemId == ItemId)
         {
-            return InSlot.ItemId == ItemId && InSlot.Quantity == 0;
-        });
+            for (FItemInstance& Instance : InventorySlot.ItemInstances)
+            {
+                if (!Instance.bIsEquipped)
+                {
+                    InstanceToEquip = &Instance;
+                    break;
+                }
+            }
+            if (InstanceToEquip) break;
+        }
     }
+
+    if (!InstanceToEquip)
+    {
+        return false;
+    }
+
+    // 装備フラグを設定
+    InstanceToEquip->bIsEquipped = true;
+    InstanceToEquip->EquippedSlot = Slot;
+    
+    // 装備スロットに参照を設定
+    *TargetSlot = FEquipmentReference(ItemId, InstanceToEquip->InstanceId);
 
     OnItemEquipped.Broadcast(ItemId, Slot);
     OnInventoryChanged.Broadcast();
@@ -356,20 +366,22 @@ bool UCharacterInventoryComponent::EquipToSlot(const FString& ItemId, EEquipment
 
 bool UCharacterInventoryComponent::UnequipWeapon()
 {
-    if (Equipment.Weapon.ItemId.IsEmpty())
+    if (Equipment.Weapon.IsEmpty())
     {
         return false;
     }
 
     FString WeaponId = Equipment.Weapon.ItemId;
     
-    // Add the weapon instance back to inventory
-    if (!Inventory.AddItemInstance(Equipment.Weapon, ItemManager))
+    // インベントリ内の装備アイテムインスタンスを検索してフラグをリセット
+    FItemInstance* EquippedInstance = Inventory.FindInstance(Equipment.Weapon.InstanceId);
+    if (EquippedInstance)
     {
-        return false;
+        EquippedInstance->bIsEquipped = false;
+        EquippedInstance->EquippedSlot = EEquipmentSlot::None;
     }
 
-    Equipment.Weapon = FItemInstance();
+    Equipment.Weapon.Clear();
     OnItemUnequipped.Broadcast(WeaponId, EEquipmentSlot::Weapon);
     OnInventoryChanged.Broadcast();
     
@@ -378,21 +390,23 @@ bool UCharacterInventoryComponent::UnequipWeapon()
 
 bool UCharacterInventoryComponent::UnequipShield()
 {
-    if (Equipment.Shield.ItemId.IsEmpty())
+    if (Equipment.Shield.IsEmpty())
     {
         return false;
     }
 
     FString ShieldId = Equipment.Shield.ItemId;
     
-    // Add the shield instance back to inventory
-    if (!Inventory.AddItemInstance(Equipment.Shield, ItemManager))
+    // インベントリ内の装備アイテムインスタンスを検索してフラグをリセット
+    FItemInstance* EquippedInstance = Inventory.FindInstance(Equipment.Shield.InstanceId);
+    if (EquippedInstance)
     {
-        return false;
+        EquippedInstance->bIsEquipped = false;
+        EquippedInstance->EquippedSlot = EEquipmentSlot::None;
     }
 
-    Equipment.Shield = FItemInstance();
-    OnItemUnequipped.Broadcast(ShieldId, EEquipmentSlot::Head);
+    Equipment.Shield.Clear();
+    OnItemUnequipped.Broadcast(ShieldId, EEquipmentSlot::Shield);
     OnInventoryChanged.Broadcast();
     
     return true;
@@ -405,21 +419,23 @@ bool UCharacterInventoryComponent::UnequipArmor(EEquipmentSlot Slot)
 
 bool UCharacterInventoryComponent::UnequipFromSlot(EEquipmentSlot Slot)
 {
-    FItemInstance* SlotItem = Equipment.GetSlot(Slot);
-    if (!SlotItem || SlotItem->ItemId.IsEmpty())
+    FEquipmentReference* SlotRef = Equipment.GetSlot(Slot);
+    if (!SlotRef || SlotRef->IsEmpty())
     {
         return false;
     }
 
-    FString ItemId = SlotItem->ItemId;
+    FString ItemId = SlotRef->ItemId;
     
-    // Add the item instance back to inventory
-    if (!Inventory.AddItemInstance(*SlotItem, ItemManager))
+    // インベントリ内の装備アイテムインスタンスを検索してフラグをリセット
+    FItemInstance* EquippedInstance = Inventory.FindInstance(SlotRef->InstanceId);
+    if (EquippedInstance)
     {
-        return false;
+        EquippedInstance->bIsEquipped = false;
+        EquippedInstance->EquippedSlot = EEquipmentSlot::None;
     }
 
-    *SlotItem = FItemInstance();
+    SlotRef->Clear();
     OnItemUnequipped.Broadcast(ItemId, Slot);
     OnInventoryChanged.Broadcast();
     
@@ -555,7 +571,7 @@ bool UCharacterInventoryComponent::EquipItem(const FString& ItemId)
     if (ItemData.IsWeapon())
     {
         UE_LOG(LogTemp, Warning, TEXT("EquipItem: Weapon - %s"), *ItemId);
-        if (ItemData.BlocksShield() && !Equipment.Shield.ItemId.IsEmpty())
+        if (ItemData.BlocksShield() && !Equipment.Shield.IsEmpty())
         {
             UnequipShield();
         }
@@ -564,7 +580,7 @@ bool UCharacterInventoryComponent::EquipItem(const FString& ItemId)
     else if (ItemData.IsArmor())
     {
         UE_LOG(LogTemp, Warning, TEXT("EquipItem: Armor - %s"), *ItemId);
-        if (ItemData.EquipmentSlot == EEquipmentSlotTable::Shield && !Equipment.Weapon.ItemId.IsEmpty())
+        if (ItemData.EquipmentSlot == EEquipmentSlotTable::Shield && !Equipment.Weapon.IsEmpty())
         {
             FItemDataRow WeaponData;
             if (ItemManager->GetItemData(Equipment.Weapon.ItemId, WeaponData) && WeaponData.BlocksShield())
@@ -686,7 +702,35 @@ float UCharacterInventoryComponent::GetTotalEquipmentWeight() const
         return 0.0f;
     }
     
-    return Equipment.GetTotalWeight(ItemManager);
+    float TotalWeight = 0.0f;
+    
+    auto AddWeightFromSlot = [&](const FEquipmentReference& SlotRef)
+    {
+        if (!SlotRef.IsEmpty())
+        {
+            FItemInstance* Instance = const_cast<FInventory&>(Inventory).FindInstance(SlotRef.InstanceId);
+            if (Instance)
+            {
+                FItemDataRow ItemData;
+                if (ItemManager->GetItemData(Instance->ItemId, ItemData))
+                {
+                    TotalWeight += ItemData.Weight;
+                }
+            }
+        }
+    };
+    
+    AddWeightFromSlot(Equipment.Weapon);
+    AddWeightFromSlot(Equipment.Shield);
+    AddWeightFromSlot(Equipment.Head);
+    AddWeightFromSlot(Equipment.Body);
+    AddWeightFromSlot(Equipment.Legs);
+    AddWeightFromSlot(Equipment.Hands);
+    AddWeightFromSlot(Equipment.Feet);
+    AddWeightFromSlot(Equipment.Accessory1);
+    AddWeightFromSlot(Equipment.Accessory2);
+    
+    return TotalWeight;
 }
 
 float UCharacterInventoryComponent::GetTotalInventoryWeight() const
@@ -706,13 +750,38 @@ int32 UCharacterInventoryComponent::GetTotalDefense() const
         return 0;
     }
     
-    return Equipment.GetTotalDefense(ItemManager);
+    int32 TotalDefense = 0;
+    
+    auto AddDefenseFromSlot = [&](const FEquipmentReference& SlotRef)
+    {
+        if (!SlotRef.IsEmpty())
+        {
+            FItemInstance* Instance = const_cast<FInventory&>(Inventory).FindInstance(SlotRef.InstanceId);
+            if (Instance)
+            {
+                FItemDataRow ItemData;
+                if (ItemManager->GetItemData(Instance->ItemId, ItemData))
+                {
+                    TotalDefense += ItemData.Defense;
+                }
+            }
+        }
+    };
+    
+    AddDefenseFromSlot(Equipment.Shield);
+    AddDefenseFromSlot(Equipment.Head);
+    AddDefenseFromSlot(Equipment.Body);
+    AddDefenseFromSlot(Equipment.Legs);
+    AddDefenseFromSlot(Equipment.Hands);
+    AddDefenseFromSlot(Equipment.Feet);
+    
+    return TotalDefense;
 }
 
 FItemDataRow UCharacterInventoryComponent::GetEquippedWeaponData() const
 {
     FItemDataRow ItemData;
-    if (!ItemManager || Equipment.Weapon.ItemId.IsEmpty())
+    if (!ItemManager || Equipment.Weapon.IsEmpty())
     {
         return ItemData; // Return empty item data
     }
@@ -734,7 +803,7 @@ FItemInstance UCharacterInventoryComponent::GetItemInstance(const FGuid& Instanc
 
 bool UCharacterInventoryComponent::CanEquipShield() const
 {
-    if (!ItemManager || Equipment.Weapon.ItemId.IsEmpty())
+    if (!ItemManager || Equipment.Weapon.IsEmpty())
     {
         return true; // 武器がないなら盾装備可能
     }
@@ -761,7 +830,7 @@ bool UCharacterInventoryComponent::CanEquipWeapon(const FString& WeaponId) const
     }
     
     // 両手武器を装備しようとして、盾が装備されている場合は不可
-    if (WeaponData.BlocksShield() && !Equipment.Shield.ItemId.IsEmpty())
+    if (WeaponData.BlocksShield() && !Equipment.Shield.IsEmpty())
     {
         return false;
     }
@@ -778,16 +847,31 @@ TMap<FString, int32> UCharacterInventoryComponent::GetEquipmentStatBonuses() con
         return TotalBonuses;
     }
 
-    auto AddBonuses = [&](const FItemInstance& Item)
+    auto AddBonuses = [&](const FEquipmentReference& SlotRef)
     {
-        if (!Item.ItemId.IsEmpty())
+        if (!SlotRef.IsEmpty())
         {
-            // TODO: Implement stat bonuses from armor in DataTable system
-            FItemDataRow ItemData;
-            if (ItemManager->GetItemData(Item.ItemId, ItemData) && ItemData.IsArmor())
+            FItemInstance* Instance = const_cast<FInventory&>(Inventory).FindInstance(SlotRef.InstanceId);
+            if (Instance)
             {
-                // For now, armor stat bonuses are not implemented in DataTable system
-                // This feature needs to be redesigned for the new system
+                FItemDataRow ItemData;
+                if (ItemManager->GetItemData(Instance->ItemId, ItemData) && ItemData.IsArmor())
+                {
+                    // TODO: StatBonusesは現在FItemDataRowに存在しないため、将来的に追加する必要がある
+                    // 今のところは単純なボーナスシステムのみ
+                    // Defense値をStrengthボーナスとして使用
+                    if (ItemData.Defense > 0)
+                    {
+                        if (TotalBonuses.Contains(TEXT("Defense")))
+                        {
+                            TotalBonuses[TEXT("Defense")] += ItemData.Defense;
+                        }
+                        else
+                        {
+                            TotalBonuses.Add(TEXT("Defense"), ItemData.Defense);
+                        }
+                    }
+                }
             }
         }
     };
@@ -833,5 +917,12 @@ void UCharacterInventoryComponent::DropItem(const FString& ItemId, int32 Quantit
 
 FItemInstance* UCharacterInventoryComponent::GetEquipmentSlot(EEquipmentSlot Slot)
 {
-    return Equipment.GetSlot(Slot);
+    FEquipmentReference* SlotRef = Equipment.GetSlot(Slot);
+    if (!SlotRef || SlotRef->IsEmpty())
+    {
+        return nullptr;
+    }
+    
+    // インベントリ内から装備アイテムインスタンスを検索
+    return Inventory.FindInstance(SlotRef->InstanceId);
 }

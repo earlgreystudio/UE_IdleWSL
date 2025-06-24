@@ -71,201 +71,8 @@ enum class EConsumableType : uint8
     Other           UMETA(DisplayName = "その他")
 };
 
-USTRUCT(BlueprintType)
-struct FItemData : public FTableRowBase
-{
-    GENERATED_BODY()
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FString ItemId;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FText ItemName;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FText Description;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    EItemType ItemType;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 StackSize = 1;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float Weight = 0.0f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 BaseValue = 0;                    // 基準価格
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    ETradeCategory TradeCategory = ETradeCategory::CommonMaterials;  // 取引カテゴリ
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 MaxDurability = 100;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    class UTexture2D* Icon = nullptr;
-
-    // Equipment Properties
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    EEquipmentSlot EquipmentSlot = EEquipmentSlot::None;
-
-    // Weapon Properties
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 AttackPower = 0;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    ESkillType RequiredSkill = ESkillType::OneHandedWeapons;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float CriticalBonus = 0.0f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float AttackRange = 0.0f;
-
-    // Armor Properties
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 Defense = 0;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TMap<FString, int32> StatBonuses;
-
-    // Consumable Properties - Direct stat effects
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 Health = 0;           // HP回復/変更
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 Stamina = 0;          // スタミナ回復/変更
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 Strength = 0;         // 力変更
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 Agility = 0;          // 敏捷変更
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 Intelligence = 0;     // 知力変更
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 Dexterity = 0;        // 器用変更
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float Duration = 0.0f;      // 持続時間（0なら即座）
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    bool bCurePoison = false;   // 毒治療
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    bool bCureBleeding = false; // 出血治療
-
-    // Requirements
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 RequiredStrength = 0;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 RequiredDexterity = 0;
-
-    // Quality Properties
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    EItemQuality Quality = EItemQuality::Common;
-
-    bool IsEquippable() const { return EquipmentSlot != EEquipmentSlot::None; }
-    bool IsWeapon() const { return EquipmentSlot == EEquipmentSlot::Weapon; }
-    bool IsArmor() const { return EquipmentSlot >= EEquipmentSlot::Shield && EquipmentSlot <= EEquipmentSlot::Accessory; }
-    bool IsConsumable() const { return ItemType == EItemType::Consumable; }
-    
-    bool HasEffect() const 
-    { 
-        return Health != 0 || Stamina != 0 || Strength != 0 || 
-               Agility != 0 || Intelligence != 0 || Dexterity != 0 ||
-               bCurePoison || bCureBleeding;
-    }
-    
-    bool IsInstant() const { return Duration <= 0.0f; }
-    
-    // 武器装備制限
-    bool BlocksShield() const 
-    {
-        return IsWeapon() && (
-            RequiredSkill == ESkillType::TwoHandedWeapons ||
-            RequiredSkill == ESkillType::PolearmWeapons ||
-            RequiredSkill == ESkillType::Archery ||
-            RequiredSkill == ESkillType::Firearms
-        );
-    }
-    
-    bool IsTwoHanded() const { return BlocksShield(); }
-    
-    // 取引価格計算
-    int32 GetRealWorldValue() const;
-    int32 GetOtherWorldValue() const;
-    
-    static float GetCategoryRealWorldMultiplier(ETradeCategory Category);
-    static float GetCategoryOtherWorldMultiplier(ETradeCategory Category);
-    
-    // Quality system
-    int32 GetModifiedAttackPower() const;
-    int32 GetModifiedDefense() const;
-    int32 GetModifiedDurability() const;
-    int32 GetModifiedValue() const;
-    
-    static float GetQualityModifier(EItemQuality Quality);
-};
-
-USTRUCT(BlueprintType)
-struct FWeaponData : public FItemData
-{
-    GENERATED_BODY()
-
-    FWeaponData()
-    {
-        ItemType = EItemType::Weapon;
-        EquipmentSlot = EEquipmentSlot::Weapon;
-    }
-};
-
-USTRUCT(BlueprintType)
-struct FArmorData : public FItemData
-{
-    GENERATED_BODY()
-
-    // ArmorSlot is now mapped to EquipmentSlot from base class
-    EEquipmentSlot GetArmorSlot() const { return EquipmentSlot; }
-    void SetArmorSlot(EEquipmentSlot Slot) { EquipmentSlot = Slot; }
-
-    FArmorData()
-    {
-        ItemType = EItemType::Armor;
-    }
-};
-
-USTRUCT(BlueprintType)
-struct FConsumableData : public FItemData
-{
-    GENERATED_BODY()
-
-    // Legacy properties for backward compatibility
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    EConsumableType ConsumableType = EConsumableType::HealthRestore;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 RestoreAmount = 0;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TMap<FString, int32> StatModifiers;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    bool bIsInstant = true;
-
-    FConsumableData()
-    {
-        ItemType = EItemType::Consumable;
-        StackSize = 99;
-    }
-};
-
-// Backward compatibility
-using FItemBase = FItemData;
+// 古いFItemData関連の構造体は削除されました
+// 新しいFItemDataRowシステム（ItemDataTable.h）を使用してください
 
 USTRUCT(BlueprintType)
 struct FItemInstance
@@ -283,6 +90,13 @@ struct FItemInstance
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TMap<FString, float> CustomData;
+
+    // 装備管理用フラグ
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    bool bIsEquipped = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    EEquipmentSlot EquippedSlot = EEquipmentSlot::None;
 
     FItemInstance() 
     {
@@ -372,38 +186,66 @@ struct FInventorySlot
 };
 
 USTRUCT(BlueprintType)
+struct FEquipmentReference
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FString ItemId;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FGuid InstanceId;
+
+    FEquipmentReference() {}
+
+    FEquipmentReference(const FString& InItemId, const FGuid& InInstanceId)
+        : ItemId(InItemId), InstanceId(InInstanceId) {}
+
+    bool IsEmpty() const 
+    { 
+        return ItemId.IsEmpty() || !InstanceId.IsValid(); 
+    }
+
+    void Clear()
+    {
+        ItemId.Empty();
+        InstanceId.Invalidate();
+    }
+};
+
+USTRUCT(BlueprintType)
 struct FEquipmentSlots
 {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FItemInstance Weapon;
+    FEquipmentReference Weapon;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FItemInstance Shield;
+    FEquipmentReference Shield;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FItemInstance Head;
+    FEquipmentReference Head;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FItemInstance Body;
+    FEquipmentReference Body;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FItemInstance Legs;
+    FEquipmentReference Legs;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FItemInstance Hands;
+    FEquipmentReference Hands;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FItemInstance Feet;
+    FEquipmentReference Feet;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FItemInstance Accessory1;
+    FEquipmentReference Accessory1;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FItemInstance Accessory2;
+    FEquipmentReference Accessory2;
 
-    FItemInstance* GetSlot(EEquipmentSlot Slot)
+    FEquipmentReference* GetSlot(EEquipmentSlot Slot)
     {
         switch (Slot)
         {
@@ -419,15 +261,15 @@ struct FEquipmentSlots
         }
     }
 
-    FItemInstance* GetSecondaryAccessorySlot()
+    FEquipmentReference* GetSecondaryAccessorySlot()
     {
         return &Accessory2;
     }
 
     bool IsSlotEmpty(EEquipmentSlot Slot) const
     {
-        const FItemInstance* SlotItem = const_cast<FEquipmentSlots*>(this)->GetSlot(Slot);
-        return !SlotItem || SlotItem->ItemId.IsEmpty();
+        const FEquipmentReference* SlotRef = const_cast<FEquipmentSlots*>(this)->GetSlot(Slot);
+        return !SlotRef || SlotRef->IsEmpty();
     }
 
     bool CanEquipToSlot(EEquipmentSlot ItemSlot, EEquipmentSlot TargetSlot) const
