@@ -37,3 +37,245 @@ int32 UTeamComponent::GetCharacterCount() const
 {
 	return AllPlayerCharacters.Num();
 }
+
+// ======== チーム管理機能実装 ========
+
+int32 UTeamComponent::CreateTeam(const FString& TeamName)
+{
+	FTeam NewTeam;
+	NewTeam.TeamName = TeamName;
+	NewTeam.AssignedTask = ETaskType::Idle;  // デフォルトは待機
+	NewTeam.bIsActive = true;
+	
+	Teams.Add(NewTeam);
+	int32 NewTeamIndex = Teams.Num() - 1;
+	
+	// イベント通知
+	OnTeamCreated.Broadcast(NewTeamIndex, TeamName);
+	OnTeamsUpdated.Broadcast();
+	
+	return NewTeamIndex;
+}
+
+bool UTeamComponent::DeleteTeam(int32 TeamIndex)
+{
+	if (Teams.IsValidIndex(TeamIndex))
+	{
+		// チームメンバーを解放する
+		FTeam& Team = Teams[TeamIndex];
+		Team.Members.Empty();
+		
+		Teams.RemoveAt(TeamIndex);
+		
+		// イベント通知
+		OnTeamDeleted.Broadcast(TeamIndex);
+		OnTeamsUpdated.Broadcast();
+		
+		return true;
+	}
+	return false;
+}
+
+bool UTeamComponent::AssignCharacterToTeam(AC_IdleCharacter* Character, int32 TeamIndex)
+{
+	if (!Character || !Teams.IsValidIndex(TeamIndex))
+	{
+		return false;
+	}
+	
+	// 既に他のチームに所属している場合は解除
+	RemoveCharacterFromAllTeams(Character);
+	
+	// 新しいチームに追加
+	Teams[TeamIndex].Members.Add(Character);
+	
+	// イベント通知
+	UE_LOG(LogTemp, Log, TEXT("Character assigned to Team %d (%s)"), TeamIndex, *Teams[TeamIndex].TeamName);
+	OnMemberAssigned.Broadcast(TeamIndex, Character, Teams[TeamIndex].TeamName);
+	OnTeamsUpdated.Broadcast();
+	
+	return true;
+}
+
+bool UTeamComponent::RemoveCharacterFromTeam(AC_IdleCharacter* Character, int32 TeamIndex)
+{
+	if (!Character || !Teams.IsValidIndex(TeamIndex))
+	{
+		return false;
+	}
+	
+	bool bRemoved = Teams[TeamIndex].Members.Remove(Character) > 0;
+	if (bRemoved)
+	{
+		// イベント通知
+		OnMemberRemoved.Broadcast(TeamIndex, Character);
+		OnTeamsUpdated.Broadcast();
+	}
+	
+	return bRemoved;
+}
+
+FTeam UTeamComponent::GetTeam(int32 TeamIndex) const
+{
+	if (Teams.IsValidIndex(TeamIndex))
+	{
+		return Teams[TeamIndex];
+	}
+	
+	return FTeam();  // 空のチームを返す
+}
+
+TArray<AC_IdleCharacter*> UTeamComponent::GetUnassignedCharacters() const
+{
+	TArray<AC_IdleCharacter*> UnassignedList;
+	
+	// AllPlayerCharactersから、どのチームにも所属していないキャラクターを抽出
+	for (AC_IdleCharacter* Character : AllPlayerCharacters)
+	{
+		if (Character && !IsCharacterInAnyTeam(Character))
+		{
+			UnassignedList.Add(Character);
+		}
+	}
+	
+	return UnassignedList;
+}
+
+bool UTeamComponent::SetTeamTask(int32 TeamIndex, ETaskType NewTask)
+{
+	if (Teams.IsValidIndex(TeamIndex))
+	{
+		Teams[TeamIndex].AssignedTask = NewTask;
+		
+		// イベント通知
+		OnTaskChanged.Broadcast(TeamIndex, NewTask);
+		OnTeamsUpdated.Broadcast();
+		
+		return true;
+	}
+	return false;
+}
+
+int32 UTeamComponent::GetCharacterTeamIndex(AC_IdleCharacter* Character) const
+{
+	if (!Character)
+	{
+		return -1;
+	}
+	
+	for (int32 i = 0; i < Teams.Num(); i++)
+	{
+		if (Teams[i].Members.Contains(Character))
+		{
+			return i;
+		}
+	}
+	
+	return -1;  // 未所属
+}
+
+bool UTeamComponent::SetTeamName(int32 TeamIndex, const FString& NewTeamName)
+{
+	if (Teams.IsValidIndex(TeamIndex))
+	{
+		Teams[TeamIndex].TeamName = NewTeamName;
+		
+		// イベント通知
+		OnTeamNameChanged.Broadcast(TeamIndex, NewTeamName);
+		OnTeamsUpdated.Broadcast();
+		
+		return true;
+	}
+	return false;
+}
+
+// ======== TaskType用ヘルパー関数 ========
+
+TArray<FString> UTeamComponent::GetAllTaskTypeNames()
+{
+	return {
+		TEXT("待機"),
+		TEXT("自由"),
+		TEXT("冒険"),
+		TEXT("料理")
+	};
+}
+
+ETaskType UTeamComponent::GetTaskTypeFromString(const FString& TaskName)
+{
+	if (TaskName == TEXT("待機"))
+		return ETaskType::Idle;
+	else if (TaskName == TEXT("自由"))
+		return ETaskType::Free;
+	else if (TaskName == TEXT("冒険"))
+		return ETaskType::Adventure;
+	else if (TaskName == TEXT("料理"))
+		return ETaskType::Cooking;
+	
+	return ETaskType::Idle;  // デフォルト
+}
+
+FString UTeamComponent::GetTaskTypeDisplayName(ETaskType TaskType)
+{
+	switch (TaskType)
+	{
+	case ETaskType::Idle:
+		return TEXT("待機");
+	case ETaskType::Free:
+		return TEXT("自由");
+	case ETaskType::Adventure:
+		return TEXT("冒険");
+	case ETaskType::Cooking:
+		return TEXT("料理");
+	default:
+		return TEXT("不明");
+	}
+}
+
+TArray<ETaskType> UTeamComponent::GetAllTaskTypes()
+{
+	return {
+		ETaskType::Idle,
+		ETaskType::Free,
+		ETaskType::Adventure,
+		ETaskType::Cooking
+	};
+}
+
+FTeam UTeamComponent::CreateTeamAndGetData(const FString& TeamName, int32& OutTeamIndex)
+{
+	// チーム作成
+	OutTeamIndex = CreateTeam(TeamName);
+	
+	// 作成されたチーム情報を返す
+	if (Teams.IsValidIndex(OutTeamIndex))
+	{
+		return Teams[OutTeamIndex];
+	}
+	
+	// 失敗時は空のチーム
+	OutTeamIndex = -1;
+	return FTeam();
+}
+
+// ======== 内部管理関数 ========
+
+bool UTeamComponent::IsCharacterInAnyTeam(AC_IdleCharacter* Character) const
+{
+	for (const FTeam& Team : Teams)
+	{
+		if (Team.Members.Contains(Character))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void UTeamComponent::RemoveCharacterFromAllTeams(AC_IdleCharacter* Character)
+{
+	for (FTeam& Team : Teams)
+	{
+		Team.Members.Remove(Character);
+	}
+}

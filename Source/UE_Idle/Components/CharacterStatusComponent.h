@@ -5,6 +5,13 @@
 #include "../Types/CharacterTypes.h"
 #include "CharacterStatusComponent.generated.h"
 
+// デリゲート宣言
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStatusChanged, const FCharacterStatus&, NewStatus);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHealthChanged, float, NewHealth);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnClubTypeChanged, EClubType, NewClubType);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTalentChanged, const FCharacterTalent&, NewTalent);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCharacterDataUpdated);
+
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class UE_IDLE_API UCharacterStatusComponent : public UActorComponent
 {
@@ -40,19 +47,45 @@ public:
 	float GetMaxHealth() const { return Status.MaxHealth; }
 
 	UFUNCTION(BlueprintCallable, Category = "Character Status")
-	void SetStatus(const FCharacterStatus& NewStatus) { Status = NewStatus; }
+	void SetStatus(const FCharacterStatus& NewStatus);
 
 	// 部活動取得・設定
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Character Status")
 	EClubType GetClubType() const { return ClubType; }
 
 	UFUNCTION(BlueprintCallable, Category = "Character Status")
-	void SetClubType(EClubType NewClubType) { ClubType = NewClubType; }
+	void SetClubType(EClubType NewClubType);
 
 	// 才能取得・設定
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Character Status")
 	FCharacterTalent GetTalent() const { return Talent; }
 
 	UFUNCTION(BlueprintCallable, Category = "Character Status")
-	void SetTalent(const FCharacterTalent& NewTalent) { Talent = NewTalent; }
+	void SetTalent(const FCharacterTalent& NewTalent);
+
+	// 体力変更（個別）
+	UFUNCTION(BlueprintCallable, Category = "Character Status")
+	void SetCurrentHealth(float NewHealth);
+
+	// ======== イベントディスパッチャー ========
+	
+	// ステータス変更時
+	UPROPERTY(BlueprintAssignable, Category = "Character Events")
+	FOnStatusChanged OnStatusChanged;
+
+	// 体力変更時
+	UPROPERTY(BlueprintAssignable, Category = "Character Events")
+	FOnHealthChanged OnHealthChanged;
+
+	// 部活動変更時
+	UPROPERTY(BlueprintAssignable, Category = "Character Events")
+	FOnClubTypeChanged OnClubTypeChanged;
+
+	// 才能変更時
+	UPROPERTY(BlueprintAssignable, Category = "Character Events")
+	FOnTalentChanged OnTalentChanged;
+
+	// 汎用データ更新通知
+	UPROPERTY(BlueprintAssignable, Category = "Character Events")
+	FOnCharacterDataUpdated OnCharacterDataUpdated;
 };

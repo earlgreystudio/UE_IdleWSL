@@ -61,4 +61,9 @@ TArray<AActor*> AC_PlayerController::GetCharacterList_Implementation()
 	return Result;
 }
 
+UTeamComponent* AC_PlayerController::GetTeamComponent_Implementation()
+{
+	return TeamComponent;
+}
+
 

@@ -38,6 +38,7 @@ public:
 	virtual void AddCharacter_Implementation(AActor* NewCharacter) override;
 	virtual UGlobalInventoryComponent* GetGlobalInventoryComp_Implementation() override;
 	virtual TArray<AActor*> GetCharacterList_Implementation() override;
+	virtual UTeamComponent* GetTeamComponent_Implementation() override;
 
 
 };

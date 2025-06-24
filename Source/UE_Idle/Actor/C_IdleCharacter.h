@@ -41,6 +41,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	UCharacterInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
 
+	// キャラクター名設定
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void SetCharacterName(const FString& NewName) { CharacterName = NewName; }
+
 protected:
 	// コンポーネント
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")

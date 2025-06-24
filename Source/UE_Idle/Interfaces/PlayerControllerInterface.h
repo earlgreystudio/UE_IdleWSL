@@ -6,6 +6,7 @@
 
 class UGlobalInventoryComponent;
 class AC_IdleCharacter;
+class UTeamComponent;
 
 UINTERFACE(MinimalAPI, BlueprintType)
 class UPlayerControllerInterface : public UInterface
@@ -37,5 +38,10 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Player Controller Interface")
 	TArray<AActor*> GetCharacterList();
 	virtual TArray<AActor*> GetCharacterList_Implementation() { return TArray<AActor*>(); }
+
+	// TeamComponent取得
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Player Controller Interface")
+	UTeamComponent* GetTeamComponent();
+	virtual UTeamComponent* GetTeamComponent_Implementation() { return nullptr; }
 
 };
