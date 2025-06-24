@@ -357,6 +357,18 @@ struct FInventorySlot
         }
         return nullptr;
     }
+    
+    const FItemInstance* GetInstance(const FGuid& InstanceId) const
+    {
+        for (const FItemInstance& Instance : ItemInstances)
+        {
+            if (Instance.InstanceId == InstanceId)
+            {
+                return &Instance;
+            }
+        }
+        return nullptr;
+    }
 };
 
 USTRUCT(BlueprintType)
@@ -435,8 +447,8 @@ struct FEquipmentSlots
         return false;
     }
 
-    float GetTotalWeight(class UItemManager* ItemManager) const;
-    int32 GetTotalDefense(class UItemManager* ItemManager) const;
+    float GetTotalWeight(class UItemDataTableManager* ItemManager) const;
+    int32 GetTotalDefense(class UItemDataTableManager* ItemManager) const;
 };
 
 USTRUCT(BlueprintType)
@@ -453,14 +465,15 @@ struct FInventory
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float MaxWeight = 100.0f;
 
-    bool AddItem(const FString& ItemId, int32 Quantity, class UItemManager* ItemManager);
-    bool AddItemInstance(const FItemInstance& Instance, class UItemManager* ItemManager);
+    bool AddItem(const FString& ItemId, int32 Quantity, class UItemDataTableManager* ItemManager);
+    bool AddItemInstance(const FItemInstance& Instance, class UItemDataTableManager* ItemManager);
     bool RemoveItem(const FString& ItemId, int32 Quantity);
     bool RemoveItemInstance(const FGuid& InstanceId, FItemInstance& OutInstance);
     FInventorySlot* FindSlot(const FString& ItemId);
     FItemInstance* FindInstance(const FGuid& InstanceId);
+    const FItemInstance* FindInstance(const FGuid& InstanceId) const;
     int32 GetItemCount(const FString& ItemId) const;
-    float GetTotalWeight(class UItemManager* ItemManager) const;
-    bool HasSpace(const FString& ItemId, int32 Quantity, class UItemManager* ItemManager) const;
+    float GetTotalWeight(class UItemDataTableManager* ItemManager) const;
+    bool HasSpace(const FString& ItemId, int32 Quantity, class UItemDataTableManager* ItemManager) const;
     int32 GetUsedSlots() const;
 };

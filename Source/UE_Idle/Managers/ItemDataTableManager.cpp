@@ -172,17 +172,9 @@ const FItemDataRow* UItemDataTableManager::FindItemByItemId(const FString& ItemI
         return nullptr;
     }
     
-    TArray<FName> RowNames = ItemDataTable->GetRowNames();
-    for (const FName& RowName : RowNames)
-    {
-        FItemDataRow* ItemData = ItemDataTable->FindRow<FItemDataRow>(RowName, TEXT(""));
-        if (ItemData && ItemData->ItemId == ItemId)
-        {
-            return ItemData;
-        }
-    }
-    
-    return nullptr;
+    // ItemIdをRowNameとして直接検索
+    FItemDataRow* ItemData = ItemDataTable->FindRow<FItemDataRow>(FName(*ItemId), TEXT(""));
+    return ItemData;
 }
 
 bool UItemDataTableManager::IsItemEquippable(const FString& ItemId) const

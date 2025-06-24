@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "UE_Idle/Types/ItemTypes.h"
+#include "UE_Idle/Types/ItemDataTable.h"
 #include "CharacterInventoryComponent.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemAdded, const FString&, ItemId, int32, Quantity);
@@ -57,6 +58,12 @@ public:
     int32 GetItemCount(const FString& ItemId) const;
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
+    TMap<FString, int32> GetAllItems() const;
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    TArray<FInventorySlot> GetAllInventorySlots() const;
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
     bool EquipWeapon(const FString& WeaponId);
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
@@ -74,8 +81,29 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     bool UnequipArmor(EEquipmentSlot Slot);
 
+    UFUNCTION(BlueprintCallable, Category = "Equipment")
+    bool EquipItem(const FString& ItemId);
+
+    UFUNCTION(BlueprintCallable, Category = "Equipment")
+    bool EquipItemInstance(const FGuid& InstanceId);
+
+    UFUNCTION(BlueprintCallable, Category = "Equipment")
+    bool CanEquipItem(const FString& ItemId) const;
+
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     bool UseConsumable(const FString& ConsumableId);
+
+    UFUNCTION(BlueprintCallable, Category = "Trading")
+    bool SellItemInstance(const FGuid& InstanceId);
+
+    UFUNCTION(BlueprintCallable, Category = "Trading")
+    int32 GetItemInstanceSellPrice(const FGuid& InstanceId) const;
+
+    UFUNCTION(BlueprintCallable, Category = "Transfer")
+    bool TransferToCharacter(UCharacterInventoryComponent* TargetCharacter, const FString& ItemId, int32 Quantity);
+
+    UFUNCTION(BlueprintCallable, Category = "Transfer")
+    bool TransferItemInstanceToCharacter(UCharacterInventoryComponent* TargetCharacter, const FGuid& InstanceId);
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     float GetTotalEquipmentWeight() const;
@@ -87,7 +115,7 @@ public:
     int32 GetTotalDefense() const;
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
-    FWeaponData GetEquippedWeaponData() const;
+    FItemDataRow GetEquippedWeaponData() const;
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     TMap<FString, int32> GetEquipmentStatBonuses() const;
@@ -97,9 +125,6 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     void DropItem(const FString& ItemId, int32 Quantity = 1);
-
-    UFUNCTION(BlueprintCallable, Category = "Inventory")
-    bool EquipItemInstance(const FGuid& InstanceId);
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     FItemInstance GetItemInstance(const FGuid& InstanceId) const;
@@ -112,7 +137,7 @@ public:
 
 protected:
     UPROPERTY()
-    class UItemManager* ItemManager;
+    class UItemDataTableManager* ItemManager;
 
     bool EquipToSlot(const FString& ItemId, EEquipmentSlot Slot);
     bool UnequipFromSlot(EEquipmentSlot Slot);

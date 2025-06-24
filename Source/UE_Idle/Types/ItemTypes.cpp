@@ -1,7 +1,8 @@
 #include "ItemTypes.h"
-#include "UE_Idle/Managers/ItemManager.h"
+#include "UE_Idle/Managers/ItemDataTableManager.h"
+#include "UE_Idle/Types/ItemDataTable.h"
 
-float FEquipmentSlots::GetTotalWeight(UItemManager* ItemManager) const
+float FEquipmentSlots::GetTotalWeight(UItemDataTableManager* ItemManager) const
 {
     if (!ItemManager)
     {
@@ -14,7 +15,11 @@ float FEquipmentSlots::GetTotalWeight(UItemManager* ItemManager) const
     {
         if (!Item.ItemId.IsEmpty())
         {
-            TotalWeight += ItemManager->GetItemWeight(Item.ItemId);
+            FItemDataRow ItemData;
+            if (ItemManager->GetItemData(Item.ItemId, ItemData))
+            {
+                TotalWeight += ItemData.Weight;
+            }
         }
     };
 
@@ -31,7 +36,7 @@ float FEquipmentSlots::GetTotalWeight(UItemManager* ItemManager) const
     return TotalWeight;
 }
 
-int32 FEquipmentSlots::GetTotalDefense(UItemManager* ItemManager) const
+int32 FEquipmentSlots::GetTotalDefense(UItemDataTableManager* ItemManager) const
 {
     if (!ItemManager)
     {
@@ -44,9 +49,10 @@ int32 FEquipmentSlots::GetTotalDefense(UItemManager* ItemManager) const
     {
         if (!Item.ItemId.IsEmpty())
         {
-            if (FArmorData* Armor = ItemManager->GetArmorDataPtr(Item.ItemId))
+            FItemDataRow ItemData;
+            if (ItemManager->GetItemData(Item.ItemId, ItemData))
             {
-                TotalDefense += Armor->Defense;
+                TotalDefense += ItemData.Defense;
             }
         }
     };
@@ -61,18 +67,23 @@ int32 FEquipmentSlots::GetTotalDefense(UItemManager* ItemManager) const
     return TotalDefense;
 }
 
-bool FInventory::AddItem(const FString& ItemId, int32 Quantity, UItemManager* ItemManager)
+bool FInventory::AddItem(const FString& ItemId, int32 Quantity, UItemDataTableManager* ItemManager)
 {
     if (!ItemManager || !ItemManager->IsValidItem(ItemId) || Quantity <= 0)
     {
         return false;
     }
 
-    int32 StackSize = ItemManager->GetItemStackSize(ItemId);
-    EItemType ItemType = ItemManager->GetItemType(ItemId);
+    // Get item data first
+    FItemDataRow ItemData;
+    if (!ItemManager->GetItemData(ItemId, ItemData))
+    {
+        return false;
+    }
     
-    // Check weight
-    float ItemWeight = ItemManager->GetItemWeight(ItemId);
+    int32 StackSize = ItemData.StackSize;
+    EItemTypeTable ItemType = ItemData.ItemType;
+    float ItemWeight = ItemData.Weight;
     float NewTotalWeight = GetTotalWeight(ItemManager) + (ItemWeight * Quantity);
     if (NewTotalWeight > MaxWeight)
     {
@@ -117,7 +128,7 @@ bool FInventory::AddItem(const FString& ItemId, int32 Quantity, UItemManager* It
     }
 }
 
-bool FInventory::AddItemInstance(const FItemInstance& Instance, UItemManager* ItemManager)
+bool FInventory::AddItemInstance(const FItemInstance& Instance, UItemDataTableManager* ItemManager)
 {
     if (!ItemManager || Instance.ItemId.IsEmpty())
     {
@@ -237,6 +248,18 @@ FItemInstance* FInventory::FindInstance(const FGuid& InstanceId)
     return nullptr;
 }
 
+const FItemInstance* FInventory::FindInstance(const FGuid& InstanceId) const
+{
+    for (const FInventorySlot& Slot : Slots)
+    {
+        if (const FItemInstance* Instance = Slot.GetInstance(InstanceId))
+        {
+            return Instance;
+        }
+    }
+    return nullptr;
+}
+
 int32 FInventory::GetItemCount(const FString& ItemId) const
 {
     for (const FInventorySlot& Slot : Slots)
@@ -249,7 +272,7 @@ int32 FInventory::GetItemCount(const FString& ItemId) const
     return 0;
 }
 
-float FInventory::GetTotalWeight(UItemManager* ItemManager) const
+float FInventory::GetTotalWeight(UItemDataTableManager* ItemManager) const
 {
     if (!ItemManager)
     {
@@ -259,7 +282,12 @@ float FInventory::GetTotalWeight(UItemManager* ItemManager) const
     float TotalWeight = 0.0f;
     for (const FInventorySlot& Slot : Slots)
     {
-        float ItemWeight = ItemManager->GetItemWeight(Slot.ItemId);
+        FItemDataRow ItemData;
+        float ItemWeight = 0.0f;
+        if (ItemManager->GetItemData(Slot.ItemId, ItemData))
+        {
+            ItemWeight = ItemData.Weight;
+        }
         TotalWeight += ItemWeight * Slot.Quantity;
     }
     return TotalWeight;
@@ -284,7 +312,7 @@ int32 FInventory::GetUsedSlots() const
     return UsedSlots;
 }
 
-bool FInventory::HasSpace(const FString& ItemId, int32 Quantity, UItemManager* ItemManager) const
+bool FInventory::HasSpace(const FString& ItemId, int32 Quantity, UItemDataTableManager* ItemManager) const
 {
     if (!ItemManager || !ItemManager->IsValidItem(ItemId) || Quantity <= 0)
     {
@@ -292,14 +320,24 @@ bool FInventory::HasSpace(const FString& ItemId, int32 Quantity, UItemManager* I
     }
 
     // Check weight
-    float ItemWeight = ItemManager->GetItemWeight(ItemId);
+    FItemDataRow ItemData;
+    if (!ItemManager->GetItemData(ItemId, ItemData))
+    {
+        return false;
+    }
+    float ItemWeight = ItemData.Weight;
     float NewTotalWeight = GetTotalWeight(ItemManager) + (ItemWeight * Quantity);
     if (NewTotalWeight > MaxWeight)
     {
         return false;
     }
 
-    int32 StackSize = ItemManager->GetItemStackSize(ItemId);
+    FItemDataRow CheckItemData;
+    if (!ItemManager->GetItemData(ItemId, CheckItemData))
+    {
+        return false;
+    }
+    int32 StackSize = CheckItemData.StackSize;
     
     // Stackable items
     if (StackSize > 1)

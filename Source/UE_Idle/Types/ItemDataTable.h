@@ -66,9 +66,6 @@ struct UE_IDLE_API FItemDataRow : public FTableRowBase
     FText Name;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Basic")
-    FString ItemId;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Basic")
     FText Description;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Basic")
