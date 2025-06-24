@@ -1,0 +1,16 @@
+Name,ItemId,Description,ItemType,StackSize,Weight,BaseValue,TradeCategory,MaxDurability,EquipmentSlot,AttackPower,RequiredSkill,CriticalBonus,AttackRange,RequiredStrength,RequiredDexterity,Defense,Quality,Health,Stamina,Strength,Agility,Intelligence,Dexterity,Duration,CurePoison,CureBleeding
+"ショートソード","short_sword","軽量で扱いやすい短剣","Weapon",1,1.2,150,"MeleeWeapons",100,"Weapon",8,"OneHandedWeapons",0.05,0,10,5,0,"Common",0,0,0,0,0,0,0.0,false,false
+"できの良いショートソード","short_sword_good","熟練の職人が作った短剣","Weapon",1,1.2,150,"MeleeWeapons",100,"Weapon",8,"OneHandedWeapons",0.05,0,10,5,0,"Good",0,0,0,0,0,0,0.0,false,false
+"名匠のショートソード","short_sword_masterwork","名匠によって鍛えられた傑作の短剣","Weapon",1,1.2,150,"MeleeWeapons",100,"Weapon",8,"OneHandedWeapons",0.05,0,10,5,0,"Masterwork",0,0,0,0,0,0,0.0,false,false
+"鉄の剣","iron_sword","頑丈な鉄製の剣","Weapon",1,1.5,200,"MeleeWeapons",120,"Weapon",10,"OneHandedWeapons",0.03,0,12,8,0,"Common",0,0,0,0,0,0,0.0,false,false
+"マスターワークの鉄剣","iron_sword_legendary","伝説級の職人が生涯をかけて鍛えた最高傑作","Weapon",1,1.5,200,"MeleeWeapons",120,"Weapon",10,"OneHandedWeapons",0.03,0,12,8,0,"Legendary",0,0,0,0,0,0,0.0,false,false
+"鉄兜","iron_helmet","重厚な鉄製の兜","Armor",1,2.0,120,"MeleeWeapons",120,"Head",0,"OneHandedWeapons",0.0,0,0,0,3,"Common",0,0,0,0,0,0,0.0,false,false
+"粗悪な鉄兜","iron_helmet_poor","作りの悪い鉄製の兜","Armor",1,2.0,120,"MeleeWeapons",120,"Head",0,"OneHandedWeapons",0.0,0,0,0,3,"Poor",0,0,0,0,0,0,0.0,false,false
+"力の指輪","strength_ring","筋力を高める魔法の指輪","Armor",1,0.05,200,"Gems",200,"Accessory",0,"OneHandedWeapons",0.0,0,0,0,0,"Common",0,0,0,0,0,0,0.0,false,false
+"小さなHPポーション","health_potion_small","HPを30回復する","Consumable",20,0.2,50,"Medicine",0,"None",0,"OneHandedWeapons",0.0,0,0,0,0,"Common",30,0,0,0,0,0,0.0,false,false
+"小さなスタミナポーション","stamina_potion_small","スタミナを20回復する","Consumable",20,0.2,30,"Medicine",0,"None",0,"OneHandedWeapons",0.0,0,0,0,0,"Common",0,20,0,0,0,0,0.0,false,false
+"パン","bread","基本的な食料","Consumable",30,0.3,10,"Food",0,"None",0,"OneHandedWeapons",0.0,0,0,0,0,"Common",15,10,0,0,0,0,3.0,false,false
+"力のポーション","strength_potion","5分間、力を5上昇させる","Consumable",10,0.3,150,"Medicine",0,"None",0,"OneHandedWeapons",0.0,0,0,0,0,"Common",0,0,5,0,0,0,300.0,false,false
+"解毒剤","antidote","毒状態を回復する","Consumable",20,0.1,80,"Medicine",0,"None",0,"OneHandedWeapons",0.0,0,0,0,0,"Common",0,0,0,0,0,0,0.0,true,false
+"包帯","bandage","出血状態を回復し、HPを10回復する","Consumable",50,0.05,20,"Medicine",0,"None",0,"OneHandedWeapons",0.0,0,0,0,0,"Common",10,0,0,0,0,0,2.0,false,true
+"万能エリクサー","super_elixir","全てを回復し強化する","Consumable",5,0.5,2000,"Medicine",0,"None",0,"OneHandedWeapons",0.0,0,0,0,0,"Legendary",100,100,3,3,3,3,600.0,true,true

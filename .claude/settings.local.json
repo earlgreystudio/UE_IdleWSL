@@ -5,7 +5,11 @@
       "Bash(grep:*)",
       "mcp__ide__getDiagnostics",
       "Bash(mkdir:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(touch:*)",
+      "Bash(cp:*)",
+      "Bash(rm:*)",
+      "Bash(UnrealBuildTool:*)"
     ],
     "deny": []
   }
