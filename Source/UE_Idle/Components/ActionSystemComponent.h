@@ -72,6 +72,13 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Action System")
     TArray<AC_IdleCharacter*> GetAliveEnemies() const;
 
+    // 全キャラクター取得（生死問わず）  
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Action System")
+    TArray<AC_IdleCharacter*> GetAllAllies() const;
+    
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Action System")
+    TArray<AC_IdleCharacter*> GetAllEnemies() const;
+
     // システム状態
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Action System")
     bool IsSystemActive() const { return bSystemActive; }

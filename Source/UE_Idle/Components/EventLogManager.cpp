@@ -10,6 +10,9 @@ UEventLogManager::UEventLogManager()
     PrimaryComponentTick.bCanEverTick = false;
     CombatStartTime = 0.0f;
     CurrentEventStartTime = 0.0f;
+    CurrentCombatLocation = TEXT("");
+    CurrentAllyTeamNames = TEXT("");
+    CurrentEnemyTeamNames = TEXT("");
 }
 
 void UEventLogManager::BeginPlay()
@@ -91,31 +94,65 @@ void UEventLogManager::AddCombatCalculationLog(AC_IdleCharacter* Attacker, AC_Id
 
 void UEventLogManager::LogCombatStart(const TArray<AC_IdleCharacter*>& AllyTeam, const TArray<AC_IdleCharacter*>& EnemyTeam, const FString& LocationName)
 {
+    UE_LOG(LogTemp, Error, TEXT("*** LogCombatStart CALLED ***"));
+    UE_LOG(LogTemp, Error, TEXT("AllyTeam size: %d, EnemyTeam size: %d, LocationName: '%s'"), 
+        AllyTeam.Num(), EnemyTeam.Num(), *LocationName);
+    
     FString AllyNames;
+    UE_LOG(LogTemp, Error, TEXT("Building AllyNames from %d characters..."), AllyTeam.Num());
     for (int32 i = 0; i < AllyTeam.Num(); i++)
     {
         if (AllyTeam[i])
         {
-            AllyNames += GetCharacterDisplayName(AllyTeam[i]);
+            FString CharName = GetCharacterDisplayName(AllyTeam[i]);
+            UE_LOG(LogTemp, Error, TEXT("Ally[%d]: '%s'"), i, *CharName);
+            AllyNames += CharName;
             if (i < AllyTeam.Num() - 1)
             {
                 AllyNames += TEXT(", ");
             }
         }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Ally[%d]: NULL CHARACTER"), i);
+        }
     }
+    UE_LOG(LogTemp, Error, TEXT("Final AllyNames: '%s'"), *AllyNames);
     
     FString EnemyNames;
+    UE_LOG(LogTemp, Error, TEXT("Building EnemyNames from %d characters..."), EnemyTeam.Num());
     for (int32 i = 0; i < EnemyTeam.Num(); i++)
     {
         if (EnemyTeam[i])
         {
-            EnemyNames += GetCharacterDisplayName(EnemyTeam[i]);
+            FString CharName = GetCharacterDisplayName(EnemyTeam[i]);
+            UE_LOG(LogTemp, Error, TEXT("Enemy[%d]: '%s'"), i, *CharName);
+            EnemyNames += CharName;
             if (i < EnemyTeam.Num() - 1)
             {
                 EnemyNames += TEXT(", ");
             }
         }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Enemy[%d]: NULL CHARACTER"), i);
+        }
     }
+    UE_LOG(LogTemp, Error, TEXT("Final EnemyNames: '%s'"), *EnemyNames);
+    
+    // 戦闘情報を保存（サマリー生成用）
+    CurrentCombatLocation = LocationName;
+    CurrentAllyTeamNames = AllyNames;
+    CurrentEnemyTeamNames = EnemyNames;
+    
+    UE_LOG(LogTemp, Error, TEXT("=== LogCombatStart: Combat Info Saved ==="));
+    UE_LOG(LogTemp, Error, TEXT("LocationName parameter: '%s' (Length: %d)"), *LocationName, LocationName.Len());
+    UE_LOG(LogTemp, Error, TEXT("AllyNames built: '%s' (Length: %d)"), *AllyNames, AllyNames.Len());
+    UE_LOG(LogTemp, Error, TEXT("EnemyNames built: '%s' (Length: %d)"), *EnemyNames, EnemyNames.Len());
+    UE_LOG(LogTemp, Error, TEXT("CurrentCombatLocation saved: '%s'"), *CurrentCombatLocation);
+    UE_LOG(LogTemp, Error, TEXT("CurrentAllyTeamNames saved: '%s'"), *CurrentAllyTeamNames);
+    UE_LOG(LogTemp, Error, TEXT("CurrentEnemyTeamNames saved: '%s'"), *CurrentEnemyTeamNames);
+    UE_LOG(LogTemp, Error, TEXT("=== End LogCombatStart ==="));
     
     FString CombatInfo = FString::Printf(TEXT("⚔️%sで戦闘開始！ 味方：%s vs 敵：%s"), 
                                         *LocationName, *AllyNames, *EnemyNames);
@@ -129,7 +166,8 @@ void UEventLogManager::LogCombatStart(const TArray<AC_IdleCharacter*>& AllyTeam,
 
 void UEventLogManager::LogCombatEnd(const TArray<AC_IdleCharacter*>& Winners, const TArray<AC_IdleCharacter*>& Losers, float CombatDuration)
 {
-    UE_LOG(LogTemp, Log, TEXT("LogCombatEnd called with %d winners, %d losers"), Winners.Num(), Losers.Num());
+    UE_LOG(LogTemp, Error, TEXT("*** LogCombatEnd CALLED ***"));
+    UE_LOG(LogTemp, Error, TEXT("Winners: %d, Losers: %d, Duration: %.1f"), Winners.Num(), Losers.Num(), CombatDuration);
     
     FString WinnerNames;
     for (int32 i = 0; i < Winners.Num(); i++)
@@ -152,15 +190,58 @@ void UEventLogManager::LogCombatEnd(const TArray<AC_IdleCharacter*>& Winners, co
     AddCombatLog(ECombatLogType::CombatEnd, nullptr, nullptr, TEXT(""), 0, CombatResult);
     
     // 戦闘サマリーを自動作成
-    UE_LOG(LogTemp, Log, TEXT("bAutoCreateSummaries = %s"), bAutoCreateSummaries ? TEXT("true") : TEXT("false"));
+    UE_LOG(LogTemp, Error, TEXT("=== LogCombatEnd: Summary Creation ==="));
+    UE_LOG(LogTemp, Error, TEXT("bAutoCreateSummaries = %s"), bAutoCreateSummaries ? TEXT("true") : TEXT("false"));
     if (bAutoCreateSummaries)
     {
-        UE_LOG(LogTemp, Log, TEXT("Creating combat summary for winners: %s"), *WinnerNames);
+        UE_LOG(LogTemp, Error, TEXT("WinnerNames: '%s' (Length: %d)"), *WinnerNames, WinnerNames.Len());
+        UE_LOG(LogTemp, Error, TEXT("CurrentAllyTeamNames at LogCombatEnd: '%s' (Length: %d)"), *CurrentAllyTeamNames, CurrentAllyTeamNames.Len());
+        UE_LOG(LogTemp, Error, TEXT("CurrentCombatLocation at LogCombatEnd: '%s' (Length: %d)"), *CurrentCombatLocation, CurrentCombatLocation.Len());
+        UE_LOG(LogTemp, Error, TEXT("CurrentEnemyTeamNames at LogCombatEnd: '%s' (Length: %d)"), *CurrentEnemyTeamNames, CurrentEnemyTeamNames.Len());
+        
+        // 勝者が味方かどうかを判定
+        bool bAllyWon = false;
+        if (Winners.Num() > 0 && CurrentAllyTeamNames.Contains(WinnerNames))
+        {
+            bAllyWon = true;
+        }
+        
+        UE_LOG(LogTemp, Error, TEXT("Victory check: CurrentAllyTeamNames.Contains(WinnerNames) = %s"), CurrentAllyTeamNames.Contains(WinnerNames) ? TEXT("true") : TEXT("false"));
+        UE_LOG(LogTemp, Error, TEXT("bAllyWon determined as: %s"), bAllyWon ? TEXT("true") : TEXT("false"));
+        
+        // フォールバック値を設定
+        FString FallbackAllyNames = CurrentAllyTeamNames.IsEmpty() ? TEXT("味方チーム") : CurrentAllyTeamNames;
+        FString FallbackLocation = CurrentCombatLocation.IsEmpty() ? TEXT("不明な場所") : CurrentCombatLocation;
+        FString FallbackEnemyNames = CurrentEnemyTeamNames.IsEmpty() ? TEXT("敵チーム") : CurrentEnemyTeamNames;
+        
+        UE_LOG(LogTemp, Error, TEXT("Fallback values - Ally: '%s', Location: '%s', Enemy: '%s'"), 
+            *FallbackAllyNames, *FallbackLocation, *FallbackEnemyNames);
+        
+        // 新しい形式でタイトルと結果を生成
+        FString SummaryTitle;
+        FString SummaryResult;
+        
+        if (bAllyWon)
+        {
+            // 味方の勝利：「{チーム名}が{場所}で{敵}と戦闘」
+            SummaryTitle = FString::Printf(TEXT("%sが%sで%sと戦闘"), 
+                *FallbackAllyNames, *FallbackLocation, *FallbackEnemyNames);
+            // 「{チーム名}の勝利」
+            SummaryResult = FString::Printf(TEXT("%sの勝利"), *FallbackAllyNames);
+        }
+        else
+        {
+            // 敵の勝利：「{チーム名}が{場所}で{敵}と戦闘」
+            SummaryTitle = FString::Printf(TEXT("%sが%sで%sと戦闘"), 
+                *FallbackAllyNames, *FallbackLocation, *FallbackEnemyNames);
+            // 「{チーム名}が敗北」
+            SummaryResult = FString::Printf(TEXT("%sが敗北"), *FallbackAllyNames);
+        }
+        
+        UE_LOG(LogTemp, Error, TEXT("Generated SummaryTitle: '%s' (Length: %d)"), *SummaryTitle, SummaryTitle.Len());
+        UE_LOG(LogTemp, Error, TEXT("Generated SummaryResult: '%s' (Length: %d)"), *SummaryResult, SummaryResult.Len());
         UE_LOG(LogTemp, Log, TEXT("Before CreateEventSummary - Total summaries: %d"), EventSummaries.Num());
-        CreateEventSummary(EEventCategory::Combat, 
-                          TEXT("⚔️戦闘"), 
-                          FString::Printf(TEXT("✅%s の勝利"), *WinnerNames), 
-                          true);
+        CreateEventSummary(EEventCategory::Combat, SummaryTitle, SummaryResult, bAllyWon);
         UE_LOG(LogTemp, Log, TEXT("After CreateEventSummary - Total summaries: %d"), EventSummaries.Num());
         UE_LOG(LogTemp, Log, TEXT("Combat summary created successfully"));
     }
@@ -705,15 +786,21 @@ FString UEventLogManager::GetCharacterDisplayName(AC_IdleCharacter* Character) c
 {
     if (!Character)
     {
+        UE_LOG(LogTemp, Warning, TEXT("GetCharacterDisplayName: Character is NULL"));
         return TEXT("不明");
     }
+    
+    UE_LOG(LogTemp, VeryVerbose, TEXT("GetCharacterDisplayName: Character class: %s"), *Character->GetClass()->GetName());
     
     // IIdleCharacterInterface経由で名前取得
     if (Character->GetClass()->ImplementsInterface(UIdleCharacterInterface::StaticClass()))
     {
-        return IIdleCharacterInterface::Execute_GetCharacterName(Character);
+        FString CharacterName = IIdleCharacterInterface::Execute_GetCharacterName(Character);
+        UE_LOG(LogTemp, VeryVerbose, TEXT("GetCharacterDisplayName: Retrieved name: '%s'"), *CharacterName);
+        return CharacterName;
     }
     
+    UE_LOG(LogTemp, Warning, TEXT("GetCharacterDisplayName: Character does not implement IIdleCharacterInterface"));
     return TEXT("名無し");
 }
 

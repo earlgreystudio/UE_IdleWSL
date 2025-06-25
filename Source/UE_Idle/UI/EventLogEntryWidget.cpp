@@ -110,9 +110,37 @@ void UEventLogEntryWidget::UpdateTexts(UTextBlock* TitleText, UTextBlock* Result
         ResultText ? TEXT("Valid") : TEXT("NULL"),
         DetailsText ? TEXT("Valid") : TEXT("NULL"));
     
-    if (!TitleText || !ResultText || !DetailsText)
+    // Widgetが渡されない場合は、名前で探す
+    if (!TitleText)
     {
-        UE_LOG(LogTemp, Error, TEXT("UpdateTexts: One or more text widgets are NULL"));
+        TitleText = Cast<UTextBlock>(GetWidgetFromName(TEXT("Text_Title")));
+        if (TitleText)
+        {
+            UE_LOG(LogTemp, Log, TEXT("UpdateTexts: Found Text_Title by name"));
+        }
+    }
+    
+    if (!ResultText)
+    {
+        ResultText = Cast<UTextBlock>(GetWidgetFromName(TEXT("Text_Result")));
+        if (ResultText)
+        {
+            UE_LOG(LogTemp, Log, TEXT("UpdateTexts: Found Text_Result by name"));
+        }
+    }
+    
+    if (!DetailsText)
+    {
+        DetailsText = Cast<UTextBlock>(GetWidgetFromName(TEXT("Text_Details")));
+        if (DetailsText)
+        {
+            UE_LOG(LogTemp, Log, TEXT("UpdateTexts: Found Text_Details by name"));
+        }
+    }
+    
+    if (!TitleText || !ResultText)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UpdateTexts: Critical widgets are NULL"));
         return;
     }
     
@@ -125,17 +153,20 @@ void UEventLogEntryWidget::UpdateTexts(UTextBlock* TitleText, UTextBlock* Result
     UE_LOG(LogTemp, Log, TEXT("UpdateTexts: Set result to: %s"), *CurrentSummary.ResultText);
     
     // 詳細テキスト設定（展開時のみ）
-    UE_LOG(LogTemp, Log, TEXT("UpdateTexts: bIsExpanded = %s"), bIsExpanded ? TEXT("true") : TEXT("false"));
-    if (bIsExpanded)
+    if (DetailsText)
     {
-        FString FormattedDetails = FormatDetailsText();
-        UE_LOG(LogTemp, Log, TEXT("UpdateTexts: Formatted details: %s"), *FormattedDetails);
-        DetailsText->SetText(FText::FromString(FormattedDetails));
-    }
-    else
-    {
-        DetailsText->SetText(FText::GetEmpty());
-        UE_LOG(LogTemp, Log, TEXT("UpdateTexts: Details collapsed, set to empty"));
+        UE_LOG(LogTemp, Log, TEXT("UpdateTexts: bIsExpanded = %s"), bIsExpanded ? TEXT("true") : TEXT("false"));
+        if (bIsExpanded)
+        {
+            FString FormattedDetails = FormatDetailsText();
+            UE_LOG(LogTemp, Log, TEXT("UpdateTexts: Formatted details: %s"), *FormattedDetails);
+            DetailsText->SetText(FText::FromString(FormattedDetails));
+        }
+        else
+        {
+            DetailsText->SetText(FText::GetEmpty());
+            UE_LOG(LogTemp, Log, TEXT("UpdateTexts: Details collapsed, set to empty"));
+        }
     }
 }
 
@@ -469,12 +500,12 @@ void UEventLogEntryWidget::UpdateUIDirectly()
     UE_LOG(LogTemp, Warning, TEXT("CurrentSummary.Title.IsEmpty(): %s"), CurrentSummary.Title.IsEmpty() ? TEXT("TRUE") : TEXT("FALSE"));
     
     // Widget内のTextBlockを名前で検索して直接更新
-    UE_LOG(LogTemp, Warning, TEXT("UpdateUIDirectly: Searching for TitleText widget..."));
-    if (UTextBlock* TitleTextBlock = Cast<UTextBlock>(GetWidgetFromName(TEXT("TitleText"))))
+    UE_LOG(LogTemp, Warning, TEXT("UpdateUIDirectly: Searching for Text_Title widget..."));
+    if (UTextBlock* TitleTextBlock = Cast<UTextBlock>(GetWidgetFromName(TEXT("Text_Title"))))
     {
-        UE_LOG(LogTemp, Warning, TEXT("UpdateUIDirectly: Found TitleText widget, current text='%s'"), *TitleTextBlock->GetText().ToString());
+        UE_LOG(LogTemp, Warning, TEXT("UpdateUIDirectly: Found Text_Title widget, current text='%s'"), *TitleTextBlock->GetText().ToString());
         TitleTextBlock->SetText(FText::FromString(CurrentSummary.Title));
-        UE_LOG(LogTemp, Warning, TEXT("UpdateUIDirectly: Updated TitleText to '%s'"), *CurrentSummary.Title);
+        UE_LOG(LogTemp, Warning, TEXT("UpdateUIDirectly: Updated Text_Title to '%s'"), *CurrentSummary.Title);
         
         // Verify the change
         FString NewText = TitleTextBlock->GetText().ToString();
@@ -482,7 +513,7 @@ void UEventLogEntryWidget::UpdateUIDirectly()
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("UpdateUIDirectly: TitleText widget NOT FOUND"));
+        UE_LOG(LogTemp, Error, TEXT("UpdateUIDirectly: Text_Title widget NOT FOUND"));
         
         // Try to list all child widgets by name
         TArray<FName> AllWidgetNames;
@@ -505,16 +536,16 @@ void UEventLogEntryWidget::UpdateUIDirectly()
         }
     }
     
-    UE_LOG(LogTemp, Warning, TEXT("UpdateUIDirectly: Searching for ResultText widget..."));
-    if (UTextBlock* ResultTextBlock = Cast<UTextBlock>(GetWidgetFromName(TEXT("ResultText"))))
+    UE_LOG(LogTemp, Warning, TEXT("UpdateUIDirectly: Searching for Text_Result widget..."));
+    if (UTextBlock* ResultTextBlock = Cast<UTextBlock>(GetWidgetFromName(TEXT("Text_Result"))))
     {
-        UE_LOG(LogTemp, Warning, TEXT("UpdateUIDirectly: Found ResultText widget, current text='%s'"), *ResultTextBlock->GetText().ToString());
+        UE_LOG(LogTemp, Warning, TEXT("UpdateUIDirectly: Found Text_Result widget, current text='%s'"), *ResultTextBlock->GetText().ToString());
         ResultTextBlock->SetText(FText::FromString(CurrentSummary.ResultText));
-        UE_LOG(LogTemp, Warning, TEXT("UpdateUIDirectly: Updated ResultText to '%s'"), *CurrentSummary.ResultText);
+        UE_LOG(LogTemp, Warning, TEXT("UpdateUIDirectly: Updated Text_Result to '%s'"), *CurrentSummary.ResultText);
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("UpdateUIDirectly: ResultText widget NOT FOUND"));
+        UE_LOG(LogTemp, Error, TEXT("UpdateUIDirectly: Text_Result widget NOT FOUND"));
     }
     
     // Blueprintの実装があれば呼び出し

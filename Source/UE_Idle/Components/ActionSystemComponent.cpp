@@ -217,6 +217,9 @@ void UActionSystemComponent::RegisterEnemy(AC_IdleCharacter* Character)
 
 void UActionSystemComponent::RegisterTeam(const TArray<AC_IdleCharacter*>& AllyTeam, const TArray<AC_IdleCharacter*>& EnemyTeam)
 {
+    UE_LOG(LogTemp, Error, TEXT("*** ActionSystemComponent::RegisterTeam CALLED ***"));
+    UE_LOG(LogTemp, Error, TEXT("AllyTeam: %d, EnemyTeam: %d"), AllyTeam.Num(), EnemyTeam.Num());
+    
     // 味方チーム登録
     for (AC_IdleCharacter* Ally : AllyTeam)
     {
@@ -232,6 +235,27 @@ void UActionSystemComponent::RegisterTeam(const TArray<AC_IdleCharacter*>& AllyT
         if (Enemy)
         {
             RegisterEnemy(Enemy);
+        }
+    }
+    
+    // 戦闘開始をログに記録
+    if (UWorld* World = GetWorld())
+    {
+        if (AC_PlayerController* PC = Cast<AC_PlayerController>(World->GetFirstPlayerController()))
+        {
+            if (PC->EventLogManager)
+            {
+                UE_LOG(LogTemp, Error, TEXT("Calling LogCombatStart from ActionSystemComponent"));
+                PC->EventLogManager->LogCombatStart(AllyTeam, EnemyTeam, TEXT("戦場"));
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("ActionSystemComponent: PlayerController has no EventLogManager"));
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("ActionSystemComponent: No PlayerController found"));
         }
     }
 }
@@ -314,6 +338,32 @@ TArray<AC_IdleCharacter*> UActionSystemComponent::GetAliveEnemies() const
     }
     
     return AliveEnemies;
+}
+
+TArray<AC_IdleCharacter*> UActionSystemComponent::GetAllAllies() const
+{
+    TArray<AC_IdleCharacter*> AllAllies;
+    for (const FCharacterAction& Action : AllyActions)
+    {
+        if (Action.Character)
+        {
+            AllAllies.Add(Action.Character);
+        }
+    }
+    return AllAllies;
+}
+
+TArray<AC_IdleCharacter*> UActionSystemComponent::GetAllEnemies() const
+{
+    TArray<AC_IdleCharacter*> AllEnemies;
+    for (const FCharacterAction& Action : EnemyActions)
+    {
+        if (Action.Character)
+        {
+            AllEnemies.Add(Action.Character);
+        }
+    }
+    return AllEnemies;
 }
 
 void UActionSystemComponent::ProcessActions()
@@ -581,39 +631,51 @@ FString UActionSystemComponent::SelectWeapon(AC_IdleCharacter* Character)
 {
     if (!Character)
     {
-        return TEXT("");
+        return TEXT("素手");
     }
 
-    // インベントリから武器を探す
-    if (UCharacterInventoryComponent* InventoryComp = Character->GetInventoryComponent())
-    {
-        TArray<FInventorySlot> AllSlots = InventoryComp->GetAllInventorySlots();
-        
-        for (const FInventorySlot& Slot : AllSlots)
-        {
-            // アイテムタイプが武器かチェック（ItemDataTableManagerで確認が必要）
-            if (Slot.ItemId.Contains(TEXT("sword")) || 
-                Slot.ItemId.Contains(TEXT("axe")) || 
-                Slot.ItemId.Contains(TEXT("weapon")))
-            {
-                return Slot.ItemId;
-            }
-        }
-    }
-    
-    // 武器がない場合は素手（格闘）
-    // 素手用のデフォルト値を返すか、装備された武器をチェック
+    UE_LOG(LogTemp, VeryVerbose, TEXT("SelectWeapon for character: %s"), *Character->GetName());
+
+    // 1. まず装備された武器をチェック
     if (UCharacterInventoryComponent* InventoryComp = Character->GetInventoryComponent())
     {
         FItemDataRow EquippedWeapon = InventoryComp->GetEquippedWeaponData();
         if (!EquippedWeapon.Name.IsEmpty())
         {
-            return EquippedWeapon.Name.ToString(); // 装備中の武器のNameを使用
+            UE_LOG(LogTemp, VeryVerbose, TEXT("SelectWeapon: Using equipped weapon: %s"), *EquippedWeapon.Name.ToString());
+            return EquippedWeapon.Name.ToString();
         }
     }
-    
-    // 完全に武器がない場合は素手戦闘
-    return TEXT(""); // 空文字列で格闘スキル使用
+
+    // 2. キャラクターの自然武器（NaturalWeaponName）をチェック
+    if (Character->GetClass()->ImplementsInterface(UIdleCharacterInterface::StaticClass()))
+    {
+        // キャラクターの種族/プリセット情報から自然武器を取得
+        // 注：この部分は実装に依存します。現在はCharacterPresets.csvの情報を取得する仕組みが必要
+        
+        // 暫定的に、キャラクター名に基づいて自然武器を判定
+        FString CharacterName = IIdleCharacterInterface::Execute_GetCharacterName(Character);
+        
+        if (CharacterName.Contains(TEXT("ネズミ")))
+        {
+            UE_LOG(LogTemp, Log, TEXT("SelectWeapon: Using natural weapon for %s: ネズミの歯"), *CharacterName);
+            return TEXT("ネズミの歯");
+        }
+        else if (CharacterName.Contains(TEXT("ゴブリン")))
+        {
+            UE_LOG(LogTemp, Log, TEXT("SelectWeapon: Using natural weapon for %s: ゴブリンの爪"), *CharacterName);
+            return TEXT("ゴブリンの爪");
+        }
+        else if (CharacterName.Contains(TEXT("ガエル")))
+        {
+            UE_LOG(LogTemp, Log, TEXT("SelectWeapon: Using natural weapon for %s: ガエルの毒舌"), *CharacterName);
+            return TEXT("ガエルの毒舌");
+        }
+    }
+
+    // 3. 装備武器も自然武器もない場合は素手戦闘
+    UE_LOG(LogTemp, VeryVerbose, TEXT("SelectWeapon: No equipped or natural weapon found, using unarmed combat"));
+    return TEXT("素手");
 }
 
 void UActionSystemComponent::UpdateNextActionTime(FCharacterAction& Action, const FString& WeaponId)
@@ -666,22 +728,61 @@ bool UActionSystemComponent::IsCharacterAlive(AC_IdleCharacter* Character) const
         return false;
     }
 
-    // StatusComponentアクセスを完全回避、安全のため常に生存扱い
-    UE_LOG(LogTemp, VeryVerbose, TEXT("IsCharacterAlive: %s assumed alive (safe mode)"), *Character->GetName());
+    // StatusComponentから実際のHP状態を確認
+    if (UCharacterStatusComponent* StatusComp = Character->GetStatusComponent())
+    {
+        if (IsValid(StatusComp))
+        {
+            float CurrentHP = StatusComp->GetCurrentHealth();
+            bool bIsAlive = CurrentHP > 0.0f;
+            UE_LOG(LogTemp, VeryVerbose, TEXT("IsCharacterAlive: %s HP=%.1f, alive=%s"), 
+                *Character->GetName(), CurrentHP, bIsAlive ? TEXT("true") : TEXT("false"));
+            return bIsAlive;
+        }
+    }
+
+    // StatusComponentがない場合は生存扱い（フォールバック）
+    UE_LOG(LogTemp, Warning, TEXT("IsCharacterAlive: %s has no StatusComponent, assuming alive"), *Character->GetName());
     return true;
 }
 
 void UActionSystemComponent::TriggerCombatEnd()
 {
-    UE_LOG(LogTemp, Log, TEXT("TriggerCombatEnd: Notifying combat completion"));
+    UE_LOG(LogTemp, Error, TEXT("*** TriggerCombatEnd: Combat End Analysis ***"));
     
     // 生存しているキャラクターを取得
     TArray<AC_IdleCharacter*> AliveAllies = GetAliveAllies();
     TArray<AC_IdleCharacter*> AliveEnemies = GetAliveEnemies();
     
-    // 勝者と敗者を決定（テスト用に適当に決定）
-    TArray<AC_IdleCharacter*> Winners = AliveAllies.Num() > 0 ? AliveAllies : AliveEnemies;
-    TArray<AC_IdleCharacter*> Losers = AliveAllies.Num() > 0 ? AliveEnemies : AliveAllies;
+    UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: Alive Allies: %d, Alive Enemies: %d"), 
+        AliveAllies.Num(), AliveEnemies.Num());
+    
+    // 勝者と敗者を決定（どちらかが全滅するまで戦う）
+    TArray<AC_IdleCharacter*> Winners;
+    TArray<AC_IdleCharacter*> Losers;
+    
+    if (AliveAllies.Num() > 0 && AliveEnemies.Num() == 0)
+    {
+        // 味方の勝利（敵が全滅）
+        Winners = AliveAllies;
+        Losers = GetAllEnemies();
+        UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: Ally Victory - %d allies survived, enemies eliminated"), Winners.Num());
+    }
+    else if (AliveEnemies.Num() > 0 && AliveAllies.Num() == 0)
+    {
+        // 敵の勝利（味方が全滅）
+        Winners = AliveEnemies;
+        Losers = GetAllAllies();
+        UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: Enemy Victory - %d enemies survived, allies eliminated"), Winners.Num());
+    }
+    else
+    {
+        // まだ戦闘継続中（これは本来呼ばれるべきではない）
+        UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: Battle should continue - Allies: %d, Enemies: %d"), 
+            AliveAllies.Num(), AliveEnemies.Num());
+        Winners.Empty();
+        Losers.Empty();
+    }
     
     // 戦闘時間を計算（適当な値）
     float Duration = 10.0f;
@@ -690,28 +791,31 @@ void UActionSystemComponent::TriggerCombatEnd()
         Winners.Num(), Losers.Num(), Duration);
     
     // PlayerControllerのEventLogManagerを使用
+    UE_LOG(LogTemp, Error, TEXT("*** TriggerCombatEnd: Attempting to log combat end ***"));
     if (UWorld* World = GetWorld())
     {
+        UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: World found"));
         if (AC_PlayerController* PC = Cast<AC_PlayerController>(World->GetFirstPlayerController()))
         {
+            UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: PlayerController found"));
             if (PC->EventLogManager)
             {
-                UE_LOG(LogTemp, Log, TEXT("Using PlayerController's EventLogManager"));
+                UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: EventLogManager found, calling LogCombatEnd"));
                 PC->EventLogManager->LogCombatEnd(Winners, Losers, Duration);
             }
             else
             {
-                UE_LOG(LogTemp, Error, TEXT("PlayerController has no EventLogManager"));
+                UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: PlayerController has no EventLogManager"));
             }
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("No PlayerController found"));
+            UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: No PlayerController found"));
         }
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("No World found"));
+        UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: No World found"));
     }
 }
 

@@ -187,6 +187,16 @@ protected:
     // 現在のイベント開始時刻
     UPROPERTY()
     float CurrentEventStartTime;
+    
+    // 戦闘情報（サマリー用）
+    UPROPERTY()
+    FString CurrentCombatLocation;
+    
+    UPROPERTY()
+    FString CurrentAllyTeamNames;
+    
+    UPROPERTY()
+    FString CurrentEnemyTeamNames;
 
 private:
     // ==================== ヘルパー関数 ====================
