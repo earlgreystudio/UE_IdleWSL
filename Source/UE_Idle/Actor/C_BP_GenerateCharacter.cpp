@@ -50,7 +50,7 @@ void AC_BP_GenerateCharacter::GenerateRandomCharacter()
 	FRotator SpawnRotation = GetActorRotation();
 	FActorSpawnParameters SpawnParams;
 	
-	AActor* SpawnedActor = GetWorld()->SpawnActor<AActor>(CharacterClassToSpawn, SpawnLocation, SpawnRotation, SpawnParams);
+	AC_IdleCharacter* SpawnedActor = GetWorld()->SpawnActor<AC_IdleCharacter>(CharacterClassToSpawn, SpawnLocation, SpawnRotation, SpawnParams);
 	
 	if (!SpawnedActor)
 	{
@@ -59,17 +59,22 @@ void AC_BP_GenerateCharacter::GenerateRandomCharacter()
 	}
 	
 	// 7. キャラクターデータ設定
-	if (AC_IdleCharacter* IdleCharacter = Cast<AC_IdleCharacter>(SpawnedActor))
+	if (SpawnedActor) // 既にAC_IdleCharacter*なのでキャスト不要
 	{
 		// 名前設定
-		IdleCharacter->SetCharacterName(RandomName);
+		SpawnedActor->SetCharacterName(RandomName);
 		
 		// ステータスコンポーネントにデータ設定
-		if (UCharacterStatusComponent* StatusComp = IdleCharacter->GetStatusComponent())
+		if (UCharacterStatusComponent* StatusComp = SpawnedActor->GetStatusComponent())
 		{
 			StatusComp->SetTalent(FinalTalent);
 			StatusComp->SetStatus(CalculatedStatus);
 			StatusComp->SetClubType(RandomClub);
+			UE_LOG(LogTemp, Log, TEXT("Character %s StatusComponent configured successfully"), *RandomName);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Character %s has no StatusComponent!"), *RandomName);
 		}
 		
 		// 8. PlayerControllerに追加
@@ -82,10 +87,7 @@ void AC_BP_GenerateCharacter::GenerateRandomCharacter()
 			}
 		}
 	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Spawned actor is not AC_IdleCharacter!"));
-	}
+	// SpawnedActorがnullの場合は既に上でログ出力済み
 }
 
 FString AC_BP_GenerateCharacter::GenerateRandomName()

@@ -106,7 +106,7 @@ public:
 
     // 全サマリー取得
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Event Log")
-    TArray<FEventSummary> GetAllEventSummaries() const { return EventSummaries; }
+    TArray<FEventSummary> GetAllEventSummaries() const;
     
     // 最新のN件のサマリー取得
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Event Log")

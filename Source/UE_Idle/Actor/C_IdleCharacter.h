@@ -34,9 +34,9 @@ public:
 	virtual UCharacterInventoryComponent* GetCharacterInventoryComponent_Implementation() override;
 	virtual FCharacterTalent GetCharacterTalent_Implementation() override;
 
-	// ステータス関連
+	// ステータス関連（安全性チェック付き）
 	UFUNCTION(BlueprintCallable, Category = "Character")
-	UCharacterStatusComponent* GetStatusComponent() const { return StatusComponent; }
+	UCharacterStatusComponent* GetStatusComponent() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	UCharacterInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }

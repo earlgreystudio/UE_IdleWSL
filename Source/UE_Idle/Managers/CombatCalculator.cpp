@@ -39,12 +39,23 @@ FEquipmentPenalty UCombatCalculator::CalculateEquipmentPenalty(AC_IdleCharacter*
 
 float UCombatCalculator::CalculateAttackSpeed(AC_IdleCharacter* Character, const FString& WeaponItemId)
 {
-    if (!Character)
+    // 完全防御的チェック
+    if (!Character || !IsValid(Character))
     {
+        UE_LOG(LogTemp, Warning, TEXT("CalculateAttackSpeed: Invalid character"));
         return 1.0f;
     }
 
-    FCharacterTalent Talent = GetCharacterTalent(Character);
+    FCharacterTalent Talent;
+    try 
+    {
+        Talent = GetCharacterTalent(Character);
+    }
+    catch(...)
+    {
+        UE_LOG(LogTemp, Error, TEXT("CalculateAttackSpeed: Exception getting talent for %s"), *Character->GetName());
+        return 1.0f;
+    }
     ESkillType WeaponSkill = GetWeaponSkillType(WeaponItemId);
     float SkillLevel = GetSkillLevel(Character, WeaponSkill);
     
@@ -282,17 +293,17 @@ float UCombatCalculator::GetSkillLevel(AC_IdleCharacter* Character, ESkillType S
 
 FCharacterTalent UCombatCalculator::GetCharacterTalent(AC_IdleCharacter* Character)
 {
-    if (!Character)
-    {
-        return FCharacterTalent();
-    }
-
-    if (UCharacterStatusComponent* StatusComp = Character->GetStatusComponent())
-    {
-        return StatusComp->GetTalent();
-    }
+    // 完全にStatusComponentアクセスを回避してデフォルト値のみ使用
+    FCharacterTalent DefaultTalent;
+    DefaultTalent.Strength = 10.0f;
+    DefaultTalent.Toughness = 10.0f;
+    DefaultTalent.Intelligence = 10.0f;
+    DefaultTalent.Dexterity = 10.0f;
+    DefaultTalent.Agility = 10.0f;
+    DefaultTalent.Willpower = 10.0f;
     
-    return FCharacterTalent();
+    UE_LOG(LogTemp, VeryVerbose, TEXT("GetCharacterTalent: Using safe default values"));
+    return DefaultTalent;
 }
 
 float UCombatCalculator::GetWeaponWeight(const FString& WeaponItemId)

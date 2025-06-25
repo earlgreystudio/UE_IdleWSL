@@ -222,14 +222,8 @@ bool UCombatComponent::IsCombatReadyToStart() const
 
 void UCombatComponent::CheckCombatCompletion()
 {
-    UE_LOG(LogTemp, Log, TEXT("CheckCombatCompletion called - AllyTeam: %d, EnemyTeam: %d"), 
-        AllyTeamMembers.Num(), EnemyTeamMembers.Num());
-    
     TArray<AC_IdleCharacter*> AliveAllies = GetAliveMembers(AllyTeamMembers);
     TArray<AC_IdleCharacter*> AliveEnemies = GetAliveMembers(EnemyTeamMembers);
-    
-    UE_LOG(LogTemp, Log, TEXT("Combat check - Alive allies: %d, Alive enemies: %d"), 
-        AliveAllies.Num(), AliveEnemies.Num());
 
     if (AliveAllies.Num() == 0 || AliveEnemies.Num() == 0)
     {
@@ -415,8 +409,6 @@ TArray<AC_IdleCharacter*> UCombatComponent::GetAliveMembers(const TArray<AC_Idle
         }
     }
     
-    UE_LOG(LogTemp, Log, TEXT("GetAliveMembers: %d out of %d members are alive"), 
-        AliveMembers.Num(), Team.Num());
     
     return AliveMembers;
 }

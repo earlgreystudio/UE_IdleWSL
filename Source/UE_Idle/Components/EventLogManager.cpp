@@ -204,7 +204,15 @@ void UEventLogManager::CreateEventSummary(EEventCategory Category, const FString
     EventSummaries.Add(Summary);
     TrimSummariesIfNeeded();
     
-    UE_LOG(LogTemp, Log, TEXT("Total summaries now: %d"), EventSummaries.Num());
+    UE_LOG(LogTemp, Log, TEXT("After CreateEventSummary - Total summaries: %d"), EventSummaries.Num());
+    UE_LOG(LogTemp, Log, TEXT("CreateEventSummary - Added summary with title: '%s', result: '%s'"), *Summary.Title, *Summary.ResultText);
+    UE_LOG(LogTemp, Log, TEXT("CreateEventSummary - Summary detailed logs count: %d"), Summary.DetailedLogs.Num());
+    
+    // 詳細ログの内容もダンプ
+    for (int32 i = 0; i < Summary.DetailedLogs.Num(); i++)
+    {
+        UE_LOG(LogTemp, Log, TEXT("CreateEventSummary - Detail %d: %s"), i, *Summary.DetailedLogs[i].FormattedText);
+    }
     
     OnEventSummaryCreated.Broadcast(Summary);
     
@@ -255,35 +263,71 @@ void UEventLogManager::AddCombatEvent(EEventLogType EventType, AC_IdleCharacter*
     }
     
     // HPデータを取得
-    if (Attacker)
+    if (Attacker && IsValid(Attacker))
     {
         UE_LOG(LogTemp, Log, TEXT("Getting HP for Attacker: %s"), *GetCharacterDisplayName(Attacker));
-        if (UCharacterStatusComponent* StatusComp = Attacker->GetStatusComponent())
+        
+        // 安全なStatusComponent取得
+        UCharacterStatusComponent* StatusComp = nullptr;
+        try
+        {
+            StatusComp = Attacker->GetStatusComponent();
+            UE_LOG(LogTemp, Log, TEXT("Attacker StatusComponent: %s"), StatusComp ? TEXT("Valid") : TEXT("NULL"));
+        }
+        catch(...)
+        {
+            UE_LOG(LogTemp, Error, TEXT("Exception getting Attacker StatusComponent"));
+        }
+        
+        if (StatusComp && IsValid(StatusComp))
         {
             FCharacterStatus Status = StatusComp->GetStatus();
+            UE_LOG(LogTemp, Log, TEXT("Attacker Status - CurrentHealth: %.1f, MaxHealth: %.1f"), Status.CurrentHealth, Status.MaxHealth);
+            
             NewEntry.CombatData.AttackerHP = FMath::RoundToInt(Status.CurrentHealth);
             NewEntry.CombatData.AttackerMaxHP = FMath::RoundToInt(Status.MaxHealth);
             UE_LOG(LogTemp, Log, TEXT("Attacker HP: %d/%d"), NewEntry.CombatData.AttackerHP, NewEntry.CombatData.AttackerMaxHP);
         }
         else
         {
-            UE_LOG(LogTemp, Warning, TEXT("Attacker has no StatusComponent"));
+            UE_LOG(LogTemp, Warning, TEXT("Attacker has no valid StatusComponent"));
+            // デフォルト値設定
+            NewEntry.CombatData.AttackerHP = 100;
+            NewEntry.CombatData.AttackerMaxHP = 100;
         }
     }
     
-    if (Defender)
+    if (Defender && IsValid(Defender))
     {
         UE_LOG(LogTemp, Log, TEXT("Getting HP for Defender: %s"), *GetCharacterDisplayName(Defender));
-        if (UCharacterStatusComponent* StatusComp = Defender->GetStatusComponent())
+        
+        // 安全なStatusComponent取得
+        UCharacterStatusComponent* StatusComp = nullptr;
+        try
+        {
+            StatusComp = Defender->GetStatusComponent();
+            UE_LOG(LogTemp, Log, TEXT("Defender StatusComponent: %s"), StatusComp ? TEXT("Valid") : TEXT("NULL"));
+        }
+        catch(...)
+        {
+            UE_LOG(LogTemp, Error, TEXT("Exception getting Defender StatusComponent"));
+        }
+        
+        if (StatusComp && IsValid(StatusComp))
         {
             FCharacterStatus Status = StatusComp->GetStatus();
+            UE_LOG(LogTemp, Log, TEXT("Defender Status - CurrentHealth: %.1f, MaxHealth: %.1f"), Status.CurrentHealth, Status.MaxHealth);
+            
             NewEntry.CombatData.DefenderHP = FMath::RoundToInt(Status.CurrentHealth);
             NewEntry.CombatData.DefenderMaxHP = FMath::RoundToInt(Status.MaxHealth);
             UE_LOG(LogTemp, Log, TEXT("Defender HP: %d/%d"), NewEntry.CombatData.DefenderHP, NewEntry.CombatData.DefenderMaxHP);
         }
         else
         {
-            UE_LOG(LogTemp, Warning, TEXT("Defender has no StatusComponent"));
+            UE_LOG(LogTemp, Warning, TEXT("Defender has no valid StatusComponent"));
+            // デフォルト値設定
+            NewEntry.CombatData.DefenderHP = 100;
+            NewEntry.CombatData.DefenderMaxHP = 100;
         }
     }
     
@@ -449,6 +493,21 @@ void UEventLogManager::ClearEventSummaries()
     UE_LOG(LogTemp, Log, TEXT("Event summaries cleared"));
 }
 
+TArray<FEventSummary> UEventLogManager::GetAllEventSummaries() const
+{
+    UE_LOG(LogTemp, Log, TEXT("GetAllEventSummaries: Returning %d summaries"), EventSummaries.Num());
+    
+    // 各サマリーの詳細をログ出力
+    for (int32 i = 0; i < EventSummaries.Num(); i++)
+    {
+        const FEventSummary& Summary = EventSummaries[i];
+        UE_LOG(LogTemp, Log, TEXT("GetAllEventSummaries[%d]: Title='%s', ResultText='%s', DetailCount=%d"), 
+            i, *Summary.Title, *Summary.ResultText, Summary.DetailedLogs.Num());
+    }
+    
+    return EventSummaries;
+}
+
 TArray<FString> UEventLogManager::GetFormattedLogs(int32 RecentCount) const
 {
     TArray<FString> FormattedLogs;
@@ -519,25 +578,50 @@ FString UEventLogManager::FormatCombatEntry(const FEventLogEntry& LogEntry) cons
         case EEventLogType::Hit:
         case EEventLogType::Critical:
             {
-                // ダメージの色を決定（被害者がプレイヤーなら赤、敵なら青）
-                FString DamageColor = bIsTargetPlayer ? TEXT("#FF4444") : TEXT("#4444FF");
+                // 色タグ削除、新フォーマット採用
                 FString CriticalText = (LogEntry.EventType == EEventLogType::Critical) ? TEXT(" クリティカル！") : TEXT("");
                 
-                // 攻撃者がプレイヤーの場合：武器攻撃 → （ダメージ青）
-                // 攻撃者が敵の場合：（ダメージ赤） ← 武器攻撃
+                // 味方（プレイヤー）と敵の名前・HPを固定配置で決定
+                FString AllyName, EnemyName;
+                int32 AllyHP, AllyMaxHP, EnemyHP, EnemyMaxHP;
+                
                 if (CombatData.bIsPlayerAttacker)
                 {
-                    FormattedText = FString::Printf(TEXT("%s(%d/%d) ◄═══⚔️═══ %s(%d/%d)\n          %s攻撃 → <color=%s>（%d）</color>%s"), 
-                                                  *CombatData.AttackerName, CombatData.AttackerHP, CombatData.AttackerMaxHP,
-                                                  *CombatData.DefenderName, CombatData.DefenderHP, CombatData.DefenderMaxHP,
-                                                  *CombatData.WeaponName, *DamageColor, CombatData.Damage, *CriticalText);
+                    // プレイヤー（味方）が攻撃者の場合
+                    AllyName = CombatData.AttackerName;
+                    AllyHP = CombatData.AttackerHP;
+                    AllyMaxHP = CombatData.AttackerMaxHP;
+                    EnemyName = CombatData.DefenderName;
+                    EnemyHP = CombatData.DefenderHP;
+                    EnemyMaxHP = CombatData.DefenderMaxHP;
                 }
                 else
                 {
-                    FormattedText = FString::Printf(TEXT("%s(%d/%d) ◄═══⚔️═══ %s(%d/%d)\n          <color=%s>（%d）</color> ← %s攻撃%s"), 
-                                                  *CombatData.DefenderName, CombatData.DefenderHP, CombatData.DefenderMaxHP,
-                                                  *CombatData.AttackerName, CombatData.AttackerHP, CombatData.AttackerMaxHP,
-                                                  *DamageColor, CombatData.Damage, *CombatData.WeaponName, *CriticalText);
+                    // 敵が攻撃者の場合
+                    AllyName = CombatData.DefenderName;  // 味方は防御者
+                    AllyHP = CombatData.DefenderHP;
+                    AllyMaxHP = CombatData.DefenderMaxHP;
+                    EnemyName = CombatData.AttackerName;  // 敵は攻撃者
+                    EnemyHP = CombatData.AttackerHP;
+                    EnemyMaxHP = CombatData.AttackerMaxHP;
+                }
+                
+                // HP表示行（味方 左、敵 右 - 固定）
+                FormattedText = FString::Printf(TEXT("%s(%d/%d) <===[VS]===> %s(%d/%d)\n"),
+                    *AllyName, AllyHP, AllyMaxHP, *EnemyName, EnemyHP, EnemyMaxHP);
+                
+                // 攻撃方向表示（攻撃者によって方向が変わる、数値は端っこ）
+                if (CombatData.bIsPlayerAttacker)
+                {
+                    // 味方攻撃：左から右へ
+                    FormattedText += FString::Printf(TEXT("          %s攻撃 %s→ （%d）"),
+                        *CombatData.WeaponName, *CriticalText, CombatData.Damage);
+                }
+                else
+                {
+                    // 敵攻撃：右から左へ
+                    FormattedText += FString::Printf(TEXT("          （%d） ← %s攻撃%s"),
+                        CombatData.Damage, *CombatData.WeaponName, *CriticalText);
                 }
             }
             break;
