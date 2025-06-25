@@ -14,6 +14,10 @@ class UE_IDLE_API UItemDataTableManager : public UGameInstanceSubsystem
 public:
     virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
+    // DataTable設定
+    UFUNCTION(BlueprintCallable, Category = "Item Manager")
+    void SetItemDataTable(UDataTable* InDataTable);
+
     // Core item data access
     UFUNCTION(BlueprintCallable, Category = "Item Manager")
     bool GetItemData(const FString& ItemId, FItemDataRow& OutItemData) const;

@@ -1,4 +1,4 @@
-RowName,Name,Description,bIsEnemy,Strength,Toughness,Intelligence,Dexterity,Agility,Willpower,SkillsString,InitialItemsString
-"rat","ネズミ","小さな害獣",true,3,2,1,4,5,3,"Combat:3|Evasion:3",""
-"giant_frog","巨大ガエル","沼地に生息する大型の両生類",true,5,7,2,4,6,6,"Combat:5|Swimming:7",""
-"goblin","ゴブリン","知能を持つ小型の亜人種",true,8,9,7,10,11,10,"OneHandedWeapons:10","short_sword:1"
+RowName,Name,Description,bIsEnemy,Strength,Toughness,Intelligence,Dexterity,Agility,Willpower,SkillsString,InitialItemsString,NaturalWeaponId,NaturalWeaponPower,NaturalWeaponName
+"rat","ネズミ","小さな害獣",true,3,2,1,4,5,3,"Combat:3|Evasion:3","","rat_bite",4,"ネズミの歯"
+"giant_frog","巨大ガエル","沼地に生息する大型の両生類",true,5,7,2,4,6,6,"Combat:5|Swimming:7","","frog_tongue",7,"ガエルの毒舌"
+"goblin","ゴブリン","知能を持つ小型の亜人種",true,15,16,12,16,17,14,"OneHandedWeapons:10|Combat:8","short_sword:1","goblin_claw",6,"ゴブリンの爪"

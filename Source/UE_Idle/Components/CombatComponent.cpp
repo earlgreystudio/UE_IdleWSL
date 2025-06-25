@@ -1,7 +1,8 @@
 #include "CombatComponent.h"
 #include "../Actor/C_IdleCharacter.h"
-#include "CombatLogManager.h"
+#include "EventLogManager.h"
 #include "ActionSystemComponent.h"
+#include "CharacterStatusComponent.h"
 #include "../Managers/CharacterPresetManager.h"
 #include "Engine/World.h"
 
@@ -49,6 +50,69 @@ bool UCombatComponent::StartCombat(const FTeam& AllyTeam, const TArray<AC_IdleCh
 
     UE_LOG(LogTemp, Log, TEXT("Starting combat with %d allies vs %d enemies at location %s"), 
         AllyTeam.Members.Num(), EnemyTeam.Num(), *LocationId);
+    
+    // 全キャラクターのHP状態をログ出力（安全チェック付き）
+    UE_LOG(LogTemp, Log, TEXT("=== ALLY TEAM HP STATUS ==="));
+    if (AllyTeam.Members.IsValidIndex(0))
+    {
+        for (int32 i = 0; i < AllyTeam.Members.Num(); i++)
+        {
+            if (IsValid(AllyTeam.Members[i]))
+            {
+                if (UCharacterStatusComponent* StatusComp = AllyTeam.Members[i]->GetStatusComponent())
+                {
+                    float CurrentHP = StatusComp->GetCurrentHealth();
+                    float MaxHP = StatusComp->GetMaxHealth();
+                    UE_LOG(LogTemp, Log, TEXT("Ally %d: %s - HP: %f/%f"), i, 
+                        *AllyTeam.Members[i]->GetName(), CurrentHP, MaxHP);
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("Ally %d: %s - NO STATUS COMPONENT"), i, 
+                        *AllyTeam.Members[i]->GetName());
+                }
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Ally %d: INVALID CHARACTER"), i);
+            }
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Log, TEXT("Ally team is empty"));
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("=== ENEMY TEAM HP STATUS ==="));
+    if (EnemyTeam.IsValidIndex(0))
+    {
+        for (int32 i = 0; i < EnemyTeam.Num(); i++)
+        {
+            if (IsValid(EnemyTeam[i]))
+            {
+                if (UCharacterStatusComponent* StatusComp = EnemyTeam[i]->GetStatusComponent())
+                {
+                    float CurrentHP = StatusComp->GetCurrentHealth();
+                    float MaxHP = StatusComp->GetMaxHealth();
+                    UE_LOG(LogTemp, Log, TEXT("Enemy %d: %s - HP: %f/%f"), i, 
+                        *EnemyTeam[i]->GetName(), CurrentHP, MaxHP);
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("Enemy %d: %s - NO STATUS COMPONENT"), i, 
+                        *EnemyTeam[i]->GetName());
+                }
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Enemy %d: INVALID CHARACTER"), i);
+            }
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Log, TEXT("Enemy team is empty"));
+    }
 
     // チーム設定
     AllyTeamMembers = AllyTeam.Members;
@@ -63,10 +127,10 @@ bool UCombatComponent::StartCombat(const FTeam& AllyTeam, const TArray<AC_IdleCh
         AllyTeamMembers.Num(), EnemyTeamMembers.Num(), *LocationId));
 
     // 戦闘ログに開始記録
-    if (CombatLogManager)
+    if (EventLogManager)
     {
         FString LocationName = GetCombatLocationName();
-        CombatLogManager->LogCombatStart(AllyTeamMembers, EnemyTeamMembers, LocationName);
+        EventLogManager->LogCombatStart(AllyTeamMembers, EnemyTeamMembers, LocationName);
     }
 
     // 準備時間後に戦闘開始
@@ -118,9 +182,9 @@ FString UCombatComponent::GetCombatLocationName() const
 
 TArray<FString> UCombatComponent::GetCombatLogs(int32 RecentCount) const
 {
-    if (CombatLogManager)
+    if (EventLogManager)
     {
-        return CombatLogManager->GetFormattedLogs(RecentCount);
+        return EventLogManager->GetFormattedLogs(RecentCount);
     }
     return TArray<FString>();
 }
@@ -158,28 +222,49 @@ bool UCombatComponent::IsCombatReadyToStart() const
 
 void UCombatComponent::CheckCombatCompletion()
 {
+    UE_LOG(LogTemp, Log, TEXT("CheckCombatCompletion called - AllyTeam: %d, EnemyTeam: %d"), 
+        AllyTeamMembers.Num(), EnemyTeamMembers.Num());
+    
     TArray<AC_IdleCharacter*> AliveAllies = GetAliveMembers(AllyTeamMembers);
     TArray<AC_IdleCharacter*> AliveEnemies = GetAliveMembers(EnemyTeamMembers);
+    
+    UE_LOG(LogTemp, Log, TEXT("Combat check - Alive allies: %d, Alive enemies: %d"), 
+        AliveAllies.Num(), AliveEnemies.Num());
 
     if (AliveAllies.Num() == 0 || AliveEnemies.Num() == 0)
     {
+        UE_LOG(LogTemp, Log, TEXT("Combat ending - One side has no alive members"));
+        
         // 戦闘終了
         TArray<AC_IdleCharacter*> Winners = (AliveAllies.Num() > 0) ? AliveAllies : AliveEnemies;
         TArray<AC_IdleCharacter*> Losers = (AliveAllies.Num() == 0) ? AllyTeamMembers : EnemyTeamMembers;
         
         float Duration = GetCombatDuration();
         
+        UE_LOG(LogTemp, Log, TEXT("Combat ended - Winners: %d, Duration: %f seconds"), 
+            Winners.Num(), Duration);
+        
         SetCombatState(ECombatState::Completed, 
             FString::Printf(TEXT("戦闘終了！ 勝者：%d人"), Winners.Num()));
 
         // 戦闘ログに終了記録
-        if (CombatLogManager)
+        if (EventLogManager)
         {
-            CombatLogManager->LogCombatEnd(Winners, Losers, Duration);
+            UE_LOG(LogTemp, Log, TEXT("Calling LogCombatEnd with %d winners, %d losers"), 
+                Winners.Num(), Losers.Num());
+            EventLogManager->LogCombatEnd(Winners, Losers, Duration);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("EventLogManager is null, cannot log combat end"));
         }
 
         OnCombatCompleted.Broadcast(Winners, Losers, Duration);
         CleanupAfterCombat();
+    }
+    else
+    {
+        UE_LOG(LogTemp, VeryVerbose, TEXT("Combat continues - Both sides have alive members"));
     }
 }
 
@@ -231,11 +316,11 @@ void UCombatComponent::StartCombatAfterPreparation()
 
 void UCombatComponent::InitializeSubComponents()
 {
-    // CombatLogManager作成
-    CombatLogManager = NewObject<UCombatLogManager>(GetOwner());
-    if (CombatLogManager)
+    // EventLogManager作成
+    EventLogManager = NewObject<UEventLogManager>(GetOwner());
+    if (EventLogManager)
     {
-        CombatLogManager->RegisterComponent();
+        EventLogManager->RegisterComponent();
     }
 
     // ActionSystemComponent作成
@@ -243,7 +328,7 @@ void UCombatComponent::InitializeSubComponents()
     if (ActionSystemComponent)
     {
         ActionSystemComponent->RegisterComponent();
-        ActionSystemComponent->SetCombatLogManager(CombatLogManager);
+        ActionSystemComponent->SetEventLogManager(EventLogManager);
         
         // イベントバインド
         ActionSystemComponent->OnCharacterAction.AddDynamic(
@@ -283,15 +368,55 @@ TArray<AC_IdleCharacter*> UCombatComponent::GetAliveMembers(const TArray<AC_Idle
 {
     TArray<AC_IdleCharacter*> AliveMembers;
     
-    for (AC_IdleCharacter* Member : Team)
+    // 配列の安全性チェック
+    if (Team.Num() == 0)
     {
+        UE_LOG(LogTemp, VeryVerbose, TEXT("GetAliveMembers: Empty team"));
+        return AliveMembers;
+    }
+    
+    for (int32 i = 0; i < Team.Num(); i++)
+    {
+        if (!Team.IsValidIndex(i))
+        {
+            UE_LOG(LogTemp, Error, TEXT("GetAliveMembers: Invalid index %d"), i);
+            continue;
+        }
+        
+        AC_IdleCharacter* Member = Team[i];
         if (IsValid(Member))
         {
-            // HPシステム実装後は実際の生存チェック
-            // 現在は仮で全員生存とする
-            AliveMembers.Add(Member);
+            // StatusComponentからHP確認
+            if (UCharacterStatusComponent* StatusComp = Member->GetStatusComponent())
+            {
+                float CurrentHP = StatusComp->GetCurrentHealth();
+                if (CurrentHP > 0.0f)
+                {
+                    AliveMembers.Add(Member);
+                    UE_LOG(LogTemp, VeryVerbose, TEXT("Character %s is alive with %f HP"), 
+                        *Member->GetName(), CurrentHP);
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Log, TEXT("Character %s is dead (0 HP)"), *Member->GetName());
+                }
+            }
+            else
+            {
+                // StatusComponentがない場合は生存とみなす（フォールバック）
+                AliveMembers.Add(Member);
+                UE_LOG(LogTemp, Warning, TEXT("Character %s has no StatusComponent, assuming alive"), 
+                    *Member->GetName());
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("GetAliveMembers: Invalid character at index %d"), i);
         }
     }
+    
+    UE_LOG(LogTemp, Log, TEXT("GetAliveMembers: %d out of %d members are alive"), 
+        AliveMembers.Num(), Team.Num());
     
     return AliveMembers;
 }

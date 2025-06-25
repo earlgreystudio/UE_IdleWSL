@@ -51,9 +51,21 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Location Events")
     FString GetLocationDisplayName(const FString& LocationId) const;
 
-    // 全ての場所ID取得
+    // 全ての場所ID取得（DataTableから動的に取得）
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Location Events")
     TArray<FString> GetAllLocationIds() const;
+    
+    // 全ての有効な場所ID取得（DataTableの実際のRowNameを返す）
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Location Events")
+    TArray<FString> GetValidLocationIds() const;
+
+    // LocationTypeをStringに変換
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Location Events")
+    static FString LocationTypeToString(ELocationType LocationType);
+
+    // 全ての場所タイプ取得（Blueprint用）
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Location Events")
+    static TArray<ELocationType> GetAllLocationTypes();
 
     // 場所でイベントが発生可能かチェック
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Location Events")

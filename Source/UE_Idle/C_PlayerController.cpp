@@ -3,6 +3,7 @@
 #include "C_PlayerController.h"
 #include "Components/GlobalInventoryComponent.h"
 #include "Components/TeamComponent.h"
+#include "Components/EventLogManager.h"
 #include "Actor/C_IdleCharacter.h"
 
 AC_PlayerController::AC_PlayerController()
@@ -10,6 +11,7 @@ AC_PlayerController::AC_PlayerController()
 	// Create components
 	GlobalInventory = CreateDefaultSubobject<UGlobalInventoryComponent>(TEXT("GlobalInventory"));
 	TeamComponent = CreateDefaultSubobject<UTeamComponent>(TEXT("TeamComponent"));
+	EventLogManager = CreateDefaultSubobject<UEventLogManager>(TEXT("EventLogManager"));
 }
 
 void AC_PlayerController::BeginPlay()

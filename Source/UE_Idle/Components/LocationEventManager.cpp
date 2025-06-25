@@ -3,6 +3,7 @@
 #include "../Managers/CharacterPresetManager.h"
 #include "CombatComponent.h"
 #include "Engine/World.h"
+#include "../Types/LocationTypes.h"
 
 ULocationEventManager::ULocationEventManager()
 {
@@ -176,8 +177,52 @@ FString ULocationEventManager::GetLocationDisplayName(const FString& LocationId)
 
 TArray<FString> ULocationEventManager::GetAllLocationIds() const
 {
-    // ハードコードされた場所ID（将来的にはDataTableから取得）
+    // ハードコードされた場所ID
     return { TEXT("base"), TEXT("plains"), TEXT("swamp"), TEXT("cave") };
+}
+
+TArray<FString> ULocationEventManager::GetValidLocationIds() const
+{
+    TArray<FString> LocationIds;
+    
+    if (PresetManager)
+    {
+        // PresetManagerからDataTableのRowNameを取得する処理を追加予定
+        // 現在はハードコードされた値を返す
+        return GetAllLocationIds();
+    }
+    
+    return LocationIds;
+}
+
+FString ULocationEventManager::LocationTypeToString(ELocationType LocationType)
+{
+    switch (LocationType)
+    {
+        case ELocationType::Base:
+            return TEXT("base");
+        case ELocationType::Plains:
+            return TEXT("plains");
+        case ELocationType::Swamp:
+            return TEXT("swamp");
+        case ELocationType::Cave:
+            return TEXT("cave");
+        default:
+            return TEXT("base");
+    }
+}
+
+TArray<ELocationType> ULocationEventManager::GetAllLocationTypes()
+{
+    TArray<ELocationType> LocationTypes;
+    
+    // ELocationType::Count を除く全てのタイプを追加
+    for (int32 i = 0; i < (int32)ELocationType::Count; i++)
+    {
+        LocationTypes.Add(static_cast<ELocationType>(i));
+    }
+    
+    return LocationTypes;
 }
 
 bool ULocationEventManager::CanTriggerCombatAtLocation(const FString& LocationId) const

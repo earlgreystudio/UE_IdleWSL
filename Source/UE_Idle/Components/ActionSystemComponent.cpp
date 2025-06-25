@@ -3,16 +3,16 @@
 #include "../Components/CharacterStatusComponent.h"
 #include "../Components/CharacterInventoryComponent.h"
 #include "../Managers/CombatCalculator.h"
-#include "CombatLogManager.h"
+#include "EventLogManager.h"
 #include "Engine/World.h"
 
 UActionSystemComponent::UActionSystemComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
     bSystemActive = false;
-    ActionCheckInterval = 1.0f;
+    ActionCheckInterval = 0.0f;  // 即座実行
     bEnableAI = true;
-    CombatLogManager = nullptr;
+    EventLogManager = nullptr;
 }
 
 void UActionSystemComponent::BeginPlay()
@@ -38,15 +38,30 @@ void UActionSystemComponent::StartActionSystem()
     // タイマー開始
     if (GetWorld())
     {
-        GetWorld()->GetTimerManager().SetTimer(
-            ActionTimerHandle,
-            this,
-            &UActionSystemComponent::ProcessActions,
-            ActionCheckInterval,
-            true  // ループ
-        );
-        
-        UE_LOG(LogTemp, Log, TEXT("Action system started with interval %.2fs"), ActionCheckInterval);
+        if (ActionCheckInterval <= 0.0f)
+        {
+            // インターバルが0以下の場合は即座に実行
+            UE_LOG(LogTemp, Log, TEXT("Action system started - immediate processing mode"));
+            GetWorld()->GetTimerManager().SetTimer(
+                ActionTimerHandle,
+                this,
+                &UActionSystemComponent::ProcessActions,
+                0.01f,  // 最小間隔
+                true
+            );
+        }
+        else
+        {
+            // 指定されたインターバルで実行
+            GetWorld()->GetTimerManager().SetTimer(
+                ActionTimerHandle,
+                this,
+                &UActionSystemComponent::ProcessActions,
+                ActionCheckInterval,
+                true  // ループ
+            );
+            UE_LOG(LogTemp, Log, TEXT("Action system started with interval %.2fs"), ActionCheckInterval);
+        }
     }
 }
 
@@ -86,15 +101,40 @@ void UActionSystemComponent::RegisterCharacter(AC_IdleCharacter* Character, cons
     NewAction.TargetCharacter = nullptr;
     NewAction.NextActionTime = 0.0f;  // 即座に行動可能
     
-    // 敵判定（簡易実装：Enemiesリストに含まれているかで判定）
+    // 敵判定（簡易実装：Enemiesリストに含まれているキャラクターに対しては敵として扱われる）
+    // つまり、このCharacterがEnemiesリストの誰かにとっての敵なら、このCharacterは味方
+    // RegisterTeamから呼ばれる時：
+    // - 味方登録時：Enemies=敵チーム、Character=味方 → bIsEnemyはfalse（味方）
+    // - 敵登録時：Enemies=味方チーム、Character=敵 → bIsEnemyはtrue（敵）
     bool bIsEnemy = false;
-    for (AC_IdleCharacter* Enemy : Enemies)
+    
+    // 敵チーム登録時は、Enemiesに味方チームが入っているので、このロジックを反転する必要がある
+    // より明確な実装：AllyActionsに既に登録されているかチェック
+    for (const FCharacterAction& Action : AllyActions)
     {
-        if (Enemy == Character)
+        if (Action.Character == Character)
         {
-            bIsEnemy = true;
-            break;
+            // 既に味方として登録済み
+            return;
         }
+    }
+    
+    // EnemyActionsに既に登録されているかチェック
+    for (const FCharacterAction& Action : EnemyActions)
+    {
+        if (Action.Character == Character)
+        {
+            // 既に敵として登録済み
+            return;
+        }
+    }
+    
+    // RegisterTeamから呼ばれた際のコンテキストで判断
+    // Enemiesリストが空でない場合、このメソッドはRegisterTeamから呼ばれている
+    if (Enemies.Num() > 0)
+    {
+        // Characterが渡されたEnemiesリストに含まれていない = 味方
+        bIsEnemy = Enemies.Contains(Character);
     }
 
     if (bIsEnemy)
@@ -120,14 +160,68 @@ void UActionSystemComponent::UnregisterCharacter(AC_IdleCharacter* Character)
     }
 }
 
-void UActionSystemComponent::RegisterTeam(const TArray<AC_IdleCharacter*>& Team, const TArray<AC_IdleCharacter*>& EnemyTeam)
+void UActionSystemComponent::RegisterAlly(AC_IdleCharacter* Character)
+{
+    if (!Character || !IsValid(Character))
+    {
+        return;
+    }
+
+    // 重複チェック
+    for (const FCharacterAction& Action : AllyActions)
+    {
+        if (Action.Character == Character)
+        {
+            return;
+        }
+    }
+
+    FCharacterAction NewAction;
+    NewAction.Character = Character;
+    NewAction.ActionType = EActionType::Attack;
+    NewAction.TargetCharacter = nullptr;
+    NewAction.NextActionTime = 0.0f;
+    
+    AllyActions.Add(NewAction);
+    UE_LOG(LogTemp, Log, TEXT("Registered ally character: %s"), 
+        *IIdleCharacterInterface::Execute_GetCharacterName(Character));
+}
+
+void UActionSystemComponent::RegisterEnemy(AC_IdleCharacter* Character)
+{
+    if (!Character || !IsValid(Character))
+    {
+        return;
+    }
+
+    // 重複チェック
+    for (const FCharacterAction& Action : EnemyActions)
+    {
+        if (Action.Character == Character)
+        {
+            return;
+        }
+    }
+
+    FCharacterAction NewAction;
+    NewAction.Character = Character;
+    NewAction.ActionType = EActionType::Attack;
+    NewAction.TargetCharacter = nullptr;
+    NewAction.NextActionTime = 0.0f;
+    
+    EnemyActions.Add(NewAction);
+    UE_LOG(LogTemp, Log, TEXT("Registered enemy character: %s"), 
+        *IIdleCharacterInterface::Execute_GetCharacterName(Character));
+}
+
+void UActionSystemComponent::RegisterTeam(const TArray<AC_IdleCharacter*>& AllyTeam, const TArray<AC_IdleCharacter*>& EnemyTeam)
 {
     // 味方チーム登録
-    for (AC_IdleCharacter* Ally : Team)
+    for (AC_IdleCharacter* Ally : AllyTeam)
     {
         if (Ally)
         {
-            RegisterCharacter(Ally, EnemyTeam);
+            RegisterAlly(Ally);
         }
     }
     
@@ -136,7 +230,7 @@ void UActionSystemComponent::RegisterTeam(const TArray<AC_IdleCharacter*>& Team,
     {
         if (Enemy)
         {
-            RegisterCharacter(Enemy, Team);
+            RegisterEnemy(Enemy);
         }
     }
 }
@@ -158,9 +252,9 @@ void UActionSystemComponent::HandleCharacterDeath(AC_IdleCharacter* Character)
     UnregisterCharacter(Character);
     OnCharacterDeath.Broadcast(Character);
     
-    if (CombatLogManager)
+    if (EventLogManager)
     {
-        CombatLogManager->AddCombatLog(ECombatLogType::Death, Character);
+        EventLogManager->AddCombatLog(ECombatLogType::Death, Character);
     }
     
     UE_LOG(LogTemp, Log, TEXT("Character died: %s"), 
@@ -298,16 +392,32 @@ void UActionSystemComponent::ProcessCharacterAction(FCharacterAction& Action)
         Action.Character, Target, WeaponId);
     
     // ログ記録
-    if (CombatLogManager)
+    if (EventLogManager)
     {
-        CombatLogManager->AddCombatCalculationLog(Action.Character, Target, WeaponId, Result);
+        EventLogManager->AddCombatCalculationLog(Action.Character, Target, WeaponId, Result);
     }
     
-    // ダメージ適用（HP管理は別途実装が必要）
+    // ダメージ適用
     if (Result.FinalDamage > 0)
     {
-        // TODO: HPシステム実装後にダメージ適用処理を追加
-        // 現在は仮でログのみ
+        if (UCharacterStatusComponent* TargetStatus = IIdleCharacterInterface::Execute_GetCharacterStatusComponent(Target))
+        {
+            float CurrentHP = TargetStatus->GetCurrentHealth();
+            float NewHP = FMath::Max(0.0f, CurrentHP - Result.FinalDamage);
+            TargetStatus->SetCurrentHealth(NewHP);
+            
+            UE_LOG(LogTemp, Log, TEXT("%s Health: %.1f -> %.1f (-%d damage)"), 
+                *IIdleCharacterInterface::Execute_GetCharacterName(Target),
+                CurrentHP, NewHP, Result.FinalDamage);
+            
+            // 死亡判定
+            if (NewHP <= 0.0f)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("%s has died!"), 
+                    *IIdleCharacterInterface::Execute_GetCharacterName(Target));
+                OnCharacterDeath.Broadcast(Target);
+            }
+        }
     }
     
     // イベント発火
@@ -364,7 +474,18 @@ FString UActionSystemComponent::SelectWeapon(AC_IdleCharacter* Character)
     }
     
     // 武器がない場合は素手（格闘）
-    return TEXT("unarmed");
+    // 素手用のデフォルト値を返すか、装備された武器をチェック
+    if (UCharacterInventoryComponent* InventoryComp = Character->GetInventoryComponent())
+    {
+        FItemDataRow EquippedWeapon = InventoryComp->GetEquippedWeaponData();
+        if (!EquippedWeapon.Name.IsEmpty())
+        {
+            return EquippedWeapon.Name.ToString(); // 装備中の武器のNameを使用
+        }
+    }
+    
+    // 完全に武器がない場合は素手戦闘
+    return TEXT(""); // 空文字列で格闘スキル使用
 }
 
 void UActionSystemComponent::UpdateNextActionTime(FCharacterAction& Action, const FString& WeaponId)
@@ -380,14 +501,19 @@ void UActionSystemComponent::UpdateNextActionTime(FCharacterAction& Action, cons
 
 bool UActionSystemComponent::IsCharacterAlive(AC_IdleCharacter* Character) const
 {
-    if (!Character)
+    if (!Character || !IsValid(Character))
     {
         return false;
     }
 
-    // HPシステム実装後は実際のHP値をチェック
-    // 現在は仮で常にtrueを返す
-    return true;
+    // CharacterStatusComponentから実際のHPをチェック
+    if (UCharacterStatusComponent* StatusComp = IIdleCharacterInterface::Execute_GetCharacterStatusComponent(Character))
+    {
+        return StatusComp->GetCurrentHealth() > 0.0f;
+    }
+
+    // StatusComponentがない場合はfalse
+    return false;
 }
 
 void UActionSystemComponent::LogActionInfo(const FCharacterAction& Action, const FString& WeaponId) const

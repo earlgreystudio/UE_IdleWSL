@@ -9,6 +9,7 @@
 
 class UGlobalInventoryComponent;
 class UTeamComponent;
+class UEventLogManager;
 class AC_IdleCharacter;
 
 /**
@@ -32,6 +33,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UTeamComponent> TeamComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UEventLogManager> EventLogManager;
 
 	// IPlayerControllerInterface Implementation
 	virtual void AddItemToStorage_Implementation(const FString& ItemId, int32 Quantity) override;

@@ -7,7 +7,7 @@
 #include "CombatComponent.generated.h"
 
 class AC_IdleCharacter;
-class UCombatLogManager;
+class UEventLogManager;
 class UActionSystemComponent;
 
 // デリゲート宣言
@@ -145,7 +145,7 @@ private:
 
     // 子コンポーネント
     UPROPERTY()
-    TObjectPtr<UCombatLogManager> CombatLogManager;
+    TObjectPtr<UEventLogManager> EventLogManager;
 
     UPROPERTY()
     TObjectPtr<UActionSystemComponent> ActionSystemComponent;

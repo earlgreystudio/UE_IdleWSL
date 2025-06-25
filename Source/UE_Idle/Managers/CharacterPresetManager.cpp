@@ -9,6 +9,34 @@
 void UCharacterPresetManager::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
+    
+    // DataTableの自動検索（エディタでパスを設定している場合）
+    if (!CharacterPresetDataTable)
+    {
+        CharacterPresetDataTable = LoadObject<UDataTable>(nullptr, TEXT("/Game/Data/CharacterPresets"));
+        if (CharacterPresetDataTable)
+        {
+            UE_LOG(LogTemp, Log, TEXT("CharacterPresetDataTable loaded from default path"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("CharacterPresetDataTable not found at default path"));
+        }
+    }
+    
+    if (!LocationDataTable)
+    {
+        LocationDataTable = LoadObject<UDataTable>(nullptr, TEXT("/Game/Data/LocationData"));
+        if (LocationDataTable)
+        {
+            UE_LOG(LogTemp, Log, TEXT("LocationDataTable loaded from default path"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("LocationDataTable not found at default path"));
+        }
+    }
+    
     UE_LOG(LogTemp, Log, TEXT("CharacterPresetManager initialized"));
 }
 

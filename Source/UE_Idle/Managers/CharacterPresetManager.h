@@ -65,13 +65,14 @@ protected:
     // キャラクターの初期設定
     void InitializeCharacter(AC_IdleCharacter* Character, const FCharacterPresetDataRow& PresetData);
 
-private:
-    // DataTableの参照
-    UPROPERTY()
+    // DataTableの参照（Blueprint設定可能）
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
     TObjectPtr<UDataTable> CharacterPresetDataTable;
 
-    UPROPERTY()
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Data")
     TObjectPtr<UDataTable> LocationDataTable;
+
+private:
 
     // デバッグ用
     void LogCharacterPresetError(const FString& PresetId) const;

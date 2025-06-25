@@ -69,4 +69,12 @@ private:
     
     // 装備重量ペナルティの詳細計算
     static float CalculatePenaltyPercentage(float WeightRatio);
+
+    // 爪牙システム対応関数
+    static FString GetCharacterRace(AC_IdleCharacter* Character);
+    static FString GetEffectiveWeaponId(AC_IdleCharacter* Character);
+    static bool IsNaturalWeapon(const FString& WeaponId);
+    static int32 CalculateNaturalWeaponDamage(AC_IdleCharacter* Attacker, const FString& NaturalWeaponId);
+    static int32 CalculateArtificialWeaponDamage(AC_IdleCharacter* Attacker, const FString& WeaponItemId);
+    static int32 GetNaturalWeaponPower(const FString& CharacterRace);
 };

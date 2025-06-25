@@ -7,7 +7,7 @@
 
 class AC_IdleCharacter;
 class UCombatCalculator;
-class UCombatLogManager;
+class UEventLogManager;
 
 // デリゲート宣言
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnCharacterAction, AC_IdleCharacter*, Actor, AC_IdleCharacter*, Target, const FCombatCalculationResult&, Result);
@@ -33,16 +33,22 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Action System")
     void StopActionSystem();
 
-    // キャラクター登録/登録解除
-    UFUNCTION(BlueprintCallable, Category = "Action System")
+    // キャラクター登録/登録解除（非推奨）
     void RegisterCharacter(AC_IdleCharacter* Character, const TArray<AC_IdleCharacter*>& Enemies);
 
     UFUNCTION(BlueprintCallable, Category = "Action System")
     void UnregisterCharacter(AC_IdleCharacter* Character);
 
-    // チーム全体を登録
+    // チーム全体を登録（推奨）
     UFUNCTION(BlueprintCallable, Category = "Action System")
-    void RegisterTeam(const TArray<AC_IdleCharacter*>& Team, const TArray<AC_IdleCharacter*>& EnemyTeam);
+    void RegisterTeam(const TArray<AC_IdleCharacter*>& AllyTeam, const TArray<AC_IdleCharacter*>& EnemyTeam);
+    
+    // 明確な登録メソッド
+    UFUNCTION(BlueprintCallable, Category = "Action System")
+    void RegisterAlly(AC_IdleCharacter* Character);
+    
+    UFUNCTION(BlueprintCallable, Category = "Action System")
+    void RegisterEnemy(AC_IdleCharacter* Character);
 
     // 全キャラクター登録解除
     UFUNCTION(BlueprintCallable, Category = "Action System")
@@ -72,7 +78,7 @@ public:
 
     // ログマネージャー設定
     UFUNCTION(BlueprintCallable, Category = "Action System")
-    void SetCombatLogManager(UCombatLogManager* LogManager) { CombatLogManager = LogManager; }
+    void SetEventLogManager(UEventLogManager* LogManager) { EventLogManager = LogManager; }
 
     // イベントディスパッチャー
     UPROPERTY(BlueprintAssignable, Category = "Action Events")
@@ -81,9 +87,9 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Action Events")
     FOnCharacterDeath OnCharacterDeath;
 
-    // 設定
+    // 設定（0.0f以下で即座実行）
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
-    float ActionCheckInterval = 1.0f;
+    float ActionCheckInterval = 0.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
     bool bEnableAI = true;
@@ -128,7 +134,7 @@ private:
 
     // 外部コンポーネント参照
     UPROPERTY()
-    TObjectPtr<UCombatLogManager> CombatLogManager;
+    TObjectPtr<UEventLogManager> EventLogManager;
 
     // ヘルパー関数
     FCharacterAction* FindCharacterAction(AC_IdleCharacter* Character);

@@ -45,6 +45,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	void SetCharacterName(const FString& NewName) { CharacterName = NewName; }
 
+	// キャラクター種族取得・設定
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	FString GetCharacterRace() const { return CharacterRace; }
+
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	void SetCharacterRace(const FString& NewRace) { CharacterRace = NewRace; }
+
 protected:
 	// コンポーネント
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -56,6 +63,10 @@ protected:
 	// キャラクター基本データ
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
 	FString CharacterName = TEXT("Idle Character");
+
+	// キャラクターの種族（CharacterPresets.csvのRowNameに対応）
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
+	FString CharacterRace = TEXT("human");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
 	bool bIsActive = true;

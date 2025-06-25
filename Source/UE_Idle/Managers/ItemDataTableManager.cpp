@@ -9,6 +9,21 @@ void UItemDataTableManager::Initialize(FSubsystemCollectionBase& Collection)
     UE_LOG(LogTemp, Log, TEXT("ItemDataTableManager initialized"));
 }
 
+void UItemDataTableManager::SetItemDataTable(UDataTable* InDataTable)
+{
+    ItemDataTable = InDataTable;
+    
+    if (ItemDataTable)
+    {
+        UE_LOG(LogTemp, Log, TEXT("ItemDataTable set successfully. Row count: %d"), 
+            ItemDataTable->GetRowMap().Num());
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ItemDataTable set to null"));
+    }
+}
+
 bool UItemDataTableManager::GetItemData(const FString& ItemId, FItemDataRow& OutItemData) const
 {
     const FItemDataRow* ItemData = FindItemByItemId(ItemId);

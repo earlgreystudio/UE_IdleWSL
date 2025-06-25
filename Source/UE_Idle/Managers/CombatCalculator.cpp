@@ -3,6 +3,7 @@
 #include "../Components/CharacterStatusComponent.h"
 #include "../Components/CharacterInventoryComponent.h"
 #include "ItemDataTableManager.h"
+#include "CharacterPresetManager.h"
 #include "Engine/World.h"
 
 FEquipmentPenalty UCombatCalculator::CalculateEquipmentPenalty(AC_IdleCharacter* Character)
@@ -144,27 +145,21 @@ int32 UCombatCalculator::CalculateBaseDamage(AC_IdleCharacter* Attacker, const F
         return 1;
     }
 
-    FCharacterTalent Talent = GetCharacterTalent(Attacker);
-    ESkillType WeaponSkill = GetWeaponSkillType(WeaponItemId);
-    float SkillLevel = GetSkillLevel(Attacker, WeaponSkill);
-    int32 WeaponAttackPower = GetWeaponAttackPower(WeaponItemId);
+    // 1. 効果的な武器IDを決定（装備武器優先、なければ自然武器）
+    FString EffectiveWeaponId = GetEffectiveWeaponId(Attacker);
     
-    // 武器ダメージ = 武器攻撃力 × (1 + (スキルレベル ÷ 20))
-    float WeaponDamage = WeaponAttackPower * (1.0f + (SkillLevel / 20.0f));
+    // 2. 自然武器か人工武器かを判定
+    bool bIsNaturalWeapon = IsNaturalWeapon(EffectiveWeaponId);
     
-    // 能力補正 = 力 × 0.5 (近接武器) または 器用 × 0.5 (遠距離武器)
-    float AbilityModifier;
-    if (IsRangedWeapon(WeaponItemId))
+    // 3. 適切な計算式を適用
+    if (bIsNaturalWeapon)
     {
-        AbilityModifier = Talent.Dexterity * 0.5f;
+        return CalculateNaturalWeaponDamage(Attacker, EffectiveWeaponId);
     }
     else
     {
-        AbilityModifier = Talent.Strength * 0.5f;
+        return CalculateArtificialWeaponDamage(Attacker, EffectiveWeaponId);
     }
-    
-    // 基本ダメージ = 武器ダメージ + 能力補正
-    return FMath::Max(1, FMath::RoundToInt(WeaponDamage + AbilityModifier));
 }
 
 int32 UCombatCalculator::CalculateDefenseValue(AC_IdleCharacter* Defender)
@@ -302,6 +297,12 @@ FCharacterTalent UCombatCalculator::GetCharacterTalent(AC_IdleCharacter* Charact
 
 float UCombatCalculator::GetWeaponWeight(const FString& WeaponItemId)
 {
+    // 空文字列や"unarmed"の場合は素手重量
+    if (WeaponItemId.IsEmpty() || WeaponItemId == TEXT("unarmed"))
+    {
+        return 0.5f; // 素手の重量
+    }
+    
     // ItemDataTableManagerから武器の重量を取得
     UGameInstance* GameInstance = nullptr;
     UWorld* World = GEngine->GetCurrentPlayWorld();
@@ -323,11 +324,17 @@ float UCombatCalculator::GetWeaponWeight(const FString& WeaponItemId)
         }
     }
     
-    return 2.0f; // デフォルト重量
+    return 0.5f; // 武器が見つからない場合も素手扱い
 }
 
 int32 UCombatCalculator::GetWeaponAttackPower(const FString& WeaponItemId)
 {
+    // 空文字列や"unarmed"の場合は素手攻撃力（格闘スキル依存）
+    if (WeaponItemId.IsEmpty() || WeaponItemId == TEXT("unarmed"))
+    {
+        return 3; // 基本素手攻撃力（格闘スキルで上昇）
+    }
+    
     // ItemDataTableManagerから武器の攻撃力を取得
     UGameInstance* GameInstance = nullptr;
     UWorld* World = GEngine->GetCurrentPlayWorld();
@@ -349,11 +356,17 @@ int32 UCombatCalculator::GetWeaponAttackPower(const FString& WeaponItemId)
         }
     }
     
-    return 10; // デフォルト攻撃力
+    return 3; // 武器が見つからない場合も素手扱い
 }
 
 bool UCombatCalculator::IsRangedWeapon(const FString& WeaponItemId)
 {
+    // 空文字列や"unarmed"の場合は近接武器（素手）
+    if (WeaponItemId.IsEmpty() || WeaponItemId == TEXT("unarmed"))
+    {
+        return false;
+    }
+    
     // 武器種類の判定（アイテムデータから判断）
     UGameInstance* GameInstance = nullptr;
     UWorld* World = GEngine->GetCurrentPlayWorld();
@@ -383,6 +396,12 @@ bool UCombatCalculator::IsRangedWeapon(const FString& WeaponItemId)
 
 ESkillType UCombatCalculator::GetWeaponSkillType(const FString& WeaponItemId)
 {
+    // 素手戦闘の場合
+    if (WeaponItemId.IsEmpty() || WeaponItemId == TEXT("unarmed"))
+    {
+        return ESkillType::Combat;
+    }
+    
     // 武器名から対応するスキルタイプを判定
     if (WeaponItemId.Contains(TEXT("sword")) || WeaponItemId.Contains(TEXT("axe")) || WeaponItemId.Contains(TEXT("mace")))
     {
@@ -409,8 +428,8 @@ ESkillType UCombatCalculator::GetWeaponSkillType(const FString& WeaponItemId)
         return ESkillType::Throwing;
     }
     
-    // デフォルトは格闘
-    return ESkillType::Combat;
+    // デフォルトは片手武器
+    return ESkillType::OneHandedWeapons;
 }
 
 float UCombatCalculator::GetTotalEquipmentWeight(AC_IdleCharacter* Character)
@@ -513,4 +532,158 @@ float UCombatCalculator::CalculatePenaltyPercentage(float WeightRatio)
     {
         return WeightRatio * 50.0f;
     }
+}
+
+// 爪牙システム対応関数の実装
+
+FString UCombatCalculator::GetCharacterRace(AC_IdleCharacter* Character)
+{
+    if (!Character)
+    {
+        return TEXT("human"); // デフォルトは人間
+    }
+
+    // キャラクターから種族を取得
+    return Character->GetCharacterRace();
+}
+
+FString UCombatCalculator::GetEffectiveWeaponId(AC_IdleCharacter* Character)
+{
+    if (!Character)
+    {
+        return TEXT("");
+    }
+
+    // 1. 装備武器の確認
+    // TODO: 装備システムが実装されたら、ここで装備武器をチェック
+    FString EquippedWeapon = TEXT(""); // 一時的
+    
+    if (!EquippedWeapon.IsEmpty())
+    {
+        return EquippedWeapon;
+    }
+
+    // 2. 装備武器がない場合、キャラクターの種族に応じた自然武器を返す
+    FString CharacterRace = GetCharacterRace(Character);
+    
+    // CharacterPresetsから自然武器データを取得
+    UGameInstance* GameInstance = Character->GetWorld()->GetGameInstance();
+    if (GameInstance)
+    {
+        UCharacterPresetManager* PresetManager = GameInstance->GetSubsystem<UCharacterPresetManager>();
+        if (PresetManager)
+        {
+            if (PresetManager->DoesPresetExist(CharacterRace))
+            {
+                FCharacterPresetDataRow PresetData = PresetManager->GetCharacterPreset(CharacterRace);
+                if (!PresetData.NaturalWeaponId.IsEmpty())
+                {
+                    return PresetData.NaturalWeaponId;
+                }
+            }
+        }
+    }
+
+    // デフォルトは人間の素手
+    return TEXT("");
+}
+
+bool UCombatCalculator::IsNaturalWeapon(const FString& WeaponId)
+{
+    // 自然武器の判定
+    if (WeaponId.IsEmpty() || WeaponId == TEXT("unarmed"))
+    {
+        return true; // 素手は自然武器扱い
+    }
+    
+    // 自然武器のIDパターンを確認
+    return WeaponId.Contains(TEXT("_bite")) || 
+           WeaponId.Contains(TEXT("_claw")) || 
+           WeaponId.Contains(TEXT("_fang")) || 
+           WeaponId.Contains(TEXT("_tongue"));
+}
+
+int32 UCombatCalculator::CalculateNaturalWeaponDamage(AC_IdleCharacter* Attacker, const FString& NaturalWeaponId)
+{
+    if (!Attacker)
+    {
+        return 1;
+    }
+
+    FCharacterTalent Talent = GetCharacterTalent(Attacker);
+    float CombatSkill = GetSkillLevel(Attacker, ESkillType::Combat);
+    
+    // 自然武器の基本攻撃力を取得
+    int32 BaseAttackPower = 2; // 人間の素手攻撃力（デフォルト）
+    
+    if (!NaturalWeaponId.IsEmpty() && NaturalWeaponId != TEXT("unarmed"))
+    {
+        // CharacterPresetsから自然武器攻撃力を取得
+        FString CharacterRace = GetCharacterRace(Attacker);
+        BaseAttackPower = GetNaturalWeaponPower(CharacterRace);
+    }
+    
+    // 自然武器ダメージ = 自然武器攻撃力 + (格闘スキル × 0.8) + (力 × 0.7)
+    float NaturalDamage = BaseAttackPower + (CombatSkill * 0.8f) + (Talent.Strength * 0.7f);
+    
+    return FMath::Max(1, FMath::RoundToInt(NaturalDamage));
+}
+
+int32 UCombatCalculator::CalculateArtificialWeaponDamage(AC_IdleCharacter* Attacker, const FString& WeaponItemId)
+{
+    if (!Attacker)
+    {
+        return 1;
+    }
+
+    FCharacterTalent Talent = GetCharacterTalent(Attacker);
+    ESkillType WeaponSkill = GetWeaponSkillType(WeaponItemId);
+    float SkillLevel = GetSkillLevel(Attacker, WeaponSkill);
+    int32 WeaponAttackPower = GetWeaponAttackPower(WeaponItemId);
+    
+    // 武器ダメージ = 武器攻撃力 × (1 + (スキルレベル ÷ 20))
+    float WeaponDamage = WeaponAttackPower * (1.0f + (SkillLevel / 20.0f));
+    
+    // 能力補正 = 力 × 0.5 (近接武器) または 器用 × 0.5 (遠距離武器)
+    float AbilityModifier;
+    if (IsRangedWeapon(WeaponItemId))
+    {
+        AbilityModifier = Talent.Dexterity * 0.5f;
+    }
+    else
+    {
+        AbilityModifier = Talent.Strength * 0.5f;
+    }
+    
+    // 基本ダメージ = 武器ダメージ + 能力補正
+    return FMath::Max(1, FMath::RoundToInt(WeaponDamage + AbilityModifier));
+}
+
+int32 UCombatCalculator::GetNaturalWeaponPower(const FString& CharacterRace)
+{
+    if (CharacterRace.IsEmpty() || CharacterRace == TEXT("human"))
+    {
+        return 2; // 人間の素手攻撃力
+    }
+
+    // CharacterPresetsから自然武器攻撃力を取得
+    UWorld* World = GEngine->GetCurrentPlayWorld();
+    if (World)
+    {
+        UGameInstance* GameInstance = World->GetGameInstance();
+        if (GameInstance)
+        {
+            UCharacterPresetManager* PresetManager = GameInstance->GetSubsystem<UCharacterPresetManager>();
+            if (PresetManager)
+            {
+                if (PresetManager->DoesPresetExist(CharacterRace))
+                {
+                    FCharacterPresetDataRow PresetData = PresetManager->GetCharacterPreset(CharacterRace);
+                    return PresetData.NaturalWeaponPower;
+                }
+            }
+        }
+    }
+    
+    return 2; // 見つからない場合は人間の素手攻撃力
 }

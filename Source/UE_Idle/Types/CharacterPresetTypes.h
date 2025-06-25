@@ -50,6 +50,18 @@ struct FCharacterPresetDataRow : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Equipment")
     FString InitialItemsString;
 
+    // 自然武器ID (素手時に使用される種族固有の武器)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NaturalWeapon")
+    FString NaturalWeaponId;
+
+    // 自然武器攻撃力
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NaturalWeapon", meta = (ClampMin = "0", ClampMax = "50"))
+    int32 NaturalWeaponPower;
+
+    // 自然武器表示名
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NaturalWeapon")
+    FString NaturalWeaponName;
+
     FCharacterPresetDataRow()
     {
         Name = TEXT("");
@@ -63,6 +75,9 @@ struct FCharacterPresetDataRow : public FTableRowBase
         Willpower = 10.0f;
         SkillsString = TEXT("");
         InitialItemsString = TEXT("");
+        NaturalWeaponId = TEXT("");
+        NaturalWeaponPower = 2;  // 人間の素手攻撃力
+        NaturalWeaponName = TEXT("素手");
     }
 
     // CSV文字列からFCharacterTalentを生成するヘルパー関数

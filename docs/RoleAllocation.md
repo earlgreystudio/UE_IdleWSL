@@ -19,6 +19,12 @@
 ・プレイヤーコントローラーのメインクラス
 ・GlobalInventoryComponent、TeamComponentを持つ
 ・IPlayerControllerInterfaceを実装
+・プレイヤー固有の機能（チーム管理、インベントリ）に特化
+
+### C_GameInstance
+・カスタムGameInstanceクラス
+・DataTableの初期化を管理
+・全てのサブシステムへDataTableを配布
 
 ## Components
 
@@ -41,11 +47,13 @@
 ・キャラクターのチーム編成管理
 ・複数チームの作成と任務割り当て
 ・チームメンバーの追加・削除機能
+・BattleSystemManagerを通じて冒険開始を委託
 
 ### CombatComponent
 ・戦闘システムの中核管理
 ・戦闘状態の管理と戦闘開始・終了処理
 ・ActionSystemComponentと連携して戦闘実行
+・BattleSystemManagerによって管理される
 
 ### ActionSystemComponent
 ・戦闘中のキャラクター行動処理
@@ -61,6 +69,7 @@
 ・場所でのイベント発生管理
 ・戦闘イベントや採取イベントのトリガー
 ・場所別の敵チーム生成機能
+・BattleSystemManagerによって管理される
 
 ## Managers
 
@@ -73,6 +82,12 @@
 ・キャラクタープリセットの管理
 ・プリセットからのキャラクター生成
 ・場所データの管理も兼任
+
+### BattleSystemManager (GameInstanceSubsystem)
+・戦闘システム全体の統括管理
+・LocationEventManagerとCombatComponentを保持
+・チームの冒険開始処理
+・PlayerControllerから戦闘関連の責任を分離
 
 ### CombatCalculator
 ・戦闘計算の専門クラス

@@ -1,6 +1,6 @@
 #include "TeamComponent.h"
 #include "../Actor/C_IdleCharacter.h"
-#include "LocationEventManager.h"
+#include "../Managers/BattleSystemManager.h"
 
 UTeamComponent::UTeamComponent()
 {
@@ -215,14 +215,12 @@ bool UTeamComponent::StartAdventure(int32 TeamIndex, const FString& LocationId)
 	Team.AssignedTask = ETaskType::Adventure;
 	Team.bInCombat = true;
 
-	// LocationEventManagerを探してイベントトリガー
-	AActor* Owner = GetOwner();
-	if (Owner)
+	// BattleSystemManagerを使用してイベントトリガー
+	if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
 	{
-		ULocationEventManager* LocationEventManager = Owner->FindComponentByClass<ULocationEventManager>();
-		if (LocationEventManager)
+		if (UBattleSystemManager* BattleManager = GameInstance->GetSubsystem<UBattleSystemManager>())
 		{
-			bool bEventTriggered = LocationEventManager->TriggerCombatEvent(LocationId, Team.Members);
+			bool bEventTriggered = BattleManager->StartTeamAdventure(Team.Members, LocationId);
 			if (!bEventTriggered)
 			{
 				// イベントトリガーに失敗した場合はフラグをリセット
@@ -233,7 +231,7 @@ bool UTeamComponent::StartAdventure(int32 TeamIndex, const FString& LocationId)
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("StartAdventure: LocationEventManager not found on owner"));
+			UE_LOG(LogTemp, Error, TEXT("StartAdventure: BattleSystemManager not found"));
 			Team.bInCombat = false;
 			return false;
 		}

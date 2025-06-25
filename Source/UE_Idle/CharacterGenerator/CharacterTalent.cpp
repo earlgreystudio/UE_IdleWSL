@@ -1,17 +1,23 @@
 #include "CharacterTalent.h"
 #include "Engine/Engine.h"
 
+// 静的変数の初期化（爪牙システム推奨値）
+float UCharacterTalentGenerator::BaseStatRangeMultiplier = 0.4f;   // 1-12 (30 * 0.4 = 12)
+float UCharacterTalentGenerator::ClubBonusRangeMultiplier = 0.375f; // 37.5%
+
 FCharacterTalent UCharacterTalentGenerator::GenerateRandomTalent()
 {
     FCharacterTalent Talent;
     
-    // 基本能力値をランダムに設定 (1-30)
-    Talent.Strength = FMath::RandRange(1.0f, 30.0f);
-    Talent.Toughness = FMath::RandRange(1.0f, 30.0f);
-    Talent.Intelligence = FMath::RandRange(1.0f, 30.0f);
-    Talent.Dexterity = FMath::RandRange(1.0f, 30.0f);
-    Talent.Agility = FMath::RandRange(1.0f, 30.0f);
-    Talent.Willpower = FMath::RandRange(1.0f, 30.0f);
+    // 係数ベースの基本能力値計算（調整可能）
+    float MaxBaseStat = 30.0f * BaseStatRangeMultiplier; // デフォルト: 30 * 0.4 = 12
+    
+    Talent.Strength = FMath::RandRange(1.0f, MaxBaseStat);
+    Talent.Toughness = FMath::RandRange(1.0f, MaxBaseStat);
+    Talent.Intelligence = FMath::RandRange(1.0f, MaxBaseStat);
+    Talent.Dexterity = FMath::RandRange(1.0f, MaxBaseStat);
+    Talent.Agility = FMath::RandRange(1.0f, MaxBaseStat);
+    Talent.Willpower = FMath::RandRange(1.0f, MaxBaseStat);
     
     // スキルの個数をランダムに決定 (1-4)
     int32 SkillCount = FMath::RandRange(1, 4);
@@ -55,40 +61,46 @@ FCharacterTalent UCharacterTalentGenerator::ApplyClubBonus(const FCharacterTalen
     FCharacterTalent ResultTalent = BaseTalent;
     FClubBonus ClubBonus = GetClubBonus(ClubType);
     
-    // 基本能力値にランダムボーナスを加算（半分から最大値まで）
+    // 係数ベースの基本能力値ボーナス加算（調整可能）
     if (ClubBonus.Strength > 0.0f)
     {
-        float RandomBonus = FMath::RandRange(ClubBonus.Strength * 0.5f, ClubBonus.Strength);
+        float AdjustedBonus = ClubBonus.Strength * ClubBonusRangeMultiplier;
+        float RandomBonus = FMath::RandRange(AdjustedBonus * 0.5f, AdjustedBonus);
         ResultTalent.Strength = FMath::Clamp(ResultTalent.Strength + RandomBonus, 1.0f, 100.0f);
     }
     
     if (ClubBonus.Toughness > 0.0f)
     {
-        float RandomBonus = FMath::RandRange(ClubBonus.Toughness * 0.5f, ClubBonus.Toughness);
+        float AdjustedBonus = ClubBonus.Toughness * ClubBonusRangeMultiplier;
+        float RandomBonus = FMath::RandRange(AdjustedBonus * 0.5f, AdjustedBonus);
         ResultTalent.Toughness = FMath::Clamp(ResultTalent.Toughness + RandomBonus, 1.0f, 100.0f);
     }
     
     if (ClubBonus.Intelligence > 0.0f)
     {
-        float RandomBonus = FMath::RandRange(ClubBonus.Intelligence * 0.5f, ClubBonus.Intelligence);
+        float AdjustedBonus = ClubBonus.Intelligence * ClubBonusRangeMultiplier;
+        float RandomBonus = FMath::RandRange(AdjustedBonus * 0.5f, AdjustedBonus);
         ResultTalent.Intelligence = FMath::Clamp(ResultTalent.Intelligence + RandomBonus, 1.0f, 100.0f);
     }
     
     if (ClubBonus.Dexterity > 0.0f)
     {
-        float RandomBonus = FMath::RandRange(ClubBonus.Dexterity * 0.5f, ClubBonus.Dexterity);
+        float AdjustedBonus = ClubBonus.Dexterity * ClubBonusRangeMultiplier;
+        float RandomBonus = FMath::RandRange(AdjustedBonus * 0.5f, AdjustedBonus);
         ResultTalent.Dexterity = FMath::Clamp(ResultTalent.Dexterity + RandomBonus, 1.0f, 100.0f);
     }
     
     if (ClubBonus.Agility > 0.0f)
     {
-        float RandomBonus = FMath::RandRange(ClubBonus.Agility * 0.5f, ClubBonus.Agility);
+        float AdjustedBonus = ClubBonus.Agility * ClubBonusRangeMultiplier;
+        float RandomBonus = FMath::RandRange(AdjustedBonus * 0.5f, AdjustedBonus);
         ResultTalent.Agility = FMath::Clamp(ResultTalent.Agility + RandomBonus, 1.0f, 100.0f);
     }
     
     if (ClubBonus.Willpower > 0.0f)
     {
-        float RandomBonus = FMath::RandRange(ClubBonus.Willpower * 0.5f, ClubBonus.Willpower);
+        float AdjustedBonus = ClubBonus.Willpower * ClubBonusRangeMultiplier;
+        float RandomBonus = FMath::RandRange(AdjustedBonus * 0.5f, AdjustedBonus);
         ResultTalent.Willpower = FMath::Clamp(ResultTalent.Willpower + RandomBonus, 1.0f, 100.0f);
     }
     
@@ -97,29 +109,40 @@ FCharacterTalent UCharacterTalentGenerator::ApplyClubBonus(const FCharacterTalen
     {
         bool bSkillFound = false;
         
-        // 既存スキルに加算
+        // 既存スキルに係数ベースボーナス加算
         for (FSkillTalent& ExistingSkill : ResultTalent.Skills)
         {
             if (ExistingSkill.SkillType == SkillBonus.SkillType)
             {
-                float RandomBonus = FMath::RandRange(SkillBonus.Value * 0.5f, SkillBonus.Value);
+                float AdjustedBonus = SkillBonus.Value * ClubBonusRangeMultiplier;
+                float RandomBonus = FMath::RandRange(AdjustedBonus * 0.5f, AdjustedBonus);
                 ExistingSkill.Value = FMath::Clamp(ExistingSkill.Value + RandomBonus, 1.0f, 100.0f);
                 bSkillFound = true;
                 break;
             }
         }
         
-        // 新しいスキルとして追加
+        // 新しいスキルとして係数ベース追加
         if (!bSkillFound)
         {
             FSkillTalent NewSkill;
             NewSkill.SkillType = SkillBonus.SkillType;
-            NewSkill.Value = FMath::RandRange(SkillBonus.Value * 0.5f, SkillBonus.Value);
+            float AdjustedBonus = SkillBonus.Value * ClubBonusRangeMultiplier;
+            NewSkill.Value = FMath::RandRange(AdjustedBonus * 0.5f, AdjustedBonus);
             ResultTalent.Skills.Add(NewSkill);
         }
     }
     
     return ResultTalent;
+}
+
+void UCharacterTalentGenerator::SetBalanceMultipliers(float BaseStatMultiplier, float ClubBonusMultiplier)
+{
+    BaseStatRangeMultiplier = FMath::Clamp(BaseStatMultiplier, 0.1f, 2.0f);
+    ClubBonusRangeMultiplier = FMath::Clamp(ClubBonusMultiplier, 0.1f, 2.0f);
+    
+    UE_LOG(LogTemp, Log, TEXT("Balance Multipliers Updated: BaseStat=%.3f, ClubBonus=%.3f"), 
+           BaseStatRangeMultiplier, ClubBonusRangeMultiplier);
 }
 
 FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
@@ -170,6 +193,10 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             SkillBonus3.SkillType = ESkillType::Evasion;
             SkillBonus3.Value = 10.0f;
             Bonus.SkillBonuses.Add(SkillBonus3);
+            FSkillTalent SkillBonus4;
+            SkillBonus4.SkillType = ESkillType::Combat;
+            SkillBonus4.Value = 5.0f; // 推定ボーナス（シミュレーター対応）
+            Bonus.SkillBonuses.Add(SkillBonus4);
             break;
         }
             

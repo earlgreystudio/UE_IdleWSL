@@ -48,56 +48,8 @@ enum class EActionType : uint8
     Count       UMETA(Hidden)
 };
 
-// 戦闘ログエントリ
-USTRUCT(BlueprintType)
-struct FCombatLogEntry
-{
-    GENERATED_BODY()
-
-    // ログタイプ
-    UPROPERTY(BlueprintReadWrite, Category = "Log")
-    ECombatLogType LogType;
-
-    // 行動者
-    UPROPERTY(BlueprintReadWrite, Category = "Log")
-    AC_IdleCharacter* Actor;
-
-    // 対象者（攻撃対象など）
-    UPROPERTY(BlueprintReadWrite, Category = "Log")
-    AC_IdleCharacter* Target;
-
-    // 使用武器/アイテム名
-    UPROPERTY(BlueprintReadWrite, Category = "Log")
-    FString WeaponOrItemName;
-
-    // ダメージ値
-    UPROPERTY(BlueprintReadWrite, Category = "Log")
-    int32 DamageValue;
-
-    // 追加情報（詳細計算結果など）
-    UPROPERTY(BlueprintReadWrite, Category = "Log")
-    FString AdditionalInfo;
-
-    // ログ生成時刻
-    UPROPERTY(BlueprintReadWrite, Category = "Log")
-    float Timestamp;
-
-    // 表示用フォーマット済みテキスト
-    UPROPERTY(BlueprintReadWrite, Category = "Log")
-    FString FormattedText;
-
-    FCombatLogEntry()
-    {
-        LogType = ECombatLogType::Attack;
-        Actor = nullptr;
-        Target = nullptr;
-        WeaponOrItemName = TEXT("");
-        DamageValue = 0;
-        AdditionalInfo = TEXT("");
-        Timestamp = 0.0f;
-        FormattedText = TEXT("");
-    }
-};
+// 戦闘ログエントリは EventLogTypes.h の FEventLogEntry を使用
+// 後方互換性のため、このファイルでは削除済み
 
 // 戦闘計算結果
 USTRUCT(BlueprintType)
