@@ -38,9 +38,19 @@ struct FTeam
     UPROPERTY(BlueprintReadWrite, Category = "Team")
     bool bIsActive;
 
+    // 冒険先の場所ID（AdventureタスクでのみU使用）
+    UPROPERTY(BlueprintReadWrite, Category = "Adventure")
+    FString AdventureLocationId;
+
+    // 戦闘中かどうか
+    UPROPERTY(BlueprintReadWrite, Category = "Combat")
+    bool bInCombat;
+
     FTeam()
     {
         AssignedTask = ETaskType::Idle;  // デフォルトは待機
         bIsActive = true;
+        AdventureLocationId = TEXT("");
+        bInCombat = false;
     }
 };

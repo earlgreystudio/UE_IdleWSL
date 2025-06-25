@@ -1,0 +1,5 @@
+RowName,Name,Description,LocationType,EnemySpawnListString
+"base","拠点","安全な活動拠点","Base",""
+"plains","平野","開けた草原地帯","Plains","rat:0.8|giant_frog:0.2"
+"swamp","沼地","湿地帯","Swamp","giant_frog:0.7|rat:0.3"
+"cave","洞窟","薄暗い地下空間","Cave","goblin:0.6|rat:0.4"

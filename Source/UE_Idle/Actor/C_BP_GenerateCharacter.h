@@ -28,9 +28,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Character Generation")
 	void GenerateRandomCharacter();
 
+	// プリセットからキャラクター生成
+	UFUNCTION(BlueprintCallable, Category = "Character Generation")
+	void GenerateCharacterFromPreset(const FString& PresetId);
+
+	// 場所にランダムな敵を生成
+	UFUNCTION(BlueprintCallable, Category = "Character Generation", meta = (WorldContext = "WorldContextObject"))
+	AC_IdleCharacter* GenerateEnemyAtLocation(
+		UObject* WorldContextObject,
+		const FString& LocationId,
+		const FVector& SpawnLocation,
+		const FRotator& SpawnRotation = FRotator::ZeroRotator
+	);
+
 	// スポーンするキャラクタークラス（BP_IdleCharacterを指定）
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Generation")
-	TSubclassOf<AActor> CharacterClassToSpawn;
+	TSubclassOf<AC_IdleCharacter> CharacterClassToSpawn;
 
 private:
 	// ランダム名前生成

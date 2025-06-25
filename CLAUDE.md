@@ -23,8 +23,25 @@ UE_IdleWSL/
 ├── Content/Data/
 │   └── ItemData.csv                   # DataTable source CSV
 └── docs/
-    └── アイテム仕様書.md               # Item system specification (Japanese)
+    ├── アイテム仕様書.md               # Item system specification (Japanese)
+    └── RoleAllocation.md               # Component and class role summary
 ```
+
+## Documentation
+
+### RoleAllocation.md
+
+**Purpose**: Comprehensive role summary document (`docs/RoleAllocation.md`) that provides concise, bulleted explanations of every component, actor, manager, and class in the `Source/UE_Idle/` directory.
+
+**Structure**: Organized by category (Actor, Components, Managers, etc.) for quick reference and system understanding.
+
+**Usage**: Reference this document when:
+- Understanding the overall system architecture
+- Determining which component handles specific functionality
+- Planning new features and their integration points
+- Onboarding new developers to the project
+
+**IMPORTANT**: When adding, modifying, or removing any files in `Source/UE_Idle/`, you MUST update `docs/RoleAllocation.md` to reflect these changes. This ensures the documentation remains accurate and useful for system comprehension.
 
 ## Core Architecture
 

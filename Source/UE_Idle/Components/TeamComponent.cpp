@@ -1,5 +1,6 @@
 #include "TeamComponent.h"
 #include "../Actor/C_IdleCharacter.h"
+#include "LocationEventManager.h"
 
 UTeamComponent::UTeamComponent()
 {
@@ -147,6 +148,13 @@ bool UTeamComponent::SetTeamTask(int32 TeamIndex, ETaskType NewTask)
 	{
 		Teams[TeamIndex].AssignedTask = NewTask;
 		
+		// 冒険以外のタスクに変更する場合は場所をクリア
+		if (NewTask != ETaskType::Adventure)
+		{
+			Teams[TeamIndex].AdventureLocationId = TEXT("");
+			Teams[TeamIndex].bInCombat = false;
+		}
+		
 		// イベント通知
 		OnTaskChanged.Broadcast(TeamIndex, NewTask);
 		OnTeamsUpdated.Broadcast();
@@ -154,6 +162,91 @@ bool UTeamComponent::SetTeamTask(int32 TeamIndex, ETaskType NewTask)
 		return true;
 	}
 	return false;
+}
+
+bool UTeamComponent::SetTeamAdventureLocation(int32 TeamIndex, const FString& LocationId)
+{
+	if (!Teams.IsValidIndex(TeamIndex))
+	{
+		return false;
+	}
+
+	Teams[TeamIndex].AdventureLocationId = LocationId;
+	
+	// 冒険場所を設定した場合、タスクも冒険に変更
+	if (!LocationId.IsEmpty() && Teams[TeamIndex].AssignedTask != ETaskType::Adventure)
+	{
+		Teams[TeamIndex].AssignedTask = ETaskType::Adventure;
+		OnTaskChanged.Broadcast(TeamIndex, ETaskType::Adventure);
+	}
+	
+	OnTeamsUpdated.Broadcast();
+	
+	UE_LOG(LogTemp, Log, TEXT("Team %d adventure location set to: %s"), TeamIndex, *LocationId);
+	return true;
+}
+
+bool UTeamComponent::StartAdventure(int32 TeamIndex, const FString& LocationId)
+{
+	if (!Teams.IsValidIndex(TeamIndex))
+	{
+		UE_LOG(LogTemp, Error, TEXT("StartAdventure: Invalid team index %d"), TeamIndex);
+		return false;
+	}
+
+	FTeam& Team = Teams[TeamIndex];
+	
+	// チームメンバーがいるかチェック
+	if (Team.Members.Num() == 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("StartAdventure: Team %d has no members"), TeamIndex);
+		return false;
+	}
+
+	// 既に戦闘中かチェック
+	if (Team.bInCombat)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("StartAdventure: Team %d is already in combat"), TeamIndex);
+		return false;
+	}
+
+	// 場所とタスク設定
+	Team.AdventureLocationId = LocationId;
+	Team.AssignedTask = ETaskType::Adventure;
+	Team.bInCombat = true;
+
+	// LocationEventManagerを探してイベントトリガー
+	AActor* Owner = GetOwner();
+	if (Owner)
+	{
+		ULocationEventManager* LocationEventManager = Owner->FindComponentByClass<ULocationEventManager>();
+		if (LocationEventManager)
+		{
+			bool bEventTriggered = LocationEventManager->TriggerCombatEvent(LocationId, Team.Members);
+			if (!bEventTriggered)
+			{
+				// イベントトリガーに失敗した場合はフラグをリセット
+				Team.bInCombat = false;
+				UE_LOG(LogTemp, Error, TEXT("StartAdventure: Failed to trigger combat event for team %d"), TeamIndex);
+				return false;
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("StartAdventure: LocationEventManager not found on owner"));
+			Team.bInCombat = false;
+			return false;
+		}
+	}
+
+	// イベント通知
+	OnTaskChanged.Broadcast(TeamIndex, ETaskType::Adventure);
+	OnTeamsUpdated.Broadcast();
+
+	UE_LOG(LogTemp, Log, TEXT("Adventure started for team %d at location %s with %d members"), 
+		TeamIndex, *LocationId, Team.Members.Num());
+	
+	return true;
 }
 
 int32 UTeamComponent::GetCharacterTeamIndex(AC_IdleCharacter* Character) const

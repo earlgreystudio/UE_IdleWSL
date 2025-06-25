@@ -82,6 +82,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Team Management")
 	bool SetTeamTask(int32 TeamIndex, ETaskType NewTask);
 
+	// 冒険タスク用場所設定
+	UFUNCTION(BlueprintCallable, Category = "Team Management")
+	bool SetTeamAdventureLocation(int32 TeamIndex, const FString& LocationId);
+
+	// 冒険タスク開始（場所指定付き）
+	UFUNCTION(BlueprintCallable, Category = "Team Management")
+	bool StartAdventure(int32 TeamIndex, const FString& LocationId);
+
 	// キャラクターが所属するチームインデックス取得（-1なら未所属）
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Team Management")
 	int32 GetCharacterTeamIndex(AC_IdleCharacter* Character) const;
