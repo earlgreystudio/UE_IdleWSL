@@ -41,6 +41,10 @@ public:
 protected:
     // 管理用Actorの作成
     void CreateBattleSystemActor();
+    
+    // 戦闘終了時の処理
+    UFUNCTION()
+    void OnCombatCompleted(const TArray<AC_IdleCharacter*>& Winners, const TArray<AC_IdleCharacter*>& Losers, float Duration);
 
 private:
     // 戦闘システム管理用Actor

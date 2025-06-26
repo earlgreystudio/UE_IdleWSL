@@ -36,6 +36,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Status")
 	FCharacterTalent Talent;
 
+	// 派生ステータス（事前計算済み）
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Derived Stats")
+	FDerivedStats DerivedStats;
+
 	// ステータス取得
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Character Status")
 	FCharacterStatus GetStatus() const { return Status; }
@@ -63,6 +67,55 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Character Status")
 	void SetTalent(const FCharacterTalent& NewTalent);
 
+	// 派生ステータス取得
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Derived Stats")
+	FDerivedStats GetDerivedStats() const { return DerivedStats; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Derived Stats")
+	float GetConstructionPower() const { return DerivedStats.ConstructionPower; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Derived Stats")
+	float GetProductionPower() const { return DerivedStats.ProductionPower; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Derived Stats")
+	float GetGatheringPower() const { return DerivedStats.GatheringPower; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Derived Stats")
+	float GetCookingPower() const { return DerivedStats.CookingPower; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Derived Stats")
+	float GetCraftingPower() const { return DerivedStats.CraftingPower; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Derived Stats")
+	float GetAttackSpeed() const { return DerivedStats.AttackSpeed; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Derived Stats")
+	float GetHitChance() const { return DerivedStats.HitChance; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Derived Stats")
+	float GetDodgeChance() const { return DerivedStats.DodgeChance; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Derived Stats")
+	float GetDPS() const { return DerivedStats.DPS; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Derived Stats")
+	float GetCombatPower() const { return DerivedStats.CombatPower; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Derived Stats")
+	float GetWorkPower() const { return DerivedStats.WorkPower; }
+
+	// 派生ステータス再計算
+	UFUNCTION(BlueprintCallable, Category = "Derived Stats")
+	void RecalculateDerivedStats();
+
+	// 装備変更時の呼び出し用
+	UFUNCTION(BlueprintCallable, Category = "Derived Stats")
+	void OnEquipmentChanged();
+
+	// ステータス効果変更時の呼び出し用
+	UFUNCTION(BlueprintCallable, Category = "Derived Stats")
+	void OnStatusEffectChanged();
+
 	// 体力変更（個別）
 	UFUNCTION(BlueprintCallable, Category = "Character Status")
 	void SetCurrentHealth(float NewHealth);
@@ -88,4 +141,27 @@ public:
 	// 汎用データ更新通知
 	UPROPERTY(BlueprintAssignable, Category = "Character Events")
 	FOnCharacterDataUpdated OnCharacterDataUpdated;
+
+private:
+	// 派生ステータス計算関数
+	void CalculateConstructionPower();
+	void CalculateProductionPower();
+	void CalculateGatheringPower();
+	void CalculateCookingPower();
+	void CalculateCraftingPower();
+	void CalculateCombatStats();
+	void CalculateDisplayStats();
+
+	// ヘルパー関数
+	float GetSkillValue(ESkillType SkillType) const;
+	float GetEquipmentBonus(const FString& StatType) const;
+	float GetStatusEffectMultiplier(const FString& StatType) const;
+	FString GetEquippedWeaponId() const;
+	
+	// 武器・アーマー情報取得
+	float GetWeaponWeight(const FString& WeaponItemId) const;
+	int32 GetWeaponAttackPower(const FString& WeaponItemId) const;
+	ESkillType GetWeaponSkillType(const FString& WeaponItemId) const;
+	bool IsRangedWeapon(const FString& WeaponItemId) const;
+	float GetArmorDefense() const;
 };

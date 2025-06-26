@@ -17,7 +17,7 @@ AActor                           IIdleCharacterInterface
 - **BlueprintNativeEvent** - C++実装をBlueprint経由で呼び出し
 
 ### 主要コンポーネント
-- **UCharacterStatusComponent** - ステータス・才能・部活動データ管理
+- **UCharacterStatusComponent** - ステータス・才能・部活動データ管理、派生ステータス（DerivedStats）事前計算
 - **UCharacterInventoryComponent** - 個人インベントリ管理
 
 ## 利用可能なBlueprintインターフェース関数
@@ -106,6 +106,26 @@ float Strength = Talent.Strength;
 Character Reference → GetCharacterTalent → Break FCharacterTalent → Strength値使用
 ```
 
+### 4. キャラクター種族管理
+
+#### GetCharacterRace
+```cpp
+UFUNCTION(BlueprintCallable, Category = "Character")
+FString GetCharacterRace() const;
+```
+**機能**: キャラクターの種族を取得  
+**戻り値**: FString（種族名、CharacterPresets.csvのRowNameに対応）  
+**実装**: CharacterRaceプロパティを返す
+
+#### SetCharacterRace
+```cpp
+UFUNCTION(BlueprintCallable, Category = "Character")
+void SetCharacterRace(const FString& NewRace);
+```
+**機能**: キャラクターの種族を設定  
+**パラメータ**: NewRace - 新しい種族名（"human", "goblin", "wolf"等）  
+**実装**: CharacterRaceプロパティを更新、爪牙システムで使用
+
 ## コンポーネント詳細
 
 ### UCharacterStatusComponent
@@ -114,6 +134,7 @@ Character Reference → GetCharacterTalent → Break FCharacterTalent → Streng
 - **FCharacterStatus Status** - HP、スタミナ、精神力などの変動ステータス
 - **EClubType ClubType** - 所属部活動
 - **FCharacterTalent Talent** - 基本能力値（筋力、体力、知力、器用さ、敏捷、精神力）とスキル
+- **FDerivedStats DerivedStats** - 事前計算済み派生ステータス（戦闘・作業能力）
 
 **主要機能**:
 ```cpp
@@ -130,7 +151,21 @@ void SetClubType(EClubType NewClubType);
 // 才能関連
 FCharacterTalent GetTalent() const;
 void SetTalent(const FCharacterTalent& NewTalent);
+
+// 派生ステータス関連（最適化済み）
+FDerivedStats GetDerivedStats() const;
+float GetConstructionPower() const;
+float GetAttackSpeed() const;
+float GetHitChance() const;
+float GetDPS() const;
+void RecalculateDerivedStats();
+void OnEquipmentChanged();
 ```
+
+**パフォーマンス最適化**:
+- **事前計算**: 戦闘・作業関連の計算結果をDerivedStatsに保存
+- **O(1)アクセス**: 計算済み値の直接取得でリアルタイム処理を高速化
+- **再計算タイミング**: 装備変更・才能変更時のみ再計算実行
 
 ### UCharacterInventoryComponent
 **場所**: `Source/UE_Idle/Components/CharacterInventoryComponent.h`  
@@ -149,6 +184,11 @@ AC_IdleCharacter::AC_IdleCharacter() {
     // コンポーネント自動作成
     StatusComponent = CreateDefaultSubobject<UCharacterStatusComponent>(TEXT("StatusComponent"));
     InventoryComponent = CreateDefaultSubobject<UCharacterInventoryComponent>(TEXT("InventoryComponent"));
+    
+    // キャラクター基本データ初期化
+    CharacterName = TEXT("Idle Character");
+    CharacterRace = TEXT("human");  // デフォルトは人間
+    bIsActive = true;
 }
 ```
 
@@ -177,11 +217,44 @@ struct FCharacterTalent {
 };
 ```
 
+### FDerivedStats（派生ステータス）
+```cpp
+struct FDerivedStats {
+    // 戦闘関連（事前計算済み）
+    float AttackSpeed = 1.0f;
+    float HitChance = 50.0f;
+    float DodgeChance = 10.0f;
+    float ParryChance = 5.0f;
+    float CriticalChance = 5.0f;
+    int32 BaseDamage = 1;
+    int32 DefenseValue = 0;
+    
+    // 作業関連
+    float ConstructionPower = 10.0f;
+    float ProductionPower = 10.0f;
+    float GatheringPower = 10.0f;
+    float CookingPower = 10.0f;
+    float CraftingPower = 10.0f;
+    
+    // 表示用総合値
+    float DPS = 1.0f;
+    float CombatPower = 10.0f;
+    float WorkPower = 10.0f;
+    float TotalDefensePower = 0.0f;
+};
+```
+
 ### EClubType（部活動種類）
 - Baseball（野球部）
 - Kendo（剣道部）
 - Chemistry（化学部）
 - など38種類の部活動
+
+### キャラクター種族
+- **CharacterRace**: FString型、CharacterPresets.csvのRowNameに対応
+- **人間**: "human"（デフォルト、素手攻撃力2）
+- **動物**: "goblin", "wolf", "bear"等（自然武器を持つ）
+- **爪牙システム**: 種族により自然武器データが異なる
 
 ## 使用例
 
@@ -225,7 +298,36 @@ void AGameManager::ModifyCharacterStats(AActor* Character, float StrengthBonus) 
     if (auto* StatusComp = IIdleCharacterInterface::Execute_GetCharacterStatusComponent(Character)) {
         FCharacterTalent CurrentTalent = StatusComp->GetTalent();
         CurrentTalent.Strength += StrengthBonus;
-        StatusComp->SetTalent(CurrentTalent);
+        StatusComp->SetTalent(CurrentTalent);  // 派生ステータス自動再計算
+    }
+}
+```
+
+### 派生ステータス利用の例
+```cpp
+void AGameManager::GetCombatStats(AActor* Character) {
+    if (auto* StatusComp = IIdleCharacterInterface::Execute_GetCharacterStatusComponent(Character)) {
+        // 事前計算済み値の高速取得
+        float AttackSpeed = StatusComp->GetAttackSpeed();
+        float HitChance = StatusComp->GetHitChance();
+        float DPS = StatusComp->GetDPS();
+        int32 BaseDamage = StatusComp->GetDerivedStats().BaseDamage;
+        
+        UE_LOG(LogTemp, Warning, TEXT("Combat Stats - DPS: %.1f, Hit: %.1f%%"), DPS, HitChance);
+    }
+}
+```
+
+### 種族・自然武器システムの例
+```cpp
+void AGameManager::SetupCharacterRace(AActor* Character, const FString& Race) {
+    if (auto* IdleChar = Cast<AC_IdleCharacter>(Character)) {
+        IdleChar->SetCharacterRace(Race);  // "goblin", "wolf"等
+        
+        // 派生ステータスが自動で種族の自然武器を反映
+        if (auto* StatusComp = IdleChar->GetStatusComponent()) {
+            StatusComp->RecalculateDerivedStats();  // 必要に応じて手動再計算
+        }
     }
 }
 ```
@@ -240,8 +342,15 @@ void AGameManager::ModifyCharacterStats(AActor* Character, float StrengthBonus) 
 
 ### 推奨使用方法
 - **UI更新**: インターフェース経由でキャストレス
-- **ゲーム計算**: 才能値の計算などはインターフェース経由
+- **戦闘計算**: 派生ステータス（DerivedStats）の事前計算済み値を使用
+- **作業効率**: 建設・生産・採集能力は派生ステータスから取得
 - **状態チェック**: IsActive、GetCurrentHPなど頻繁なチェック
+
+### 派生ステータスシステムのメリット
+- **高速アクセス**: O(1)で戦闘・作業関連の計算済み値を取得
+- **メモリ効率**: 必要時のみ再計算、通常は保存済み値を使用
+- **一貫性**: 装備・才能変更時に全関連ステータスが同期更新
+- **UI対応**: DPS、戦闘力等の表示用数値も事前計算済み
 
 ## トラブルシューティング
 
@@ -267,8 +376,19 @@ if (StatusComp) {
 UCharacterStatusComponent::UCharacterStatusComponent() {
     Status = FCharacterStatus();
     ClubType = EClubType::Baseball;
-    Talent = FCharacterTalent();  // デフォルト値で初期化
+    Talent = FCharacterTalent();    // デフォルト値で初期化
+    DerivedStats = FDerivedStats(); // 派生ステータス初期化
 }
+```
+
+#### 4. 派生ステータスが更新されない
+```cpp
+// 才能変更後は自動で派生ステータスが再計算される
+StatusComp->SetTalent(NewTalent);  // RecalculateDerivedStats()が自動実行
+
+// 手動で再計算が必要な場合
+StatusComp->RecalculateDerivedStats();
+StatusComp->OnEquipmentChanged();  // 装備変更時
 ```
 
 ## 今後の拡張予定
@@ -277,13 +397,23 @@ UCharacterStatusComponent::UCharacterStatusComponent() {
 - スキル成長システム
 - 装備品による能力値補正
 - 部活動ボーナス適用
+- 装備システムの正式実装（現在は暫定的にインベントリから検索）
 
 ### 拡張方法
 ```cpp
-// 例: スキル上昇
+// 例: スキル上昇（派生ステータス自動更新）
 UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Idle Character")
 bool ImproveSkill(ESkillType SkillType, float Amount);
+
+// 例: 装備システム正式対応
+UFUNCTION(BlueprintCallable, Category = "Character")
+bool EquipItem(const FString& ItemId, EEquipmentSlotTable Slot);
 ```
+
+### 注意事項
+- **派生ステータス更新**: 才能・装備変更時は必ずRecalculateDerivedStats()が自動実行される
+- **種族システム**: CharacterPresets.csvに新種族追加時は自然武器データも同時に定義
+- **装備システム**: 現在は暫定実装、正式装備システム実装時に大幅変更予定
 
 ## 関連ドキュメント
 

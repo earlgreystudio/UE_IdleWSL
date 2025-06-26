@@ -101,6 +101,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
     bool bEnableAI = true;
 
+private:
+    // フェイルセーフ用：実際のキャラクターアクション数をカウント
+    int32 TotalActionCount = 0;
+
 protected:
     // タイマー処理
     UFUNCTION()

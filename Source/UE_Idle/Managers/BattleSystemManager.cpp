@@ -1,7 +1,9 @@
 #include "BattleSystemManager.h"
 #include "../Components/LocationEventManager.h"
 #include "../Components/CombatComponent.h"
+#include "../Components/TeamComponent.h"
 #include "../Actor/C_IdleCharacter.h"
+#include "../C_PlayerController.h"
 #include "../Types/CombatTypes.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
@@ -63,6 +65,9 @@ void UBattleSystemManager::CreateBattleSystemActor()
     if (CombatComponent)
     {
         CombatComponent->RegisterComponent();
+        
+        // 戦闘終了イベントをバインド
+        CombatComponent->OnCombatCompleted.AddDynamic(this, &UBattleSystemManager::OnCombatCompleted);
     }
     
     UE_LOG(LogTemp, Log, TEXT("BattleSystemManager: Created BattleSystemActor with components"));
@@ -105,4 +110,33 @@ bool UBattleSystemManager::IsTeamInCombat(const TArray<AC_IdleCharacter*>& TeamM
     }
     
     return false;
+}
+
+void UBattleSystemManager::OnCombatCompleted(const TArray<AC_IdleCharacter*>& Winners, const TArray<AC_IdleCharacter*>& Losers, float Duration)
+{
+    UE_LOG(LogTemp, Log, TEXT("BattleSystemManager::OnCombatCompleted - Combat ended"));
+    
+    // PlayerControllerを取得
+    UWorld* World = GetWorld();
+    if (World)
+    {
+        AC_PlayerController* PlayerController = Cast<AC_PlayerController>(World->GetFirstPlayerController());
+        if (PlayerController)
+        {
+            // TeamComponentを取得してOnCombatEndを呼ぶ
+            if (UTeamComponent* TeamComp = PlayerController->GetTeamComponent_Implementation())
+            {
+                TeamComp->OnCombatEnd(Winners, Losers);
+                UE_LOG(LogTemp, Log, TEXT("BattleSystemManager: Called TeamComponent->OnCombatEnd"));
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("BattleSystemManager: TeamComponent not found on PlayerController"));
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("BattleSystemManager: PlayerController not found"));
+        }
+    }
 }

@@ -116,6 +116,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Team Management")
 	FTeam CreateTeamAndGetData(const FString& TeamName, int32& OutTeamIndex);
 
+	// 戦闘終了処理
+	UFUNCTION(BlueprintCallable, Category = "Team Management")
+	void OnCombatEnd(const TArray<AC_IdleCharacter*>& Winners, const TArray<AC_IdleCharacter*>& Losers);
+
 	// ======== イベントディスパッチャー ========
 	
 	// チーム作成時

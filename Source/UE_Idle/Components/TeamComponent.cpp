@@ -370,3 +370,52 @@ void UTeamComponent::RemoveCharacterFromAllTeams(AC_IdleCharacter* Character)
 		Team.Members.Remove(Character);
 	}
 }
+
+void UTeamComponent::OnCombatEnd(const TArray<AC_IdleCharacter*>& Winners, const TArray<AC_IdleCharacter*>& Losers)
+{
+	UE_LOG(LogTemp, Log, TEXT("OnCombatEnd called with %d winners and %d losers"), Winners.Num(), Losers.Num());
+	
+	// 勝者側と敗者側の両方のチームのbInCombatフラグをリセット
+	TSet<int32> ProcessedTeams;
+	
+	// 勝者側のチーム処理
+	for (AC_IdleCharacter* Character : Winners)
+	{
+		if (Character)
+		{
+			int32 TeamIndex = GetCharacterTeamIndex(Character);
+			if (TeamIndex >= 0 && !ProcessedTeams.Contains(TeamIndex))
+			{
+				if (Teams.IsValidIndex(TeamIndex))
+				{
+					Teams[TeamIndex].bInCombat = false;
+					ProcessedTeams.Add(TeamIndex);
+					UE_LOG(LogTemp, Log, TEXT("Reset bInCombat flag for team %d (%s) - Winner"), 
+						TeamIndex, *Teams[TeamIndex].TeamName);
+				}
+			}
+		}
+	}
+	
+	// 敗者側のチーム処理
+	for (AC_IdleCharacter* Character : Losers)
+	{
+		if (Character)
+		{
+			int32 TeamIndex = GetCharacterTeamIndex(Character);
+			if (TeamIndex >= 0 && !ProcessedTeams.Contains(TeamIndex))
+			{
+				if (Teams.IsValidIndex(TeamIndex))
+				{
+					Teams[TeamIndex].bInCombat = false;
+					ProcessedTeams.Add(TeamIndex);
+					UE_LOG(LogTemp, Log, TEXT("Reset bInCombat flag for team %d (%s) - Loser"), 
+						TeamIndex, *Teams[TeamIndex].TeamName);
+				}
+			}
+		}
+	}
+	
+	// チーム更新通知
+	OnTeamsUpdated.Broadcast();
+}

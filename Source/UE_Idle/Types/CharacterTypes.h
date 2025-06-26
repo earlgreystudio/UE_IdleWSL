@@ -211,3 +211,77 @@ struct FClubBonus
         Willpower = 0.0f;
     }
 };
+
+// 派生ステータス（事前計算済み）
+USTRUCT(BlueprintType)
+struct UE_IDLE_API FDerivedStats
+{
+    GENERATED_BODY()
+
+    // 戦闘関連 - 実際の計算で使用
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Stats")
+    float AttackSpeed = 1.0f;        // 攻撃速度
+
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Stats")
+    float HitChance = 50.0f;         // 命中率
+
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Stats")
+    float CriticalChance = 5.0f;     // クリティカル率
+
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Stats")
+    int32 BaseDamage = 1;            // 基本ダメージ
+
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Stats")
+    float DodgeChance = 10.0f;       // 回避率
+
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Stats")
+    float ParryChance = 5.0f;        // 受け流し率
+
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Stats")
+    int32 DefenseValue = 0;          // 防御値
+
+    // 作業関連
+    UPROPERTY(BlueprintReadOnly, Category = "Work Stats")
+    float ConstructionPower = 10.0f; // 建築能力
+
+    UPROPERTY(BlueprintReadOnly, Category = "Work Stats")
+    float ProductionPower = 10.0f;   // 生産能力
+
+    UPROPERTY(BlueprintReadOnly, Category = "Work Stats")
+    float GatheringPower = 10.0f;    // 採集能力
+
+    UPROPERTY(BlueprintReadOnly, Category = "Work Stats")
+    float CookingPower = 10.0f;      // 料理能力
+
+    UPROPERTY(BlueprintReadOnly, Category = "Work Stats")
+    float CraftingPower = 10.0f;     // 工作能力
+
+    // UI表示用（戦闘計算では使用しない）
+    UPROPERTY(BlueprintReadOnly, Category = "Display Stats")
+    float DPS = 1.0f;                // ダメージ/秒（表示用）
+
+    UPROPERTY(BlueprintReadOnly, Category = "Display Stats")
+    float TotalDefensePower = 10.0f; // 総合防御能力（表示用）
+
+    UPROPERTY(BlueprintReadOnly, Category = "Display Stats")
+    float CombatPower = 25.0f;       // 戦闘力総合値（表示用）
+
+    UPROPERTY(BlueprintReadOnly, Category = "Display Stats")
+    float WorkPower = 50.0f;         // 作業力総合値（表示用）
+
+    FDerivedStats()
+    {
+        // デフォルト値は上記で設定済み
+    }
+
+    // UI用ヘルパー関数
+    float GetOverallCombatRating() const
+    {
+        return (DPS * 0.4f) + (TotalDefensePower * 0.3f) + (HitChance * 0.2f) + (CriticalChance * 0.1f);
+    }
+
+    float GetOverallWorkRating() const
+    {
+        return (ConstructionPower + ProductionPower + GatheringPower + CookingPower + CraftingPower) / 5.0f;
+    }
+};

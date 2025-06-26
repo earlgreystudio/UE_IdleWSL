@@ -39,152 +39,128 @@ FEquipmentPenalty UCombatCalculator::CalculateEquipmentPenalty(AC_IdleCharacter*
 
 float UCombatCalculator::CalculateAttackSpeed(AC_IdleCharacter* Character, const FString& WeaponItemId)
 {
-    // 完全防御的チェック
+    // 事前計算済みの値を取得
     if (!Character || !IsValid(Character))
     {
         UE_LOG(LogTemp, Warning, TEXT("CalculateAttackSpeed: Invalid character"));
         return 1.0f;
     }
 
-    FCharacterTalent Talent;
-    try 
+    UCharacterStatusComponent* StatusComp = Character->GetStatusComponent();
+    if (!StatusComp)
     {
-        Talent = GetCharacterTalent(Character);
-    }
-    catch(...)
-    {
-        UE_LOG(LogTemp, Error, TEXT("CalculateAttackSpeed: Exception getting talent for %s"), *Character->GetName());
+        UE_LOG(LogTemp, Warning, TEXT("CalculateAttackSpeed: No status component"));
         return 1.0f;
     }
-    ESkillType WeaponSkill = GetWeaponSkillType(WeaponItemId);
-    float SkillLevel = GetSkillLevel(Character, WeaponSkill);
-    
-    if (IsRangedWeapon(WeaponItemId))
-    {
-        // 遠距離武器の攻撃速度: 1.0 + (器用 × 0.01) + (スキルレベル × 0.03)
-        return 1.0f + (Talent.Dexterity * 0.01f) + (SkillLevel * 0.03f);
-    }
-    else
-    {
-        // 近接武器の攻撃速度
-        float BaseSpeed = 2.0f + (Talent.Agility * 0.02f) + (SkillLevel * 0.01f);
-        float WeaponWeight = GetWeaponWeight(WeaponItemId);
-        float WeightPenalty = WeaponWeight / (Talent.Strength * 0.3f);
-        
-        return FMath::Max(0.1f, BaseSpeed - WeightPenalty);
-    }
+
+    // 事前計算済みの攻撃速度を直接返す
+    return StatusComp->GetAttackSpeed();
 }
 
 float UCombatCalculator::CalculateHitChance(AC_IdleCharacter* Attacker, const FString& WeaponItemId)
 {
-    if (!Attacker)
+    if (!Attacker || !IsValid(Attacker))
     {
         return 50.0f;
     }
 
-    FCharacterTalent Talent = GetCharacterTalent(Attacker);
-    ESkillType WeaponSkill = GetWeaponSkillType(WeaponItemId);
-    float SkillLevel = GetSkillLevel(Attacker, WeaponSkill);
-    float WeaponWeight = GetWeaponWeight(WeaponItemId);
-    
-    // 基本命中率 = 50 + (スキルレベル × 2) + (器用 × 1.5) - (武器重量 ÷ (力 × 0.5))
-    float BaseHitChance = 50.0f + (SkillLevel * 2.0f) + (Talent.Dexterity * 1.5f);
-    float WeightPenalty = WeaponWeight / (Talent.Strength * 0.5f);
-    
-    return FMath::Max(5.0f, BaseHitChance - WeightPenalty);
+    UCharacterStatusComponent* StatusComp = Attacker->GetStatusComponent();
+    if (!StatusComp)
+    {
+        return 50.0f;
+    }
+
+    // 事前計算済みの命中率を直接返す
+    return StatusComp->GetHitChance();
 }
 
 float UCombatCalculator::CalculateDodgeChance(AC_IdleCharacter* Defender)
 {
-    if (!Defender)
+    if (!Defender || !IsValid(Defender))
     {
         return 10.0f;
     }
 
-    FCharacterTalent Talent = GetCharacterTalent(Defender);
-    float EvasionSkill = GetSkillLevel(Defender, ESkillType::Evasion);
-    FEquipmentPenalty Penalty = CalculateEquipmentPenalty(Defender);
-    
-    // 基本回避率 = 10 + (敏捷 × 2) + (回避スキル × 3)
-    float BaseDodgeChance = 10.0f + (Talent.Agility * 2.0f) + (EvasionSkill * 3.0f);
-    
-    // 装備ペナルティ適用
-    float PenaltyReduction = BaseDodgeChance * (Penalty.PenaltyPercentage / 100.0f);
-    
-    return FMath::Max(0.0f, BaseDodgeChance - PenaltyReduction);
+    UCharacterStatusComponent* StatusComp = Defender->GetStatusComponent();
+    if (!StatusComp)
+    {
+        return 10.0f;
+    }
+
+    // 事前計算済みの回避率を直接返す
+    return StatusComp->GetDodgeChance();
 }
 
 float UCombatCalculator::CalculateParryChance(AC_IdleCharacter* Defender)
 {
-    if (!Defender)
+    if (!Defender || !IsValid(Defender))
     {
         return 5.0f;
     }
 
-    FCharacterTalent Talent = GetCharacterTalent(Defender);
-    float ParrySkill = GetSkillLevel(Defender, ESkillType::Parry);
-    FEquipmentPenalty Penalty = CalculateEquipmentPenalty(Defender);
-    
-    // 基本受け流し率 = 5 + (器用 × 1.5) + (受け流しスキル × 3)
-    float BaseParryChance = 5.0f + (Talent.Dexterity * 1.5f) + (ParrySkill * 3.0f);
-    
-    // 装備ペナルティ適用
-    float PenaltyReduction = BaseParryChance * (Penalty.PenaltyPercentage / 100.0f);
-    
-    return FMath::Max(0.0f, BaseParryChance - PenaltyReduction);
+    UCharacterStatusComponent* StatusComp = Defender->GetStatusComponent();
+    if (!StatusComp)
+    {
+        return 5.0f;
+    }
+
+    // 事前計算済みの受け流し率を直接返す
+    FDerivedStats DerivedStats = StatusComp->GetDerivedStats();
+    return DerivedStats.ParryChance;
 }
 
 float UCombatCalculator::CalculateCriticalChance(AC_IdleCharacter* Attacker, const FString& WeaponItemId)
 {
-    if (!Attacker)
+    if (!Attacker || !IsValid(Attacker))
     {
         return 5.0f;
     }
 
-    FCharacterTalent Talent = GetCharacterTalent(Attacker);
-    ESkillType WeaponSkill = GetWeaponSkillType(WeaponItemId);
-    float SkillLevel = GetSkillLevel(Attacker, WeaponSkill);
-    
-    // クリティカル率 = 5 + (器用 × 0.5) + (スキルレベル × 0.3)
-    return 5.0f + (Talent.Dexterity * 0.5f) + (SkillLevel * 0.3f);
+    UCharacterStatusComponent* StatusComp = Attacker->GetStatusComponent();
+    if (!StatusComp)
+    {
+        return 5.0f;
+    }
+
+    // 事前計算済みのクリティカル率を直接返す
+    FDerivedStats DerivedStats = StatusComp->GetDerivedStats();
+    return DerivedStats.CriticalChance;
 }
 
 int32 UCombatCalculator::CalculateBaseDamage(AC_IdleCharacter* Attacker, const FString& WeaponItemId)
 {
-    if (!Attacker)
+    if (!Attacker || !IsValid(Attacker))
     {
         return 1;
     }
 
-    // 1. 効果的な武器IDを決定（装備武器優先、なければ自然武器）
-    FString EffectiveWeaponId = GetEffectiveWeaponId(Attacker);
-    
-    // 2. 自然武器か人工武器かを判定
-    bool bIsNaturalWeapon = IsNaturalWeapon(EffectiveWeaponId);
-    
-    // 3. 適切な計算式を適用
-    if (bIsNaturalWeapon)
+    UCharacterStatusComponent* StatusComp = Attacker->GetStatusComponent();
+    if (!StatusComp)
     {
-        return CalculateNaturalWeaponDamage(Attacker, EffectiveWeaponId);
+        return 1;
     }
-    else
-    {
-        return CalculateArtificialWeaponDamage(Attacker, EffectiveWeaponId);
-    }
+
+    // 事前計算済みの基本ダメージを直接返す
+    FDerivedStats DerivedStats = StatusComp->GetDerivedStats();
+    return DerivedStats.BaseDamage;
 }
 
 int32 UCombatCalculator::CalculateDefenseValue(AC_IdleCharacter* Defender)
 {
-    if (!Defender)
+    if (!Defender || !IsValid(Defender))
     {
         return 0;
     }
 
-    FCharacterTalent Talent = GetCharacterTalent(Defender);
-    float ArmorDefense = GetArmorDefense(Defender);
-    
-    // 防御値 = 防具防御力 + (頑丈 × 0.3)
-    return FMath::Max(0, FMath::RoundToInt(ArmorDefense + (Talent.Toughness * 0.3f)));
+    UCharacterStatusComponent* StatusComp = Defender->GetStatusComponent();
+    if (!StatusComp)
+    {
+        return 0;
+    }
+
+    // 事前計算済みの防御値を直接返す
+    FDerivedStats DerivedStats = StatusComp->GetDerivedStats();
+    return DerivedStats.DefenseValue;
 }
 
 int32 UCombatCalculator::CalculateFinalDamage(int32 BaseDamage, int32 DefenseValue, bool bParried, bool bCritical)

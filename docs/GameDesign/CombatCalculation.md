@@ -108,14 +108,30 @@ else
 
 ### 回避率
 ```
-基本回避率 = 10 + (敏捷 × 2) + (回避スキル × 3)
+基本回避率 = 10 + (敏捷 × 2) + (回避スキル × 2)
 最終回避率 = 基本回避率 - 装備ペナルティ
+盾装備時ペナルティ = 最終回避率 × 0.5 (半減)
 ```
 
 ### 受け流し率
 ```
 基本受け流し率 = 5 + (器用 × 1.5) + (受け流しスキル × 3)
 最終受け流し率 = 基本受け流し率 - 装備ペナルティ
+```
+
+### 盾防御率 (新システム)
+```
+基本発動率 = スキル5未満: スキル値 × 6
+           スキル5以上: 30 + (スキル値 - 5) × (60/95)
+器用さボーナス = 器用 × 0.3
+盾防御率 = 基本発動率 + 器用さボーナス (最大95%)
+
+盾ダメージカット率計算:
+防御値 = 盾防御力 + 盾スキル値
+ダメージ倍率 = max(0.02, 1 / (1 + 防御値 × 0.5))
+カット率 = (1 - ダメージ倍率) × 100%
+
+例: 鉄盾(防御5) + スキル10 = 防御値15 → 89%カット
 ```
 
 ### 命中率
@@ -127,7 +143,8 @@ else
 1. **回避判定** → 成功ならダメージ0で終了
 2. **命中判定** → 失敗ならダメージ0で終了
 3. **受け流し判定** → 成功ならダメージ80%カット
-4. **クリティカル判定** → 成功ならダメージ2倍
+4. **盾防御判定** → 成功なら盾カット率適用
+5. **クリティカル判定** → 成功ならダメージ2倍
 
 ## ダメージ計算（爪牙システム対応）
 
@@ -149,17 +166,24 @@ else
 - **ゴブリン（爪）**: 6 + (格闘スキル8 × 0.8) + (力15 × 0.7) = 6 + 6.4 + 10.5 = 22.9 → 23
 - **人間（素手）**: 2 + (格闘スキル10 × 0.8) + (力12 × 0.7) = 2 + 8 + 8.4 = 18.4 → 18
 
-### 人工武器戦闘ダメージ
+### 人工武器戦闘ダメージ（スキル効率システム）
 ```
-武器ダメージ = 武器攻撃力 × (1 + (スキルレベル ÷ 20))
+スキル効率 = スキル未満: 0.2 + (実際スキル ÷ 必要スキル) × 0.8
+          スキル以上: 1.0 + (超過スキル × 0.05) （上限なし）
+
+武器命中補正 = 武器攻撃力 × 0.8 × スキル効率
+武器ダメージ補正 = 武器攻撃力 × 1.5 × スキル効率
 能力補正 = 力 × 0.5 (近接武器) または 器用 × 0.5 (遠距離武器)
-基本ダメージ = 武器ダメージ + 能力補正
+
+最終命中力 = 基本命中力 + 武器命中補正
+基本ダメージ = タレントレベル × 2 + 武器ダメージ補正 + 能力補正
 ```
 
-**説明:**
-- スキルレベルが高いほど武器の威力を引き出せる
-- 近接武器は力、遠距離武器は器用で威力向上
-- 装備武器が優先され、自然武器は使用されない
+**新システムの特徴:**
+- **武器攻撃力 = 必要スキルレベル**: 棍棒5, ショートソード10, ロングソード15
+- **スキル効率の重要性**: 適正スキル未満では大幅に弱体化（20%～100%）
+- **超過スキルの価値**: 適正以上で5%ずつ性能向上
+- **スキルなし武器の弱さ**: 効率20%で素手以下の性能
 
 ### 防御計算
 ```
@@ -176,6 +200,17 @@ else
 ### 受け流し効果
 ```
 受け流し時ダメージ = 基本ダメージ × 0.2 (80%カット)
+```
+
+### 盾防御効果 (新システム)
+```
+盾防御時ダメージ = 基本ダメージ × 盾ダメージ倍率
+盾ダメージ倍率 = max(0.02, 1 / (1 + (盾防御力 + 盾スキル) × 0.5))
+
+実例:
+- 木盾(防御2) + スキル10 = 防御値12 → 86%カット (ダメージ倍率0.14)
+- 鉄盾(防御5) + スキル10 = 防御値15 → 89%カット (ダメージ倍率0.11)
+- 鋼盾(防御8) + スキル10 = 防御値18 → 92%カット (ダメージ倍率0.08)
 ```
 
 ## 攻撃速度計算
@@ -234,31 +269,71 @@ else
 2. **動物の適正戦闘力**: 爪・牙により自然な強さ
 3. **理想的勝率**: 45-55%の均衡した戦闘
 
-## 実装関数（爪牙システム対応）
+## 実装概要（DerivedStats最適化システム）
 
-### 必要な新規実装
+### パフォーマンス最適化
+**従来の問題**: 戦闘計算を毎回リアルタイムで実行していたため、非効率的
+**解決策**: **DerivedStats（派生ステータス）**システムによる事前計算
+
+### DerivedStatsシステム
+CharacterStatusComponentで戦闘に関連する全ての値を事前計算し、CombatCalculatorは計算済みの値を単純に取得するだけ。
+
+**事前計算される値:**
+- AttackSpeed（攻撃速度）
+- HitChance（命中率）
+- DodgeChance（回避率）
+- ParryChance（受け流し率）
+- CriticalChance（クリティカル率）
+- BaseDamage（基本ダメージ）
+- DefenseValue（防御値）
+
+### 再計算タイミング
+以下の場合にのみDerivedStatsを再計算：
+- 装備変更時（OnEquipmentChanged）
+- 才能・ステータス変更時（SetTalent）
+- ステータス効果変更時（OnStatusEffectChanged）
+
+### 現在の実装関数
+
+#### 主要計算関数（最適化済み）
+```cpp
+// 全て事前計算済み値を直接返す（O(1)アクセス）
+float UCombatCalculator::CalculateAttackSpeed(Character, WeaponItemId)
+    → return StatusComp->GetAttackSpeed();
+
+float UCombatCalculator::CalculateHitChance(Attacker, WeaponItemId)
+    → return StatusComp->GetHitChance();
+
+float UCombatCalculator::CalculateDodgeChance(Defender)
+    → return StatusComp->GetDodgeChance();
+
+int32 UCombatCalculator::CalculateBaseDamage(Attacker, WeaponItemId)
+    → return StatusComp->GetDerivedStats().BaseDamage;
+
+int32 UCombatCalculator::CalculateDefenseValue(Defender)
+    → return StatusComp->GetDerivedStats().DefenseValue;
+```
+
+#### ヘルパー関数（爪牙システム対応）
 ```cpp
 // CharacterPresetsから自然武器データ取得
-FString UCombatCalculator::GetNaturalWeaponId(const FString& CharacterRace)
-int32 UCombatCalculator::GetNaturalWeaponPower(const FString& CharacterRace)
-
-// 効果的な武器ID決定（装備武器優先、なければ自然武器）
-FString UCombatCalculator::GetEffectiveWeaponId(AC_IdleCharacter* Character)
-
-// キャラクター種族取得
 FString UCombatCalculator::GetCharacterRace(AC_IdleCharacter* Character)
+FString UCombatCalculator::GetEffectiveWeaponId(AC_IdleCharacter* Character)
+int32 UCombatCalculator::GetNaturalWeaponPower(const FString& CharacterRace)
+bool UCombatCalculator::IsNaturalWeapon(const FString& WeaponId)
+
+// 武器・防具情報取得
+float UCombatCalculator::GetWeaponWeight(const FString& WeaponItemId)
+int32 UCombatCalculator::GetWeaponAttackPower(const FString& WeaponItemId)
+bool UCombatCalculator::IsRangedWeapon(const FString& WeaponItemId)
+ESkillType UCombatCalculator::GetWeaponSkillType(const FString& WeaponItemId)
 ```
 
-### 修正が必要な既存関数
-```cpp
-// 爪牙システム対応の基本ダメージ計算
-UCombatCalculator::CalculateBaseDamage(Attacker, WeaponItemId)  // 修正必要
-
-// そのまま使用可能
-UCombatCalculator::CalculateDefenseValue(Defender)
-UCombatCalculator::CalculateFinalDamage(BaseDamage, DefenseValue, bParried, bCritical)
-UCombatCalculator::PerformCombatCalculation(Attacker, Defender, WeaponItemId)
-```
+#### 計算実装場所の移動
+**従来**: CombatCalculatorで毎回計算
+**現在**: CharacterStatusComponentで事前計算
+- `CalculateCombatStats()` - 戦闘関連の全派生ステータスを計算
+- `CalculateDisplayStats()` - UI表示用の総合値（DPS、CombatPower等）を計算
 
 ### CharacterPresets.csv 構造拡張
 ```csv
@@ -320,3 +395,8 @@ int32 UCombatCalculator::CalculateBaseDamage(AC_IdleCharacter* Attacker, const F
   - バランス調整済み数値（1-12基本能力値、37.5%部活ボーナス）
   - 理想的勝率45-55%を達成する設計
   - 実装ガイドライン追加
+- **2024年6月26日（DerivedStats最適化）**: パフォーマンス最適化実装
+  - 事前計算システム（DerivedStats）の導入
+  - CombatCalculatorの最適化（毎回計算 → 事前計算済み値の取得）
+  - O(n)からO(1)へのアクセス時間改善
+  - CharacterStatusComponentでの戦闘ステータス一元管理

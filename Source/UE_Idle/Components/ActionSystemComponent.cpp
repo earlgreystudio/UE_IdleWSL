@@ -36,6 +36,9 @@ void UActionSystemComponent::StartActionSystem()
 
     bSystemActive = true;
     
+    // フェイルセーフカウンターをリセット
+    TotalActionCount = 0;
+    
     // タイマー開始
     if (GetWorld())
     {
@@ -407,20 +410,21 @@ void UActionSystemComponent::ProcessActions()
         StopActionSystem();
     }
     
-    // フェイルセーフ：1000回のアクション後に強制終了
-    static int ActionCount = 0;
-    ActionCount++;
-    if (ActionCount >= 1000)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Combat force-ended after %d actions (failsafe)"), ActionCount);
-        ActionCount = 0;
-        TriggerCombatEnd();
-        StopActionSystem();
-    }
+    // フェイルセーフチェックは ProcessCharacterAction で実行
 }
 
 void UActionSystemComponent::ProcessCharacterAction(FCharacterAction& Action)
 {
+    // フェイルセーフ：3000回の実際のキャラクターアクション後に強制終了
+    TotalActionCount++;
+    if (TotalActionCount >= 3000)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Combat force-ended after %d character actions (failsafe)"), TotalActionCount);
+        TriggerCombatEnd();
+        StopActionSystem();
+        return;
+    }
+    
     // 完全防御的チェック
     if (!Action.Character)
     {
@@ -546,11 +550,22 @@ void UActionSystemComponent::ProcessCharacterAction(FCharacterAction& Action)
                 NewEntry.Priority = EEventPriority::Normal;
                 
                 // CombatData設定
-                if (Action.Character) NewEntry.CombatData.AttackerName = IIdleCharacterInterface::Execute_GetCharacterName(Action.Character);
-                if (Target) NewEntry.CombatData.DefenderName = IIdleCharacterInterface::Execute_GetCharacterName(Target);
+                if (Action.Character) 
+                {
+                    NewEntry.CombatData.AttackerName = IIdleCharacterInterface::Execute_GetCharacterName(Action.Character);
+                    UE_LOG(LogTemp, Warning, TEXT("Combat Log: AttackerName = '%s'"), *NewEntry.CombatData.AttackerName);
+                }
+                if (Target) 
+                {
+                    NewEntry.CombatData.DefenderName = IIdleCharacterInterface::Execute_GetCharacterName(Target);
+                    UE_LOG(LogTemp, Warning, TEXT("Combat Log: DefenderName = '%s'"), *NewEntry.CombatData.DefenderName);
+                }
                 NewEntry.CombatData.WeaponName = WeaponId.IsEmpty() ? TEXT("素手") : WeaponId;
                 NewEntry.CombatData.Damage = Result.FinalDamage;
                 NewEntry.CombatData.bIsCritical = Result.bCritical;
+                
+                UE_LOG(LogTemp, Warning, TEXT("Combat Log: Damage = %d, Critical = %s"), 
+                    Result.FinalDamage, Result.bCritical ? TEXT("true") : TEXT("false"));
                 
                 // 攻撃者が味方か敵かを判定
                 bool bIsAttackerAlly = AllyActions.ContainsByPredicate([&Action](const FCharacterAction& A) { 
