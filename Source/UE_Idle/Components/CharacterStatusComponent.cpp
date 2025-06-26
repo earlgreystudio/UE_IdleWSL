@@ -10,7 +10,7 @@ UCharacterStatusComponent::UCharacterStatusComponent()
 	
 	// デフォルトステータス設定
 	Status = FCharacterStatus();
-	ClubType = EClubType::Baseball; // デフォルト部活動
+	SpecialtyType = ESpecialtyType::Baseball; // デフォルト専門性
 	Talent = FCharacterTalent();    // デフォルト才能
 	DerivedStats = FDerivedStats(); // デフォルト派生ステータス
 }
@@ -32,12 +32,12 @@ void UCharacterStatusComponent::SetStatus(const FCharacterStatus& NewStatus)
 	OnCharacterDataUpdated.Broadcast();
 }
 
-void UCharacterStatusComponent::SetClubType(EClubType NewClubType)
+void UCharacterStatusComponent::SetSpecialtyType(ESpecialtyType NewSpecialtyType)
 {
-	ClubType = NewClubType;
+	SpecialtyType = NewSpecialtyType;
 	
 	// イベント通知
-	OnClubTypeChanged.Broadcast(NewClubType);
+	OnSpecialtyTypeChanged.Broadcast(NewSpecialtyType);
 	OnCharacterDataUpdated.Broadcast();
 }
 

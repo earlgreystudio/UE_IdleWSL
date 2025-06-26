@@ -132,7 +132,7 @@ void SetCharacterRace(const FString& NewRace);
 **場所**: `Source/UE_Idle/Components/CharacterStatusComponent.h`  
 **管理データ**:
 - **FCharacterStatus Status** - HP、スタミナ、精神力などの変動ステータス
-- **EClubType ClubType** - 所属部活動
+- **ESpecialtyType SpecialtyType** - 所属部活動
 - **FCharacterTalent Talent** - 基本能力値（筋力、体力、知力、器用さ、敏捷、精神力）とスキル
 - **FDerivedStats DerivedStats** - 事前計算済み派生ステータス（戦闘・作業能力）
 
@@ -145,8 +145,8 @@ float GetCurrentHealth() const;
 float GetMaxHealth() const;
 
 // 部活動関連
-EClubType GetClubType() const;
-void SetClubType(EClubType NewClubType);
+ESpecialtyType GetSpecialtyType() const;
+void SetSpecialtyType(ESpecialtyType NewSpecialtyType);
 
 // 才能関連
 FCharacterTalent GetTalent() const;
@@ -244,7 +244,7 @@ struct FDerivedStats {
 };
 ```
 
-### EClubType（部活動種類）
+### ESpecialtyType（部活動種類）
 - Baseball（野球部）
 - Kendo（剣道部）
 - Chemistry（化学部）
@@ -375,7 +375,7 @@ if (StatusComp) {
 // CharacterStatusComponentのコンストラクタで初期化済み
 UCharacterStatusComponent::UCharacterStatusComponent() {
     Status = FCharacterStatus();
-    ClubType = EClubType::Baseball;
+    SpecialtyType = ESpecialtyType::Baseball;
     Talent = FCharacterTalent();    // デフォルト値で初期化
     DerivedStats = FDerivedStats(); // 派生ステータス初期化
 }

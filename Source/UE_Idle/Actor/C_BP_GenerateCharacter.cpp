@@ -3,6 +3,8 @@
 #include "../Components/CharacterStatusComponent.h"
 #include "../Components/CharacterInventoryComponent.h"
 #include "../Managers/CharacterPresetManager.h"
+#include "../CharacterGenerator/SpecialtySystem.h"
+#include "../CharacterGenerator/CharacterTalent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 
@@ -30,14 +32,14 @@ void AC_BP_GenerateCharacter::GenerateRandomCharacter()
 		return;
 	}
 
-	// 1. ランダム部活動取得
-	EClubType RandomClub = UClubSystem::GetRandomClub();
+	// 1. ランダム専門性取得
+	ESpecialtyType RandomSpecialty = USpecialtySystem::GetRandomSpecialty();
 	
 	// 2. ランダム才能生成
 	FCharacterTalent BaseTalent = UCharacterTalentGenerator::GenerateRandomTalent();
 	
-	// 3. 部活動ボーナス適用
-	FCharacterTalent FinalTalent = UCharacterTalentGenerator::ApplyClubBonus(BaseTalent, RandomClub);
+	// 3. 専門性ボーナス適用
+	FCharacterTalent FinalTalent = UCharacterTalentGenerator::ApplySpecialtyBonus(BaseTalent, RandomSpecialty);
 	
 	// 4. ステータス計算
 	FCharacterStatus CalculatedStatus = UCharacterStatusManager::CalculateMaxStatus(FinalTalent);
@@ -69,7 +71,7 @@ void AC_BP_GenerateCharacter::GenerateRandomCharacter()
 		{
 			StatusComp->SetTalent(FinalTalent);
 			StatusComp->SetStatus(CalculatedStatus);
-			StatusComp->SetClubType(RandomClub);
+			StatusComp->SetSpecialtyType(RandomSpecialty);
 			UE_LOG(LogTemp, Log, TEXT("Character %s StatusComponent configured successfully"), *RandomName);
 		}
 		else

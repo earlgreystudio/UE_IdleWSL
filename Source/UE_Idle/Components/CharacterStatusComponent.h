@@ -8,7 +8,7 @@
 // デリゲート宣言
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStatusChanged, const FCharacterStatus&, NewStatus);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHealthChanged, float, NewHealth);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnClubTypeChanged, EClubType, NewClubType);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSpecialtyTypeChanged, ESpecialtyType, NewSpecialtyType);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTalentChanged, const FCharacterTalent&, NewTalent);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCharacterDataUpdated);
 
@@ -28,9 +28,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Status")
 	FCharacterStatus Status;
 
-	// 部活動
+	// 専門性
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Status")
-	EClubType ClubType;
+	ESpecialtyType SpecialtyType;
 
 	// 才能
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character Status")
@@ -53,12 +53,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Character Status")
 	void SetStatus(const FCharacterStatus& NewStatus);
 
-	// 部活動取得・設定
+	// 専門性取得・設定
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Character Status")
-	EClubType GetClubType() const { return ClubType; }
+	ESpecialtyType GetSpecialtyType() const { return SpecialtyType; }
 
 	UFUNCTION(BlueprintCallable, Category = "Character Status")
-	void SetClubType(EClubType NewClubType);
+	void SetSpecialtyType(ESpecialtyType NewSpecialtyType);
 
 	// 才能取得・設定
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Character Status")
@@ -130,9 +130,9 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Character Events")
 	FOnHealthChanged OnHealthChanged;
 
-	// 部活動変更時
+	// 専門性変更時
 	UPROPERTY(BlueprintAssignable, Category = "Character Events")
-	FOnClubTypeChanged OnClubTypeChanged;
+	FOnSpecialtyTypeChanged OnSpecialtyTypeChanged;
 
 	// 才能変更時
 	UPROPERTY(BlueprintAssignable, Category = "Character Events")

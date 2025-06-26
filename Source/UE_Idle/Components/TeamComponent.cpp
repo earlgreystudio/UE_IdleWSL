@@ -17,6 +17,12 @@ void UTeamComponent::AddCharacter(AC_IdleCharacter* IdleCharacter)
 	if (IdleCharacter && !AllPlayerCharacters.Contains(IdleCharacter))
 	{
 		AllPlayerCharacters.Add(IdleCharacter);
+		
+		// Broadcast events
+		OnCharacterAdded.Broadcast(IdleCharacter);
+		OnCharacterListChanged.Broadcast();
+		
+		UE_LOG(LogTemp, Warning, TEXT("TeamComponent: Character added, broadcasting events"));
 	}
 }
 
@@ -29,7 +35,15 @@ bool UTeamComponent::RemoveCharacter(AC_IdleCharacter* IdleCharacter)
 {
 	if (IdleCharacter)
 	{
-		return AllPlayerCharacters.Remove(IdleCharacter) > 0;
+		if (AllPlayerCharacters.Remove(IdleCharacter) > 0)
+		{
+			// Broadcast events
+			OnCharacterRemoved.Broadcast(IdleCharacter);
+			OnCharacterListChanged.Broadcast();
+			
+			UE_LOG(LogTemp, Warning, TEXT("TeamComponent: Character removed, broadcasting events"));
+			return true;
+		}
 	}
 	return false;
 }
@@ -94,6 +108,7 @@ bool UTeamComponent::AssignCharacterToTeam(AC_IdleCharacter* Character, int32 Te
 	UE_LOG(LogTemp, Log, TEXT("Character assigned to Team %d (%s)"), TeamIndex, *Teams[TeamIndex].TeamName);
 	OnMemberAssigned.Broadcast(TeamIndex, Character, Teams[TeamIndex].TeamName);
 	OnTeamsUpdated.Broadcast();
+	OnCharacterDataChanged.Broadcast(Character);  // Cardの更新をトリガー
 	
 	return true;
 }
@@ -111,6 +126,7 @@ bool UTeamComponent::RemoveCharacterFromTeam(AC_IdleCharacter* Character, int32 
 		// イベント通知
 		OnMemberRemoved.Broadcast(TeamIndex, Character);
 		OnTeamsUpdated.Broadcast();
+		OnCharacterDataChanged.Broadcast(Character);  // Cardの更新をトリガー
 	}
 	
 	return bRemoved;
@@ -365,9 +381,19 @@ bool UTeamComponent::IsCharacterInAnyTeam(AC_IdleCharacter* Character) const
 
 void UTeamComponent::RemoveCharacterFromAllTeams(AC_IdleCharacter* Character)
 {
+	bool bWasRemoved = false;
 	for (FTeam& Team : Teams)
 	{
-		Team.Members.Remove(Character);
+		if (Team.Members.Remove(Character) > 0)
+		{
+			bWasRemoved = true;
+		}
+	}
+	
+	// キャラクターが実際に削除された場合はイベント発信
+	if (bWasRemoved && Character)
+	{
+		OnCharacterDataChanged.Broadcast(Character);  // Cardの更新をトリガー
 	}
 }
 

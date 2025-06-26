@@ -3,7 +3,7 @@
 
 // 静的変数の初期化（爪牙システム推奨値）
 float UCharacterTalentGenerator::BaseStatRangeMultiplier = 0.4f;   // 1-12 (30 * 0.4 = 12)
-float UCharacterTalentGenerator::ClubBonusRangeMultiplier = 0.375f; // 37.5%
+float UCharacterTalentGenerator::SpecialtyBonusRangeMultiplier = 0.375f; // 37.5%
 
 FCharacterTalent UCharacterTalentGenerator::GenerateRandomTalent()
 {
@@ -56,56 +56,56 @@ FCharacterTalent UCharacterTalentGenerator::GenerateRandomTalent()
     return Talent;
 }
 
-FCharacterTalent UCharacterTalentGenerator::ApplyClubBonus(const FCharacterTalent& BaseTalent, EClubType ClubType)
+FCharacterTalent UCharacterTalentGenerator::ApplySpecialtyBonus(const FCharacterTalent& BaseTalent, ESpecialtyType SpecialtyType)
 {
     FCharacterTalent ResultTalent = BaseTalent;
-    FClubBonus ClubBonus = GetClubBonus(ClubType);
+    FSpecialtyBonus SpecialtyBonus = GetSpecialtyBonus(SpecialtyType);
     
     // 係数ベースの基本能力値ボーナス加算（調整可能）
-    if (ClubBonus.Strength > 0.0f)
+    if (SpecialtyBonus.Strength > 0.0f)
     {
-        float AdjustedBonus = ClubBonus.Strength * ClubBonusRangeMultiplier;
+        float AdjustedBonus = SpecialtyBonus.Strength * SpecialtyBonusRangeMultiplier;
         float RandomBonus = FMath::RandRange(AdjustedBonus * 0.5f, AdjustedBonus);
         ResultTalent.Strength = FMath::Clamp(ResultTalent.Strength + RandomBonus, 1.0f, 100.0f);
     }
     
-    if (ClubBonus.Toughness > 0.0f)
+    if (SpecialtyBonus.Toughness > 0.0f)
     {
-        float AdjustedBonus = ClubBonus.Toughness * ClubBonusRangeMultiplier;
+        float AdjustedBonus = SpecialtyBonus.Toughness * SpecialtyBonusRangeMultiplier;
         float RandomBonus = FMath::RandRange(AdjustedBonus * 0.5f, AdjustedBonus);
         ResultTalent.Toughness = FMath::Clamp(ResultTalent.Toughness + RandomBonus, 1.0f, 100.0f);
     }
     
-    if (ClubBonus.Intelligence > 0.0f)
+    if (SpecialtyBonus.Intelligence > 0.0f)
     {
-        float AdjustedBonus = ClubBonus.Intelligence * ClubBonusRangeMultiplier;
+        float AdjustedBonus = SpecialtyBonus.Intelligence * SpecialtyBonusRangeMultiplier;
         float RandomBonus = FMath::RandRange(AdjustedBonus * 0.5f, AdjustedBonus);
         ResultTalent.Intelligence = FMath::Clamp(ResultTalent.Intelligence + RandomBonus, 1.0f, 100.0f);
     }
     
-    if (ClubBonus.Dexterity > 0.0f)
+    if (SpecialtyBonus.Dexterity > 0.0f)
     {
-        float AdjustedBonus = ClubBonus.Dexterity * ClubBonusRangeMultiplier;
+        float AdjustedBonus = SpecialtyBonus.Dexterity * SpecialtyBonusRangeMultiplier;
         float RandomBonus = FMath::RandRange(AdjustedBonus * 0.5f, AdjustedBonus);
         ResultTalent.Dexterity = FMath::Clamp(ResultTalent.Dexterity + RandomBonus, 1.0f, 100.0f);
     }
     
-    if (ClubBonus.Agility > 0.0f)
+    if (SpecialtyBonus.Agility > 0.0f)
     {
-        float AdjustedBonus = ClubBonus.Agility * ClubBonusRangeMultiplier;
+        float AdjustedBonus = SpecialtyBonus.Agility * SpecialtyBonusRangeMultiplier;
         float RandomBonus = FMath::RandRange(AdjustedBonus * 0.5f, AdjustedBonus);
         ResultTalent.Agility = FMath::Clamp(ResultTalent.Agility + RandomBonus, 1.0f, 100.0f);
     }
     
-    if (ClubBonus.Willpower > 0.0f)
+    if (SpecialtyBonus.Willpower > 0.0f)
     {
-        float AdjustedBonus = ClubBonus.Willpower * ClubBonusRangeMultiplier;
+        float AdjustedBonus = SpecialtyBonus.Willpower * SpecialtyBonusRangeMultiplier;
         float RandomBonus = FMath::RandRange(AdjustedBonus * 0.5f, AdjustedBonus);
         ResultTalent.Willpower = FMath::Clamp(ResultTalent.Willpower + RandomBonus, 1.0f, 100.0f);
     }
     
     // スキルボーナスを加算
-    for (const FSkillTalent& SkillBonus : ClubBonus.SkillBonuses)
+    for (const FSkillTalent& SkillBonus : SpecialtyBonus.SkillBonuses)
     {
         bool bSkillFound = false;
         
@@ -114,7 +114,7 @@ FCharacterTalent UCharacterTalentGenerator::ApplyClubBonus(const FCharacterTalen
         {
             if (ExistingSkill.SkillType == SkillBonus.SkillType)
             {
-                float AdjustedBonus = SkillBonus.Value * ClubBonusRangeMultiplier;
+                float AdjustedBonus = SkillBonus.Value * SpecialtyBonusRangeMultiplier;
                 float RandomBonus = FMath::RandRange(AdjustedBonus * 0.5f, AdjustedBonus);
                 ExistingSkill.Value = FMath::Clamp(ExistingSkill.Value + RandomBonus, 1.0f, 100.0f);
                 bSkillFound = true;
@@ -127,7 +127,7 @@ FCharacterTalent UCharacterTalentGenerator::ApplyClubBonus(const FCharacterTalen
         {
             FSkillTalent NewSkill;
             NewSkill.SkillType = SkillBonus.SkillType;
-            float AdjustedBonus = SkillBonus.Value * ClubBonusRangeMultiplier;
+            float AdjustedBonus = SkillBonus.Value * SpecialtyBonusRangeMultiplier;
             NewSkill.Value = FMath::RandRange(AdjustedBonus * 0.5f, AdjustedBonus);
             ResultTalent.Skills.Add(NewSkill);
         }
@@ -136,22 +136,22 @@ FCharacterTalent UCharacterTalentGenerator::ApplyClubBonus(const FCharacterTalen
     return ResultTalent;
 }
 
-void UCharacterTalentGenerator::SetBalanceMultipliers(float BaseStatMultiplier, float ClubBonusMultiplier)
+void UCharacterTalentGenerator::SetBalanceMultipliers(float BaseStatMultiplier, float SpecialtyBonusMultiplier)
 {
     BaseStatRangeMultiplier = FMath::Clamp(BaseStatMultiplier, 0.1f, 2.0f);
-    ClubBonusRangeMultiplier = FMath::Clamp(ClubBonusMultiplier, 0.1f, 2.0f);
+    SpecialtyBonusRangeMultiplier = FMath::Clamp(SpecialtyBonusMultiplier, 0.1f, 2.0f);
     
-    UE_LOG(LogTemp, Log, TEXT("Balance Multipliers Updated: BaseStat=%.3f, ClubBonus=%.3f"), 
-           BaseStatRangeMultiplier, ClubBonusRangeMultiplier);
+    UE_LOG(LogTemp, Log, TEXT("Balance Multipliers Updated: BaseStat=%.3f, SpecialtyBonus=%.3f"), 
+           BaseStatRangeMultiplier, SpecialtyBonusRangeMultiplier);
 }
 
-FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
+FSpecialtyBonus UCharacterTalentGenerator::GetSpecialtyBonus(ESpecialtyType SpecialtyType)
 {
-    FClubBonus Bonus;
+    FSpecialtyBonus Bonus;
     
-    switch (ClubType)
+    switch (SpecialtyType)
     {
-        case EClubType::Kendo:
+        case ESpecialtyType::Kendo:
         {
             Bonus.Strength = 10.0f;
             Bonus.Toughness = 10.0f;
@@ -173,7 +173,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Baseball:
+        case ESpecialtyType::Baseball:
         {
             Bonus.Strength = 15.0f;
             Bonus.Toughness = 15.0f;
@@ -200,7 +200,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Chemistry:
+        case ESpecialtyType::Chemistry:
         {
             Bonus.Intelligence = 20.0f;
             Bonus.Dexterity = 20.0f;
@@ -220,7 +220,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Archery:
+        case ESpecialtyType::Archery:
         {
             Bonus.Strength = 5.0f;
             Bonus.Intelligence = 10.0f;
@@ -242,7 +242,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Karate:
+        case ESpecialtyType::Karate:
         {
             Bonus.Strength = 15.0f;
             Bonus.Toughness = 10.0f;
@@ -269,7 +269,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::AmericanFootball:
+        case ESpecialtyType::AmericanFootball:
         {
             Bonus.Strength = 30.0f;
             Bonus.Toughness = 30.0f;
@@ -290,7 +290,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Golf:
+        case ESpecialtyType::Golf:
         {
             Bonus.Strength = 10.0f;
             Bonus.Toughness = 5.0f;
@@ -308,7 +308,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::TrackAndField:
+        case ESpecialtyType::TrackAndField:
         {
             Bonus.Strength = 10.0f;
             Bonus.Toughness = 15.0f;
@@ -330,7 +330,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Drama:
+        case ESpecialtyType::Drama:
         {
             Bonus.Intelligence = 10.0f;
             Bonus.Dexterity = 15.0f;
@@ -355,7 +355,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::TeaCeremony:
+        case ESpecialtyType::TeaCeremony:
         {
             Bonus.Intelligence = 15.0f;
             Bonus.Dexterity = 15.0f;
@@ -375,7 +375,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Equestrian:
+        case ESpecialtyType::Equestrian:
         {
             Bonus.Toughness = 10.0f;
             Bonus.Intelligence = 10.0f;
@@ -397,7 +397,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Robotics:
+        case ESpecialtyType::Robotics:
         {
             Bonus.Intelligence = 25.0f;
             Bonus.Dexterity = 25.0f;
@@ -417,7 +417,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Gardening:
+        case ESpecialtyType::Gardening:
         {
             Bonus.Strength = 5.0f;
             Bonus.Toughness = 10.0f;
@@ -439,7 +439,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Astronomy:
+        case ESpecialtyType::Astronomy:
         {
             Bonus.Intelligence = 20.0f;
             Bonus.Dexterity = 10.0f;
@@ -455,7 +455,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::TableTennis:
+        case ESpecialtyType::TableTennis:
         {
             Bonus.Intelligence = 5.0f;
             Bonus.Dexterity = 15.0f;
@@ -476,7 +476,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Basketball:
+        case ESpecialtyType::Basketball:
         {
             Bonus.Strength = 15.0f;
             Bonus.Toughness = 15.0f;
@@ -494,7 +494,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Badminton:
+        case ESpecialtyType::Badminton:
         {
             Bonus.Toughness = 5.0f;
             Bonus.Intelligence = 5.0f;
@@ -512,7 +512,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Tennis:
+        case ESpecialtyType::Tennis:
         {
             Bonus.Strength = 5.0f;
             Bonus.Toughness = 10.0f;
@@ -531,7 +531,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Volleyball:
+        case ESpecialtyType::Volleyball:
         {
             Bonus.Strength = 15.0f;
             Bonus.Toughness = 10.0f;
@@ -546,7 +546,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Soccer:
+        case ESpecialtyType::Soccer:
         {
             Bonus.Strength = 10.0f;
             Bonus.Toughness = 15.0f;
@@ -557,7 +557,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Sumo:
+        case ESpecialtyType::Sumo:
         {
             Bonus.Strength = 30.0f;
             Bonus.Toughness = 30.0f;
@@ -577,7 +577,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Cooking:
+        case ESpecialtyType::Cooking:
         {
             Bonus.Intelligence = 10.0f;
             Bonus.Dexterity = 20.0f;
@@ -601,7 +601,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Medical:
+        case ESpecialtyType::Medical:
         {
             Bonus.Intelligence = 30.0f;
             Bonus.Dexterity = 25.0f;
@@ -621,7 +621,7 @@ FClubBonus UCharacterTalentGenerator::GetClubBonus(EClubType ClubType)
             break;
         }
             
-        case EClubType::Nursing:
+        case ESpecialtyType::Nursing:
         {
             Bonus.Strength = 5.0f;
             Bonus.Toughness = 20.0f;

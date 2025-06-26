@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "../Types/CharacterTypes.h"
-#include "../CharacterGenerator/ClubSystem.h"
+#include "../CharacterGenerator/SpecialtySystem.h"
 #include "../CharacterGenerator/CharacterTalent.h"
 #include "../CharacterGenerator/CharacterStatus.h"
 #include "../Interfaces/PlayerControllerInterface.h"

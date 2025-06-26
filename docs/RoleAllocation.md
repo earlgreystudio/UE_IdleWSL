@@ -178,3 +178,23 @@
 ### ItemTypes
 ・旧JSON用アイテム構造体（非推奨）
 ・DataTable移行により使用終了予定
+
+## UI
+
+### C_CharacterList
+・キャラクター一覧表示のメインUIウィジェット
+・PlayerControllerからキャラクター配列を取得
+・C_CharacterCardを動的生成してPanelWidgetに配置
+・キャラクターリスト変更の自動検知と更新機能
+
+### C_CharacterCard
+・個別キャラクターの基本情報表示カード
+・キャラクター名、部活、DPS、防御力、HPを表示
+・HP、スタミナ、メンタルのプログレスバー表示
+・CharacterStatusComponentの変更イベントに対応
+
+### C_CharacterSheet
+・キャラクターの詳細ステータス表示ウィジェット
+・全能力値、戦闘ステータス、作業能力を数値表示
+・キャラクター特性配列とスキル配列をテキスト表示
+・Enumの表示名変換機能を内蔵

@@ -15,6 +15,10 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMemberRemoved, int32, TeamIndex,
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnTaskChanged, int32, TeamIndex, ETaskType, NewTask);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnTeamNameChanged, int32, TeamIndex, const FString&, NewName);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTeamsUpdated);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCharacterAdded, AC_IdleCharacter*, Character);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCharacterRemoved, AC_IdleCharacter*, Character);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnCharacterListChanged);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCharacterDataChanged, AC_IdleCharacter*, Character);
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class UE_IDLE_API UTeamComponent : public UActorComponent
@@ -149,6 +153,22 @@ public:
 	// 汎用更新通知
 	UPROPERTY(BlueprintAssignable, Category = "Team Events")
 	FOnTeamsUpdated OnTeamsUpdated;
+
+	// キャラクター追加時
+	UPROPERTY(BlueprintAssignable, Category = "Character Events")
+	FOnCharacterAdded OnCharacterAdded;
+
+	// キャラクター削除時
+	UPROPERTY(BlueprintAssignable, Category = "Character Events")
+	FOnCharacterRemoved OnCharacterRemoved;
+
+	// キャラクターリスト変更時
+	UPROPERTY(BlueprintAssignable, Category = "Character Events")
+	FOnCharacterListChanged OnCharacterListChanged;
+
+	// キャラクターデータ変更時（チーム配属など）
+	UPROPERTY(BlueprintAssignable, Category = "Character Events")
+	FOnCharacterDataChanged OnCharacterDataChanged;
 
 protected:
 	// チーム管理データ

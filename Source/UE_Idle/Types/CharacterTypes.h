@@ -9,7 +9,7 @@
 // ===========================================
 
 UENUM(BlueprintType)
-enum class EClubType : uint8
+enum class ESpecialtyType : uint8
 {
     Baseball        UMETA(DisplayName = "野球部"),
     Kendo          UMETA(DisplayName = "剣道部"),
@@ -37,6 +37,28 @@ enum class EClubType : uint8
     Nursing        UMETA(DisplayName = "看護部"),
     
     Count          UMETA(Hidden)
+};
+
+UENUM(BlueprintType)
+enum class ECharacterTrait : uint8
+{
+    None            UMETA(DisplayName = "なし"),
+    Diligent        UMETA(DisplayName = "勤勉"),
+    Lazy            UMETA(DisplayName = "怠け者"),
+    Lucky           UMETA(DisplayName = "幸運"),
+    Unlucky         UMETA(DisplayName = "不運"),
+    Optimistic      UMETA(DisplayName = "楽観的"),
+    Pessimistic     UMETA(DisplayName = "悲観的"),
+    Brave           UMETA(DisplayName = "勇敢"),
+    Cowardly        UMETA(DisplayName = "臆病"),
+    Genius          UMETA(DisplayName = "天才"),
+    Slow            UMETA(DisplayName = "鈍い"),
+    Greedy          UMETA(DisplayName = "強欲"),
+    Generous        UMETA(DisplayName = "寛大"),
+    Patient         UMETA(DisplayName = "忍耐強い"),
+    Impatient       UMETA(DisplayName = "せっかち"),
+    
+    Count           UMETA(Hidden)
 };
 
 UENUM(BlueprintType)
@@ -121,6 +143,10 @@ struct FCharacterTalent
     UPROPERTY(BlueprintReadWrite, Category = "Talent|Skills")
     TArray<FSkillTalent> Skills;
 
+    // キャラクター特性 (複数可能)
+    UPROPERTY(BlueprintReadWrite, Category = "Talent|Traits")
+    TArray<ECharacterTrait> CharacterTraits;
+
     FCharacterTalent()
     {
         Strength = 1.0f;
@@ -129,6 +155,7 @@ struct FCharacterTalent
         Dexterity = 1.0f;
         Agility = 1.0f;
         Willpower = 1.0f;
+        CharacterTraits = TArray<ECharacterTrait>();
     }
 };
 
@@ -174,34 +201,34 @@ struct FCharacterStatus
 };
 
 USTRUCT(BlueprintType)
-struct FClubBonus
+struct FSpecialtyBonus
 {
     GENERATED_BODY()
 
     // 基本能力値ボーナス
-    UPROPERTY(BlueprintReadWrite, Category = "Club Bonus")
+    UPROPERTY(BlueprintReadWrite, Category = "Specialty Bonus")
     float Strength;
 
-    UPROPERTY(BlueprintReadWrite, Category = "Club Bonus")
+    UPROPERTY(BlueprintReadWrite, Category = "Specialty Bonus")
     float Toughness;
 
-    UPROPERTY(BlueprintReadWrite, Category = "Club Bonus")
+    UPROPERTY(BlueprintReadWrite, Category = "Specialty Bonus")
     float Intelligence;
 
-    UPROPERTY(BlueprintReadWrite, Category = "Club Bonus")
+    UPROPERTY(BlueprintReadWrite, Category = "Specialty Bonus")
     float Dexterity;
 
-    UPROPERTY(BlueprintReadWrite, Category = "Club Bonus")
+    UPROPERTY(BlueprintReadWrite, Category = "Specialty Bonus")
     float Agility;
 
-    UPROPERTY(BlueprintReadWrite, Category = "Club Bonus")
+    UPROPERTY(BlueprintReadWrite, Category = "Specialty Bonus")
     float Willpower;
 
     // スキルボーナス
-    UPROPERTY(BlueprintReadWrite, Category = "Club Bonus")
+    UPROPERTY(BlueprintReadWrite, Category = "Specialty Bonus")
     TArray<FSkillTalent> SkillBonuses;
 
-    FClubBonus()
+    FSpecialtyBonus()
     {
         Strength = 0.0f;
         Toughness = 0.0f;
