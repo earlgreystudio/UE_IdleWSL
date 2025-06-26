@@ -128,8 +128,15 @@ protected:
     // デバッグ用
     void LogActionInfo(const FCharacterAction& Action, const FString& WeaponId) const;
     
-    // 戦闘終了通知（ログテスト用）
-    void TriggerCombatEnd();
+    // 戦闘終了通知は削除 - CombatComponentで一元管理
+    
+    // 戦闘終了時のクリーンアップ
+    UFUNCTION(BlueprintCallable, Category = "Action System")
+    void ClearAllActions();
+    
+    // 無効なキャラクター参照をクリーンアップ
+    UFUNCTION(BlueprintCallable, Category = "Action System")
+    void CleanupInvalidCharacters();
 
 private:
     // 登録済みキャラクター

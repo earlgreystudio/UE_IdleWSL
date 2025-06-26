@@ -85,7 +85,10 @@ void UCharacterStatusComponent::RecalculateDerivedStats()
 
 void UCharacterStatusComponent::OnEquipmentChanged()
 {
+	UE_LOG(LogTemp, Warning, TEXT("OnEquipmentChanged called - Recalculating stats..."));
 	RecalculateDerivedStats();
+	UE_LOG(LogTemp, Warning, TEXT("Stats recalculated - DPS: %.2f, TotalDefensePower: %.2f"), 
+		DerivedStats.DPS, DerivedStats.TotalDefensePower);
 }
 
 void UCharacterStatusComponent::OnStatusEffectChanged()
@@ -238,10 +241,11 @@ void UCharacterStatusComponent::CalculateCombatStats()
 	UE_LOG(LogTemp, Warning, TEXT("HitChance Calc - BaseHit: %.1f, Penalty: %.1f, Final: %.1f"), 
 		BaseHitChance, WeightPenalty, DerivedStats.HitChance);
 	
-	// 回避率: 10 + (敏捷 × 2) + (回避スキル × 3)
+	// 回避率: 10 + (敏捷 × 2) + (回避スキル × 2) - 新仕様
 	float EvasionSkill = GetSkillValue(ESkillType::Evasion);
-	float BaseDodgeChance = 10.0f + (Talent.Agility * 2.0f) + (EvasionSkill * 3.0f);
+	float BaseDodgeChance = 10.0f + (Talent.Agility * 2.0f) + (EvasionSkill * 2.0f);
 	// TODO: 装備ペナルティの詳細実装
+	// TODO: 盾装備時は回避率半減
 	DerivedStats.DodgeChance = FMath::Max(0.0f, BaseDodgeChance);
 	
 	// 受け流し率: 5 + (器用 × 1.5) + (受け流しスキル × 3)
@@ -249,6 +253,27 @@ void UCharacterStatusComponent::CalculateCombatStats()
 	float BaseParryChance = 5.0f + (Talent.Dexterity * 1.5f) + (ParrySkill * 3.0f);
 	// TODO: 装備ペナルティの詳細実装
 	DerivedStats.ParryChance = FMath::Max(0.0f, BaseParryChance);
+	
+	// 盾防御率: 新システム - 器用さ依存
+	float ShieldSkill = GetSkillValue(ESkillType::Shield);
+	float ShieldChance = 0.0f;
+	
+	if (ShieldSkill < 5.0f)
+	{
+		// スキル5未満: スキル値 × 6
+		ShieldChance = ShieldSkill * 6.0f;
+	}
+	else
+	{
+		// スキル5以上: 30 + (スキル値 - 5) × (60/95)
+		ShieldChance = 30.0f + (ShieldSkill - 5.0f) * (60.0f / 95.0f);
+	}
+	
+	// 器用さボーナス
+	ShieldChance += Talent.Dexterity * 0.3f;
+	
+	// 最大95%制限
+	DerivedStats.ShieldChance = FMath::Clamp(ShieldChance, 0.0f, 95.0f);
 	
 	// クリティカル率: 5 + (器用 × 0.5) + (スキルレベル × 0.3)
 	DerivedStats.CriticalChance = 5.0f + (Talent.Dexterity * 0.5f) + (WeaponSkill * 0.3f);
@@ -282,9 +307,19 @@ void UCharacterStatusComponent::CalculateDisplayStats()
 	float CritMultiplier = 1.0f + (DerivedStats.CriticalChance / 100.0f); // 簡略化
 	DerivedStats.DPS = DerivedStats.BaseDamage * DerivedStats.AttackSpeed * HitMultiplier * CritMultiplier;
 	
+	UE_LOG(LogTemp, Warning, TEXT("DPS Calc - BaseDamage: %d, AttackSpeed: %.2f, HitChance: %.1f%%, CritChance: %.1f%%"), 
+		DerivedStats.BaseDamage, DerivedStats.AttackSpeed, DerivedStats.HitChance, DerivedStats.CriticalChance);
+	UE_LOG(LogTemp, Warning, TEXT("DPS Calc - HitMultiplier: %.2f, CritMultiplier: %.2f, Final DPS: %.2f"), 
+		HitMultiplier, CritMultiplier, DerivedStats.DPS);
+	
 	// 総合防御能力（防御値 + 回避率 + 受け流し率の複合）
 	float AvoidanceValue = (DerivedStats.DodgeChance + DerivedStats.ParryChance) / 100.0f;
 	DerivedStats.TotalDefensePower = DerivedStats.DefenseValue * (1.0f + AvoidanceValue);
+	
+	UE_LOG(LogTemp, Warning, TEXT("Defense Calc - DefenseValue: %d, DodgeChance: %.1f%%, ParryChance: %.1f%%"), 
+		DerivedStats.DefenseValue, DerivedStats.DodgeChance, DerivedStats.ParryChance);
+	UE_LOG(LogTemp, Warning, TEXT("Defense Calc - AvoidanceValue: %.2f, Final TotalDefensePower: %.2f"), 
+		AvoidanceValue, DerivedStats.TotalDefensePower);
 	
 	// 戦闘力総合値
 	DerivedStats.CombatPower = (DerivedStats.DPS * 0.6f) + (DerivedStats.TotalDefensePower * 0.4f);
@@ -329,27 +364,32 @@ FString UCharacterStatusComponent::GetEquippedWeaponId() const
 	AC_IdleCharacter* Character = Cast<AC_IdleCharacter>(GetOwner());
 	if (!Character)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("GetEquippedWeaponId - No Character found"));
 		return TEXT(""); // 素手
 	}
 
 	UCharacterInventoryComponent* InventoryComp = Character->GetInventoryComponent();
 	if (!InventoryComp)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("GetEquippedWeaponId - No InventoryComponent found"));
 		return TEXT(""); // 素手
 	}
 
 	// インベントリ内の最初の武器を使用（暫定）
 	TArray<FInventorySlot> AllSlots = InventoryComp->GetAllInventorySlots();
+	UE_LOG(LogTemp, Warning, TEXT("GetEquippedWeaponId - Checking %d inventory slots"), AllSlots.Num());
 	
 	UGameInstance* GameInstance = Character->GetWorld()->GetGameInstance();
 	if (!GameInstance)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("GetEquippedWeaponId - No GameInstance found"));
 		return TEXT(""); // 素手
 	}
 
 	UItemDataTableManager* ItemManager = GameInstance->GetSubsystem<UItemDataTableManager>();
 	if (!ItemManager)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("GetEquippedWeaponId - No ItemManager found"));
 		return TEXT(""); // 素手
 	}
 
@@ -360,11 +400,13 @@ FString UCharacterStatusComponent::GetEquippedWeaponId() const
 		{
 			if (ItemData.ItemType == EItemTypeTable::Weapon)
 			{
+				UE_LOG(LogTemp, Warning, TEXT("GetEquippedWeaponId - Found weapon: %s"), *Slot.ItemId);
 				return Slot.ItemId; // 最初に見つかった武器を返す
 			}
 		}
 	}
 	
+	UE_LOG(LogTemp, Warning, TEXT("GetEquippedWeaponId - No weapon found, using bare hands"));
 	return TEXT(""); // 武器が見つからない場合は素手
 }
 

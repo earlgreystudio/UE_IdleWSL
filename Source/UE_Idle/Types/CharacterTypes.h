@@ -238,6 +238,9 @@ struct UE_IDLE_API FDerivedStats
     float ParryChance = 5.0f;        // 受け流し率
 
     UPROPERTY(BlueprintReadOnly, Category = "Combat Stats")
+    float ShieldChance = 3.0f;       // 盾防御率
+
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Stats")
     int32 DefenseValue = 0;          // 防御値
 
     // 作業関連

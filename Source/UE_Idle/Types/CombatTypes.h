@@ -69,6 +69,10 @@ struct FCombatCalculationResult
     UPROPERTY(BlueprintReadWrite, Category = "Result")
     bool bParried;
 
+    // 盾防御されたか
+    UPROPERTY(BlueprintReadWrite, Category = "Result")
+    bool bShieldBlocked;
+
     // クリティカルヒットか
     UPROPERTY(BlueprintReadWrite, Category = "Result")
     bool bCritical;
@@ -93,6 +97,10 @@ struct FCombatCalculationResult
     UPROPERTY(BlueprintReadWrite, Category = "Result")
     float ParryChance;
 
+    // 盾防御率
+    UPROPERTY(BlueprintReadWrite, Category = "Result")
+    float ShieldChance;
+
     // クリティカル率
     UPROPERTY(BlueprintReadWrite, Category = "Result")
     float CriticalChance;
@@ -102,12 +110,14 @@ struct FCombatCalculationResult
         bHit = false;
         bDodged = false;
         bParried = false;
+        bShieldBlocked = false;
         bCritical = false;
         FinalDamage = 0;
         BaseDamage = 0;
         HitChance = 0.0f;
         DodgeChance = 0.0f;
         ParryChance = 0.0f;
+        ShieldChance = 0.0f;
         CriticalChance = 0.0f;
     }
 };

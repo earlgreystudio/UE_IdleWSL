@@ -2,6 +2,7 @@
 #include "../Actor/C_IdleCharacter.h"
 #include "../Managers/CharacterPresetManager.h"
 #include "CombatComponent.h"
+#include "ActionSystemComponent.h"
 #include "Engine/World.h"
 #include "../Types/LocationTypes.h"
 
@@ -247,13 +248,43 @@ void ULocationEventManager::UnregisterEnemyTeam(const TArray<AC_IdleCharacter*>&
     {
         if (Pair.Value == EnemyTeam)
         {
-            // 敵キャラクターを削除
-            for (AC_IdleCharacter* Enemy : EnemyTeam)
+            UE_LOG(LogTemp, Log, TEXT("Starting enemy team cleanup for location %s"), *Pair.Key);
+            
+            // Step 1: ActionSystemから敵キャラクターを事前削除
+            if (UWorld* World = GetWorld())
             {
-                if (IsValid(Enemy))
+                if (APlayerController* PC = World->GetFirstPlayerController())
                 {
-                    Enemy->Destroy();
+                    if (UActionSystemComponent* ActionComp = PC->FindComponentByClass<UActionSystemComponent>())
+                    {
+                        for (AC_IdleCharacter* Enemy : EnemyTeam)
+                        {
+                            if (IsValid(Enemy))
+                            {
+                                UE_LOG(LogTemp, Log, TEXT("Pre-removing enemy %s from ActionSystem"), *Enemy->GetName());
+                                ActionComp->UnregisterCharacter(Enemy);
+                            }
+                        }
+                    }
                 }
+            }
+            
+            // Step 2: 短時間後に敵キャラクターを削除（ActionSystem処理完了を待つ）
+            if (GetWorld())
+            {
+                FTimerHandle EnemyDestroyTimerHandle;
+                GetWorld()->GetTimerManager().SetTimer(EnemyDestroyTimerHandle, [this, EnemyTeam, LocationId = Pair.Key]()
+                {
+                    UE_LOG(LogTemp, Log, TEXT("Destroying enemy characters for location %s"), *LocationId);
+                    for (AC_IdleCharacter* Enemy : EnemyTeam)
+                    {
+                        if (IsValid(Enemy))
+                        {
+                            UE_LOG(LogTemp, Log, TEXT("Destroying enemy %s"), *Enemy->GetName());
+                            Enemy->Destroy();
+                        }
+                    }
+                }, 0.3f, false);
             }
             
             ActiveEnemyTeams.Remove(Pair.Key);

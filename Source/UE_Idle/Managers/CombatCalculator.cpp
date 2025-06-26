@@ -2,6 +2,7 @@
 #include "../Actor/C_IdleCharacter.h"
 #include "../Components/CharacterStatusComponent.h"
 #include "../Components/CharacterInventoryComponent.h"
+#include "../Interfaces/IdleCharacterInterface.h"
 #include "ItemDataTableManager.h"
 #include "CharacterPresetManager.h"
 #include "Engine/World.h"
@@ -49,7 +50,23 @@ float UCombatCalculator::CalculateAttackSpeed(AC_IdleCharacter* Character, const
     UCharacterStatusComponent* StatusComp = Character->GetStatusComponent();
     if (!StatusComp)
     {
-        UE_LOG(LogTemp, Warning, TEXT("CalculateAttackSpeed: No status component"));
+        FString CharName = TEXT("Unknown");
+        if (Character->GetClass()->ImplementsInterface(UIdleCharacterInterface::StaticClass()))
+        {
+            CharName = IIdleCharacterInterface::Execute_GetCharacterName(Character);
+        }
+        UE_LOG(LogTemp, Warning, TEXT("CalculateAttackSpeed: No status component for character %s"), *CharName);
+        return 1.0f;
+    }
+    
+    if (!IsValid(StatusComp))
+    {
+        FString CharName = TEXT("Unknown");
+        if (Character->GetClass()->ImplementsInterface(UIdleCharacterInterface::StaticClass()))
+        {
+            CharName = IIdleCharacterInterface::Execute_GetCharacterName(Character);
+        }
+        UE_LOG(LogTemp, Warning, TEXT("CalculateAttackSpeed: Invalid status component for character %s"), *CharName);
         return 1.0f;
     }
 
@@ -65,7 +82,7 @@ float UCombatCalculator::CalculateHitChance(AC_IdleCharacter* Attacker, const FS
     }
 
     UCharacterStatusComponent* StatusComp = Attacker->GetStatusComponent();
-    if (!StatusComp)
+    if (!StatusComp || !IsValid(StatusComp))
     {
         return 50.0f;
     }
@@ -82,7 +99,7 @@ float UCombatCalculator::CalculateDodgeChance(AC_IdleCharacter* Defender)
     }
 
     UCharacterStatusComponent* StatusComp = Defender->GetStatusComponent();
-    if (!StatusComp)
+    if (!StatusComp || !IsValid(StatusComp))
     {
         return 10.0f;
     }
@@ -99,7 +116,7 @@ float UCombatCalculator::CalculateParryChance(AC_IdleCharacter* Defender)
     }
 
     UCharacterStatusComponent* StatusComp = Defender->GetStatusComponent();
-    if (!StatusComp)
+    if (!StatusComp || !IsValid(StatusComp))
     {
         return 5.0f;
     }
@@ -107,6 +124,24 @@ float UCombatCalculator::CalculateParryChance(AC_IdleCharacter* Defender)
     // 事前計算済みの受け流し率を直接返す
     FDerivedStats DerivedStats = StatusComp->GetDerivedStats();
     return DerivedStats.ParryChance;
+}
+
+float UCombatCalculator::CalculateShieldChance(AC_IdleCharacter* Defender)
+{
+    if (!Defender || !IsValid(Defender))
+    {
+        return 3.0f;
+    }
+
+    UCharacterStatusComponent* StatusComp = Defender->GetStatusComponent();
+    if (!StatusComp || !IsValid(StatusComp))
+    {
+        return 3.0f;
+    }
+
+    // 事前計算済みの盾防御率を直接返す
+    FDerivedStats DerivedStats = StatusComp->GetDerivedStats();
+    return DerivedStats.ShieldChance;
 }
 
 float UCombatCalculator::CalculateCriticalChance(AC_IdleCharacter* Attacker, const FString& WeaponItemId)
@@ -117,7 +152,7 @@ float UCombatCalculator::CalculateCriticalChance(AC_IdleCharacter* Attacker, con
     }
 
     UCharacterStatusComponent* StatusComp = Attacker->GetStatusComponent();
-    if (!StatusComp)
+    if (!StatusComp || !IsValid(StatusComp))
     {
         return 5.0f;
     }
@@ -135,7 +170,7 @@ int32 UCombatCalculator::CalculateBaseDamage(AC_IdleCharacter* Attacker, const F
     }
 
     UCharacterStatusComponent* StatusComp = Attacker->GetStatusComponent();
-    if (!StatusComp)
+    if (!StatusComp || !IsValid(StatusComp))
     {
         return 1;
     }
@@ -153,7 +188,7 @@ int32 UCombatCalculator::CalculateDefenseValue(AC_IdleCharacter* Defender)
     }
 
     UCharacterStatusComponent* StatusComp = Defender->GetStatusComponent();
-    if (!StatusComp)
+    if (!StatusComp || !IsValid(StatusComp))
     {
         return 0;
     }
@@ -163,7 +198,7 @@ int32 UCombatCalculator::CalculateDefenseValue(AC_IdleCharacter* Defender)
     return DerivedStats.DefenseValue;
 }
 
-int32 UCombatCalculator::CalculateFinalDamage(int32 BaseDamage, int32 DefenseValue, bool bParried, bool bCritical)
+int32 UCombatCalculator::CalculateFinalDamage(int32 BaseDamage, int32 DefenseValue, bool bParried, bool bShieldBlocked, bool bCritical, int32 ShieldDefense, float ShieldSkill)
 {
     float FinalDamage = BaseDamage;
     
@@ -177,6 +212,13 @@ int32 UCombatCalculator::CalculateFinalDamage(int32 BaseDamage, int32 DefenseVal
     if (bParried)
     {
         FinalDamage *= 0.2f;
+    }
+    
+    // 盾防御処理（新システム）
+    if (bShieldBlocked)
+    {
+        float ShieldReduction = CalculateShieldDamageReduction(ShieldDefense, ShieldSkill);
+        FinalDamage *= ShieldReduction;
     }
     
     // 防御計算: 最終ダメージ = 基本ダメージ × (100 ÷ (100 + 防御値))
@@ -198,9 +240,10 @@ FCombatCalculationResult UCombatCalculator::PerformCombatCalculation(AC_IdleChar
     Result.HitChance = CalculateHitChance(Attacker, WeaponItemId);
     Result.DodgeChance = CalculateDodgeChance(Defender);
     Result.ParryChance = CalculateParryChance(Defender);
+    Result.ShieldChance = CalculateShieldChance(Defender);
     Result.CriticalChance = CalculateCriticalChance(Attacker, WeaponItemId);
     
-    // 判定順序：回避 → 受け流し → 通常攻撃
+    // 判定順序：回避 → 命中 → 受け流し → 盾防御 → クリティカル → ダメージ計算
     float RandomValue = FMath::FRand() * 100.0f;
     
     // 1. 回避判定
@@ -230,17 +273,26 @@ FCombatCalculationResult UCombatCalculator::PerformCombatCalculation(AC_IdleChar
         Result.bParried = true;
     }
     
-    // 4. クリティカル判定
+    // 4. 盾防御判定
+    RandomValue = FMath::FRand() * 100.0f;
+    if (RandomValue < Result.ShieldChance)
+    {
+        Result.bShieldBlocked = true;
+    }
+    
+    // 5. クリティカル判定
     RandomValue = FMath::FRand() * 100.0f;
     if (RandomValue < Result.CriticalChance)
     {
         Result.bCritical = true;
     }
     
-    // 5. ダメージ計算
+    // 6. ダメージ計算
     Result.BaseDamage = CalculateBaseDamage(Attacker, WeaponItemId);
     int32 DefenseValue = CalculateDefenseValue(Defender);
-    Result.FinalDamage = CalculateFinalDamage(Result.BaseDamage, DefenseValue, Result.bParried, Result.bCritical);
+    int32 ShieldDefense = GetShieldDefense(Defender);
+    float ShieldSkill = GetSkillLevel(Defender, ESkillType::Shield);
+    Result.FinalDamage = CalculateFinalDamage(Result.BaseDamage, DefenseValue, Result.bParried, Result.bShieldBlocked, Result.bCritical, ShieldDefense, ShieldSkill);
     
     return Result;
 }
@@ -525,12 +577,12 @@ float UCombatCalculator::CalculatePenaltyPercentage(float WeightRatio)
 
 FString UCombatCalculator::GetCharacterRace(AC_IdleCharacter* Character)
 {
-    if (!Character)
+    if (!Character || !IsValid(Character))
     {
         return TEXT("human"); // デフォルトは人間
     }
 
-    // キャラクターから種族を取得
+    // キャラクターから種族を取得（直接メンバー関数を呼び出し）
     return Character->GetCharacterRace();
 }
 
@@ -673,4 +725,62 @@ int32 UCombatCalculator::GetNaturalWeaponPower(const FString& CharacterRace)
     }
     
     return 2; // 見つからない場合は人間の素手攻撃力
+}
+
+int32 UCombatCalculator::GetShieldDefense(AC_IdleCharacter* Character)
+{
+    if (!Character || !IsValid(Character))
+    {
+        return 0;
+    }
+
+    // TODO: 装備システム実装後に正式実装
+    // 現在は暫定的にインベントリから盾を検索
+    UCharacterInventoryComponent* InventoryComp = Character->GetInventoryComponent();
+    if (!InventoryComp)
+    {
+        return 0;
+    }
+
+    TArray<FInventorySlot> AllSlots = InventoryComp->GetAllInventorySlots();
+    
+    UGameInstance* GameInstance = Character->GetWorld()->GetGameInstance();
+    if (!GameInstance)
+    {
+        return 0;
+    }
+
+    UItemDataTableManager* ItemManager = GameInstance->GetSubsystem<UItemDataTableManager>();
+    if (!ItemManager)
+    {
+        return 0;
+    }
+
+    for (const FInventorySlot& Slot : AllSlots)
+    {
+        FItemDataRow ItemData;
+        if (ItemManager->GetItemData(Slot.ItemId, ItemData))
+        {
+            // 盾は防具の一種として判定（Shieldスロット）
+            if (ItemData.ItemType == EItemTypeTable::Armor && ItemData.EquipmentSlot == EEquipmentSlotTable::Shield)
+            {
+                return ItemData.GetModifiedDefense(); // 品質修正済み防御力
+            }
+        }
+    }
+    
+    return 0; // 盾が見つからない場合
+}
+
+float UCombatCalculator::CalculateShieldDamageReduction(int32 ShieldDefense, float ShieldSkill)
+{
+    // 盾ダメージカット率計算
+    // 防御値 = 盾防御力 + 盾スキル
+    float DefenseValue = ShieldDefense + ShieldSkill;
+    
+    // ダメージ倍率計算: 1/(1 + defense_value * 0.5)
+    // 最低2%は通すため、最大98%カット
+    float DamageMultiplier = FMath::Max(0.02f, 1.0f / (1.0f + DefenseValue * 0.5f));
+    
+    return DamageMultiplier;
 }

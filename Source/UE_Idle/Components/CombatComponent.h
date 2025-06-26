@@ -69,6 +69,10 @@ public:
     UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Combat")
     int32 GetTotalDamageDealt() const { return TotalDamageDealt; }
 
+    // 戦闘終了チェック（外部から呼び出し可能）
+    UFUNCTION(BlueprintCallable, Category = "Combat")
+    void RequestCombatCompletion() { CheckCombatCompletion(); }
+
     // イベントディスパッチャー
     UPROPERTY(BlueprintAssignable, Category = "Combat Events")
     FOnCombatStateChanged OnCombatStateChanged;
@@ -101,6 +105,12 @@ protected:
 
     // 戦闘終了チェック
     void CheckCombatCompletion();
+    
+    // 戦闘終了処理の順序制御
+    void ExecuteCombatEndSequence(const TArray<AC_IdleCharacter*>& AliveAllies, const TArray<AC_IdleCharacter*>& AliveEnemies);
+    
+    // ActionSystem安全停止
+    void StopActionSystemSafely();
 
     // イベントハンドラー
     UFUNCTION()

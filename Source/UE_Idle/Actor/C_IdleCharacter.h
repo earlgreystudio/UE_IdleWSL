@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "../Interfaces/IdleCharacterInterface.h"
+#include "../Types/ItemTypes.h"
 #include "C_IdleCharacter.generated.h"
 
 class UCharacterStatusComponent;
@@ -51,6 +52,14 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	void SetCharacterRace(const FString& NewRace) { CharacterRace = NewRace; }
+
+protected:
+	// Equipment change handlers
+	UFUNCTION()
+	void HandleItemEquipped(const FString& ItemId, EEquipmentSlot Slot);
+	
+	UFUNCTION()
+	void HandleItemUnequipped(const FString& ItemId, EEquipmentSlot Slot);
 
 protected:
 	// コンポーネント

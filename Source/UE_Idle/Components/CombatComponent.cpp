@@ -1,5 +1,6 @@
 #include "CombatComponent.h"
 #include "../Actor/C_IdleCharacter.h"
+#include "../C_PlayerController.h"
 #include "EventLogManager.h"
 #include "ActionSystemComponent.h"
 #include "CharacterStatusComponent.h"
@@ -222,6 +223,12 @@ bool UCombatComponent::IsCombatReadyToStart() const
 
 void UCombatComponent::CheckCombatCompletion()
 {
+    // 既に完了済みの場合は重複処理を防ぐ
+    if (CurrentState == ECombatState::Completed || CurrentState == ECombatState::Inactive)
+    {
+        return;
+    }
+
     TArray<AC_IdleCharacter*> AliveAllies = GetAliveMembers(AllyTeamMembers);
     TArray<AC_IdleCharacter*> AliveEnemies = GetAliveMembers(EnemyTeamMembers);
 
@@ -229,36 +236,86 @@ void UCombatComponent::CheckCombatCompletion()
     {
         UE_LOG(LogTemp, Log, TEXT("Combat ending - One side has no alive members"));
         
-        // 戦闘終了
-        TArray<AC_IdleCharacter*> Winners = (AliveAllies.Num() > 0) ? AliveAllies : AliveEnemies;
-        TArray<AC_IdleCharacter*> Losers = (AliveAllies.Num() == 0) ? AllyTeamMembers : EnemyTeamMembers;
-        
-        float Duration = GetCombatDuration();
-        
-        UE_LOG(LogTemp, Log, TEXT("Combat ended - Winners: %d, Duration: %f seconds"), 
-            Winners.Num(), Duration);
-        
-        SetCombatState(ECombatState::Completed, 
-            FString::Printf(TEXT("戦闘終了！ 勝者：%d人"), Winners.Num()));
-
-        // 戦闘ログに終了記録
-        if (EventLogManager)
-        {
-            UE_LOG(LogTemp, Log, TEXT("Calling LogCombatEnd with %d winners, %d losers"), 
-                Winners.Num(), Losers.Num());
-            EventLogManager->LogCombatEnd(Winners, Losers, Duration);
-        }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("EventLogManager is null, cannot log combat end"));
-        }
-
-        OnCombatCompleted.Broadcast(Winners, Losers, Duration);
-        CleanupAfterCombat();
+        // 戦闘終了処理を順序制御で実行
+        ExecuteCombatEndSequence(AliveAllies, AliveEnemies);
     }
     else
     {
         UE_LOG(LogTemp, VeryVerbose, TEXT("Combat continues - Both sides have alive members"));
+    }
+}
+
+void UCombatComponent::ExecuteCombatEndSequence(const TArray<AC_IdleCharacter*>& AliveAllies, const TArray<AC_IdleCharacter*>& AliveEnemies)
+{
+    UE_LOG(LogTemp, Log, TEXT("=== Starting Combat End Sequence ==="));
+    
+    // Step 1: 勝者・敗者を決定（ActionSystemはまだ動作中）
+    TArray<AC_IdleCharacter*> Winners = (AliveAllies.Num() > 0) ? AliveAllies : AliveEnemies;
+    TArray<AC_IdleCharacter*> Losers = (AliveAllies.Num() == 0) ? AllyTeamMembers : EnemyTeamMembers;
+    float Duration = GetCombatDuration();
+    
+    // Step 2: 状態を完了に変更
+    SetCombatState(ECombatState::Completed, 
+        FString::Printf(TEXT("戦闘終了！ 勝者：%d人"), Winners.Num()));
+    
+    // Step 3: ログ記録（同期的に実行）
+    // PlayerControllerのEventLogManagerを直接使用して確実に統一
+    if (UWorld* World = GetWorld())
+    {
+        if (AC_PlayerController* PC = Cast<AC_PlayerController>(World->GetFirstPlayerController()))
+        {
+            if (PC->EventLogManager)
+            {
+                UE_LOG(LogTemp, Log, TEXT("Recording combat end log - Winners: %d, Losers: %d"), 
+                    Winners.Num(), Losers.Num());
+                UE_LOG(LogTemp, Error, TEXT("CombatComponent using PC->EventLogManager: %p"), (void*)PC->EventLogManager);
+                PC->EventLogManager->LogCombatEnd(Winners, Losers, Duration);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("PC->EventLogManager is NULL"));
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("PlayerController not found"));
+        }
+    }
+    
+    // Step 4: 短時間後にActionSystemを停止（ログ記録完了を待つ）
+    if (GetWorld())
+    {
+        FTimerHandle ActionStopTimerHandle;
+        GetWorld()->GetTimerManager().SetTimer(ActionStopTimerHandle, [this]()
+        {
+            UE_LOG(LogTemp, Log, TEXT("Stopping ActionSystem after log recording"));
+            StopActionSystemSafely();
+        }, 0.1f, false);
+    }
+    
+    // Step 5: さらに後でUI更新とクリーンアップを実行
+    if (GetWorld())
+    {
+        FTimerHandle CleanupTimerHandle;
+        GetWorld()->GetTimerManager().SetTimer(CleanupTimerHandle, [this, Winners, Losers, Duration]()
+        {
+            // UI更新
+            OnCombatCompleted.Broadcast(Winners, Losers, Duration);
+            
+            // 最終クリーンアップ（キャラクター削除を含む）
+            CleanupAfterCombat();
+            
+            UE_LOG(LogTemp, Log, TEXT("=== Combat End Sequence Completed ==="));
+        }, 0.2f, false);
+    }
+}
+
+void UCombatComponent::StopActionSystemSafely()
+{
+    if (ActionSystemComponent && ActionSystemComponent->IsSystemActive())
+    {
+        UE_LOG(LogTemp, Log, TEXT("Stopping ActionSystem from CombatComponent"));
+        ActionSystemComponent->StopActionSystem();
     }
 }
 
@@ -310,11 +367,20 @@ void UCombatComponent::StartCombatAfterPreparation()
 
 void UCombatComponent::InitializeSubComponents()
 {
-    // EventLogManager作成
-    EventLogManager = NewObject<UEventLogManager>(GetOwner());
-    if (EventLogManager)
+    // PlayerControllerの既存EventLogManagerを使用（新規作成しない）
+    if (AC_PlayerController* PC = Cast<AC_PlayerController>(GetOwner()))
     {
-        EventLogManager->RegisterComponent();
+        EventLogManager = PC->EventLogManager;
+        UE_LOG(LogTemp, Log, TEXT("CombatComponent: Using PlayerController EventLogManager: %p"), (void*)EventLogManager);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("CombatComponent: Owner is not AC_PlayerController, creating new EventLogManager"));
+        EventLogManager = NewObject<UEventLogManager>(GetOwner());
+        if (EventLogManager)
+        {
+            EventLogManager->RegisterComponent();
+        }
     }
 
     // ActionSystemComponent作成

@@ -38,12 +38,44 @@ void AC_IdleCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	// インベントリの装備変更イベントをステータスコンポーネントの再計算に接続
+	if (InventoryComponent && StatusComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("C_IdleCharacter: Binding equipment change events"));
+		
+		// Dynamic multicast delegatesはAddDynamicを使用
+		InventoryComponent->OnItemEquipped.AddDynamic(this, &AC_IdleCharacter::HandleItemEquipped);
+		InventoryComponent->OnItemUnequipped.AddDynamic(this, &AC_IdleCharacter::HandleItemUnequipped);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("C_IdleCharacter: Failed to bind equipment events - missing components"));
+	}
 }
 
 // Called every frame
 void AC_IdleCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+}
+
+// Equipment change handlers
+void AC_IdleCharacter::HandleItemEquipped(const FString& ItemId, EEquipmentSlot Slot)
+{
+	UE_LOG(LogTemp, Warning, TEXT("C_IdleCharacter: Item equipped - %s in slot %d"), *ItemId, (int32)Slot);
+	if (StatusComponent)
+	{
+		StatusComponent->OnEquipmentChanged();
+	}
+}
+
+void AC_IdleCharacter::HandleItemUnequipped(const FString& ItemId, EEquipmentSlot Slot)
+{
+	UE_LOG(LogTemp, Warning, TEXT("C_IdleCharacter: Item unequipped - %s from slot %d"), *ItemId, (int32)Slot);
+	if (StatusComponent)
+	{
+		StatusComponent->OnEquipmentChanged();
+	}
 }
 
 // IIdleCharacterInterface Implementation
@@ -63,11 +95,15 @@ UCharacterStatusComponent* AC_IdleCharacter::GetStatusComponent() const
 {
 	if (!StatusComponent)
 	{
-		UE_LOG(LogTemp, Error, TEXT("GetStatusComponent: StatusComponent is null for character %s"), *CharacterName);
+		UE_LOG(LogTemp, Error, TEXT("GetStatusComponent: StatusComponent is null for character %s"), 
+			   CharacterName.IsEmpty() ? TEXT("Unknown") : *CharacterName);
+		return nullptr;
 	}
 	else if (!IsValid(StatusComponent))
 	{
-		UE_LOG(LogTemp, Error, TEXT("GetStatusComponent: StatusComponent is invalid for character %s"), *CharacterName);
+		UE_LOG(LogTemp, Error, TEXT("GetStatusComponent: StatusComponent is invalid for character %s"), 
+			   CharacterName.IsEmpty() ? TEXT("Unknown") : *CharacterName);
+		return nullptr;
 	}
 	return StatusComponent;
 }

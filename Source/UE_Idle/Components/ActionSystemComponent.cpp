@@ -5,6 +5,7 @@
 #include "../Managers/CombatCalculator.h"
 #include "EventLogManager.h"
 #include "../C_PlayerController.h"
+#include "CombatComponent.h"
 #include "Engine/World.h"
 
 UActionSystemComponent::UActionSystemComponent()
@@ -84,6 +85,11 @@ void UActionSystemComponent::StopActionSystem()
         GetWorld()->GetTimerManager().ClearTimer(ActionTimerHandle);
         UE_LOG(LogTemp, Log, TEXT("Action system stopped"));
     }
+
+    // 即座にすべてのアクションをクリア
+    AllyActions.Empty();
+    EnemyActions.Empty();
+    UE_LOG(LogTemp, Log, TEXT("All actions cleared on system stop"));
 }
 
 void UActionSystemComponent::RegisterCharacter(AC_IdleCharacter* Character, const TArray<AC_IdleCharacter*>& Enemies)
@@ -376,6 +382,17 @@ void UActionSystemComponent::ProcessActions()
         return;
     }
 
+    // 毎回処理前に無効なキャラクター参照をクリーンアップ
+    CleanupInvalidCharacters();
+    
+    // アクションが空の場合は処理を停止
+    if (AllyActions.Num() == 0 && EnemyActions.Num() == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ProcessActions: No valid actions remaining, stopping system"));
+        StopActionSystem();
+        return;
+    }
+
     float CurrentTime = GetWorld()->GetTimeSeconds();
     
     // 味方の行動処理（インデックスベースで安全に）
@@ -402,12 +419,21 @@ void UActionSystemComponent::ProcessActions()
         }
     }
     
-    // 戦闘終了チェック（実際のHP判定）
+    // 戦闘終了チェック（ログ記録継続のため復活、ただしActionSystem停止はしない）
     if (AreAllEnemiesDead() || AreAllAlliesDead())
     {
-        UE_LOG(LogTemp, Log, TEXT("Combat ended - One side has been defeated"));
-        TriggerCombatEnd();
-        StopActionSystem();
+        UE_LOG(LogTemp, Log, TEXT("ProcessActions: Combat ending detected, but continuing for log recording"));
+        // CombatComponentに戦闘終了を通知するが、ActionSystemは停止しない
+        if (UWorld* World = GetWorld())
+        {
+            if (APlayerController* PC = World->GetFirstPlayerController())
+            {
+                if (UCombatComponent* CombatComp = PC->FindComponentByClass<UCombatComponent>())
+                {
+                    CombatComp->RequestCombatCompletion();
+                }
+            }
+        }
     }
     
     // フェイルセーフチェックは ProcessCharacterAction で実行
@@ -415,26 +441,37 @@ void UActionSystemComponent::ProcessActions()
 
 void UActionSystemComponent::ProcessCharacterAction(FCharacterAction& Action)
 {
+    // システムが停止している場合は即座に終了
+    if (!bSystemActive)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ProcessCharacterAction: System not active, aborting"));
+        return;
+    }
+
     // フェイルセーフ：3000回の実際のキャラクターアクション後に強制終了
     TotalActionCount++;
     if (TotalActionCount >= 3000)
     {
         UE_LOG(LogTemp, Warning, TEXT("Combat force-ended after %d character actions (failsafe)"), TotalActionCount);
-        TriggerCombatEnd();
         StopActionSystem();
+        // CombatComponentに戦闘終了を通知
+        if (UWorld* World = GetWorld())
+        {
+            if (APlayerController* PC = World->GetFirstPlayerController())
+            {
+                if (UCombatComponent* CombatComp = PC->FindComponentByClass<UCombatComponent>())
+                {
+                    CombatComp->RequestCombatCompletion();
+                }
+            }
+        }
         return;
     }
     
     // 完全防御的チェック
-    if (!Action.Character)
+    if (!Action.Character || !IsValid(Action.Character))
     {
-        UE_LOG(LogTemp, Error, TEXT("ProcessCharacterAction: Null character in action"));
-        return;
-    }
-    
-    if (!IsValid(Action.Character))
-    {
-        UE_LOG(LogTemp, Error, TEXT("ProcessCharacterAction: Invalid character object"));
+        UE_LOG(LogTemp, Error, TEXT("ProcessCharacterAction: Invalid character in action"));
         return;
     }
     
@@ -609,6 +646,18 @@ void UActionSystemComponent::ProcessCharacterAction(FCharacterAction& Action)
                 UE_LOG(LogTemp, Warning, TEXT("%s has died!"), 
                     *IIdleCharacterInterface::Execute_GetCharacterName(Target));
                 OnCharacterDeath.Broadcast(Target);
+                
+                // CombatComponentに戦闘終了チェックを依頼
+                if (UWorld* World = GetWorld())
+                {
+                    if (APlayerController* PC = World->GetFirstPlayerController())
+                    {
+                        if (UCombatComponent* CombatComp = PC->FindComponentByClass<UCombatComponent>())
+                        {
+                            CombatComp->RequestCombatCompletion();
+                        }
+                    }
+                }
             }
         }
     }
@@ -695,10 +744,54 @@ FString UActionSystemComponent::SelectWeapon(AC_IdleCharacter* Character)
 
 void UActionSystemComponent::UpdateNextActionTime(FCharacterAction& Action, const FString& WeaponId)
 {
+    // システムが停止している場合は即座に終了
+    if (!bSystemActive)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UpdateNextActionTime: System is not active, skipping"));
+        return;
+    }
+
     // 完全防御的チェック
     if (!Action.Character || !IsValid(Action.Character))
     {
         UE_LOG(LogTemp, Error, TEXT("UpdateNextActionTime: Invalid character"));
+        Action.NextActionTime = GetWorld() ? GetWorld()->GetTimeSeconds() + 1.0f : 1.0f;
+        Action.AttackSpeed = 1.0f;
+        return;
+    }
+    
+    // キャラクターが非アクティブな場合もスキップ
+    bool bCharacterActive = false;
+    if (Action.Character && Action.Character->GetClass() && 
+        Action.Character->GetClass()->ImplementsInterface(UIdleCharacterInterface::StaticClass()))
+    {
+        bCharacterActive = IIdleCharacterInterface::Execute_IsActive(Action.Character);
+    }
+    
+    if (!bCharacterActive)
+    {
+        FString CharName = TEXT("Unknown");
+        if (Action.Character && Action.Character->GetClass() && 
+            Action.Character->GetClass()->ImplementsInterface(UIdleCharacterInterface::StaticClass()))
+        {
+            CharName = IIdleCharacterInterface::Execute_GetCharacterName(Action.Character);
+        }
+        UE_LOG(LogTemp, Warning, TEXT("UpdateNextActionTime: Character %s is not active"), *CharName);
+        Action.NextActionTime = GetWorld() ? GetWorld()->GetTimeSeconds() + 1.0f : 1.0f;
+        Action.AttackSpeed = 1.0f;
+        return;
+    }
+    
+    // StatusComponentの有効性をチェック
+    UCharacterStatusComponent* StatusComp = Action.Character->GetStatusComponent();
+    if (!StatusComp)
+    {
+        FString CharName = TEXT("Unknown");
+        if (Action.Character->GetClass()->ImplementsInterface(UIdleCharacterInterface::StaticClass()))
+        {
+            CharName = IIdleCharacterInterface::Execute_GetCharacterName(Action.Character);
+        }
+        UE_LOG(LogTemp, Error, TEXT("UpdateNextActionTime: Character %s has no valid StatusComponent"), *CharName);
         Action.NextActionTime = GetWorld() ? GetWorld()->GetTimeSeconds() + 1.0f : 1.0f;
         Action.AttackSpeed = 1.0f;
         return;
@@ -761,78 +854,7 @@ bool UActionSystemComponent::IsCharacterAlive(AC_IdleCharacter* Character) const
     return true;
 }
 
-void UActionSystemComponent::TriggerCombatEnd()
-{
-    UE_LOG(LogTemp, Error, TEXT("*** TriggerCombatEnd: Combat End Analysis ***"));
-    
-    // 生存しているキャラクターを取得
-    TArray<AC_IdleCharacter*> AliveAllies = GetAliveAllies();
-    TArray<AC_IdleCharacter*> AliveEnemies = GetAliveEnemies();
-    
-    UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: Alive Allies: %d, Alive Enemies: %d"), 
-        AliveAllies.Num(), AliveEnemies.Num());
-    
-    // 勝者と敗者を決定（どちらかが全滅するまで戦う）
-    TArray<AC_IdleCharacter*> Winners;
-    TArray<AC_IdleCharacter*> Losers;
-    
-    if (AliveAllies.Num() > 0 && AliveEnemies.Num() == 0)
-    {
-        // 味方の勝利（敵が全滅）
-        Winners = AliveAllies;
-        Losers = GetAllEnemies();
-        UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: Ally Victory - %d allies survived, enemies eliminated"), Winners.Num());
-    }
-    else if (AliveEnemies.Num() > 0 && AliveAllies.Num() == 0)
-    {
-        // 敵の勝利（味方が全滅）
-        Winners = AliveEnemies;
-        Losers = GetAllAllies();
-        UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: Enemy Victory - %d enemies survived, allies eliminated"), Winners.Num());
-    }
-    else
-    {
-        // まだ戦闘継続中（これは本来呼ばれるべきではない）
-        UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: Battle should continue - Allies: %d, Enemies: %d"), 
-            AliveAllies.Num(), AliveEnemies.Num());
-        Winners.Empty();
-        Losers.Empty();
-    }
-    
-    // 戦闘時間を計算（適当な値）
-    float Duration = 10.0f;
-    
-    UE_LOG(LogTemp, Log, TEXT("Combat end: %d winners, %d losers, duration %.1f"), 
-        Winners.Num(), Losers.Num(), Duration);
-    
-    // PlayerControllerのEventLogManagerを使用
-    UE_LOG(LogTemp, Error, TEXT("*** TriggerCombatEnd: Attempting to log combat end ***"));
-    if (UWorld* World = GetWorld())
-    {
-        UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: World found"));
-        if (AC_PlayerController* PC = Cast<AC_PlayerController>(World->GetFirstPlayerController()))
-        {
-            UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: PlayerController found"));
-            if (PC->EventLogManager)
-            {
-                UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: EventLogManager found, calling LogCombatEnd"));
-                PC->EventLogManager->LogCombatEnd(Winners, Losers, Duration);
-            }
-            else
-            {
-                UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: PlayerController has no EventLogManager"));
-            }
-        }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: No PlayerController found"));
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("TriggerCombatEnd: No World found"));
-    }
-}
+// TriggerCombatEnd関数は削除 - 戦闘終了はCombatComponentで一元管理
 
 void UActionSystemComponent::LogActionInfo(const FCharacterAction& Action, const FString& WeaponId) const
 {
@@ -876,4 +898,82 @@ bool UActionSystemComponent::RemoveCharacterAction(AC_IdleCharacter* Character)
     });
     
     return (RemovedFromAllies + RemovedFromEnemies) > 0;
+}
+
+void UActionSystemComponent::ClearAllActions()
+{
+    UE_LOG(LogTemp, Warning, TEXT("ClearAllActions: Clearing %d ally actions and %d enemy actions"), 
+           AllyActions.Num(), EnemyActions.Num());
+    
+    AllyActions.Empty();
+    EnemyActions.Empty();
+    TotalActionCount = 0;
+    
+    // タイマーも停止
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(ActionTimerHandle);
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("ClearAllActions: All actions cleared and timer stopped"));
+}
+
+void UActionSystemComponent::CleanupInvalidCharacters()
+{
+    int32 RemovedAllies = 0;
+    int32 RemovedEnemies = 0;
+    
+    // 無効な味方キャラクターを削除
+    RemovedAllies = AllyActions.RemoveAll([](const FCharacterAction& Action) {
+        if (!Action.Character || !IsValid(Action.Character))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("CleanupInvalidCharacters: Removing null/invalid ally character"));
+            return true;
+        }
+        
+        // インターフェース関数の正しい呼び出し方法
+        bool bCharacterActive = false;
+        if (Action.Character->GetClass()->ImplementsInterface(UIdleCharacterInterface::StaticClass()))
+        {
+            bCharacterActive = IIdleCharacterInterface::Execute_IsActive(Action.Character);
+        }
+        
+        if (!bCharacterActive)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("CleanupInvalidCharacters: Removing inactive ally character"));
+            return true;
+        }
+        
+        return false;
+    });
+    
+    // 無効な敵キャラクターを削除
+    RemovedEnemies = EnemyActions.RemoveAll([](const FCharacterAction& Action) {
+        if (!Action.Character || !IsValid(Action.Character))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("CleanupInvalidCharacters: Removing null/invalid enemy character"));
+            return true;
+        }
+        
+        // インターフェース関数の正しい呼び出し方法
+        bool bCharacterActive = false;
+        if (Action.Character->GetClass()->ImplementsInterface(UIdleCharacterInterface::StaticClass()))
+        {
+            bCharacterActive = IIdleCharacterInterface::Execute_IsActive(Action.Character);
+        }
+        
+        if (!bCharacterActive)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("CleanupInvalidCharacters: Removing inactive enemy character"));
+            return true;
+        }
+        
+        return false;
+    });
+    
+    if (RemovedAllies > 0 || RemovedEnemies > 0)
+    {
+        UE_LOG(LogTemp, Log, TEXT("CleanupInvalidCharacters: Removed %d allies and %d enemies"), 
+               RemovedAllies, RemovedEnemies);
+    }
 }

@@ -282,6 +282,7 @@ void UEventLogManager::CreateEventSummary(EEventCategory Category, const FString
     
     UE_LOG(LogTemp, Log, TEXT("Generated summary with %d detailed logs"), Summary.DetailedLogs.Num());
     
+    UE_LOG(LogTemp, Error, TEXT("CreateEventSummary: EventLogManager instance address: %p"), this);
     EventSummaries.Add(Summary);
     TrimSummariesIfNeeded();
     
@@ -576,6 +577,7 @@ void UEventLogManager::ClearEventSummaries()
 
 TArray<FEventSummary> UEventLogManager::GetAllEventSummaries() const
 {
+    UE_LOG(LogTemp, Error, TEXT("GetAllEventSummaries: EventLogManager instance address: %p"), this);
     UE_LOG(LogTemp, Log, TEXT("GetAllEventSummaries: Returning %d summaries"), EventSummaries.Num());
     
     // 各サマリーの詳細をログ出力

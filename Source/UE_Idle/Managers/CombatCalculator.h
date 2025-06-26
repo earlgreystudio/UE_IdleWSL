@@ -36,6 +36,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Combat Calculator")
     static float CalculateParryChance(AC_IdleCharacter* Defender);
 
+    // 盾防御率計算
+    UFUNCTION(BlueprintCallable, Category = "Combat Calculator")
+    static float CalculateShieldChance(AC_IdleCharacter* Defender);
+
     // クリティカル率計算
     UFUNCTION(BlueprintCallable, Category = "Combat Calculator")
     static float CalculateCriticalChance(AC_IdleCharacter* Attacker, const FString& WeaponItemId);
@@ -50,7 +54,7 @@ public:
 
     // 最終ダメージ計算（防御適用後）
     UFUNCTION(BlueprintCallable, Category = "Combat Calculator")
-    static int32 CalculateFinalDamage(int32 BaseDamage, int32 DefenseValue, bool bParried, bool bCritical);
+    static int32 CalculateFinalDamage(int32 BaseDamage, int32 DefenseValue, bool bParried, bool bShieldBlocked, bool bCritical, int32 ShieldDefense = 0, float ShieldSkill = 0.0f);
 
     // 総合戦闘計算（ワンショット）
     UFUNCTION(BlueprintCallable, Category = "Combat Calculator")
@@ -77,4 +81,8 @@ private:
     static int32 CalculateNaturalWeaponDamage(AC_IdleCharacter* Attacker, const FString& NaturalWeaponId);
     static int32 CalculateArtificialWeaponDamage(AC_IdleCharacter* Attacker, const FString& WeaponItemId);
     static int32 GetNaturalWeaponPower(const FString& CharacterRace);
+    
+    // 盾関連ヘルパー関数
+    static int32 GetShieldDefense(AC_IdleCharacter* Character);
+    static float CalculateShieldDamageReduction(int32 ShieldDefense, float ShieldSkill);
 };
