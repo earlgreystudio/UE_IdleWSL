@@ -3,7 +3,7 @@
 
 #include "C_IdleCharacter.h"
 #include "../Components/CharacterStatusComponent.h"
-#include "../Components/CharacterInventoryComponent.h"
+#include "../Components/InventoryComponent.h"
 
 // Sets default values
 AC_IdleCharacter::AC_IdleCharacter()
@@ -22,7 +22,12 @@ AC_IdleCharacter::AC_IdleCharacter()
 		UE_LOG(LogTemp, VeryVerbose, TEXT("StatusComponent created successfully"));
 	}
 	
-	InventoryComponent = CreateDefaultSubobject<UCharacterInventoryComponent>(TEXT("InventoryComponent"));
+	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
+	if (InventoryComponent)
+	{
+		// Set owner ID for character inventory
+		InventoryComponent->OwnerId = TEXT("Character");
+	}
 	if (!InventoryComponent)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Failed to create InventoryComponent"));
@@ -113,7 +118,7 @@ UCharacterStatusComponent* AC_IdleCharacter::GetCharacterStatusComponent_Impleme
 	return GetStatusComponent();  // 安全なGetStatusComponent()を使用
 }
 
-UCharacterInventoryComponent* AC_IdleCharacter::GetCharacterInventoryComponent_Implementation()
+UInventoryComponent* AC_IdleCharacter::GetCharacterInventoryComponent_Implementation()
 {
 	return InventoryComponent;
 }

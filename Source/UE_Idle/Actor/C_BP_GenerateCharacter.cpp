@@ -1,7 +1,7 @@
 #include "C_BP_GenerateCharacter.h"
 #include "C_IdleCharacter.h"
 #include "../Components/CharacterStatusComponent.h"
-#include "../Components/CharacterInventoryComponent.h"
+#include "../Components/InventoryComponent.h"
 #include "../Managers/CharacterPresetManager.h"
 #include "../CharacterGenerator/SpecialtySystem.h"
 #include "../CharacterGenerator/CharacterTalent.h"

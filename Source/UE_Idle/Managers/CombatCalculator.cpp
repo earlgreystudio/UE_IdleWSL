@@ -1,7 +1,7 @@
 #include "CombatCalculator.h"
 #include "../Actor/C_IdleCharacter.h"
 #include "../Components/CharacterStatusComponent.h"
-#include "../Components/CharacterInventoryComponent.h"
+#include "../Components/InventoryComponent.h"
 #include "../Interfaces/IdleCharacterInterface.h"
 #include "ItemDataTableManager.h"
 #include "CharacterPresetManager.h"
@@ -480,7 +480,7 @@ float UCombatCalculator::GetTotalEquipmentWeight(AC_IdleCharacter* Character)
 
     float TotalWeight = 0.0f;
     
-    if (UCharacterInventoryComponent* InventoryComp = Character->GetInventoryComponent())
+    if (UInventoryComponent* InventoryComp = Character->GetInventoryComponent())
     {
         // 装備中のアイテムの重量を合計
         // 現在の実装では装備システムが未完成のため、インベントリ内の武器・防具の重量を概算
@@ -519,7 +519,7 @@ float UCombatCalculator::GetArmorDefense(AC_IdleCharacter* Character)
 
     float TotalDefense = 0.0f;
     
-    if (UCharacterInventoryComponent* InventoryComp = Character->GetInventoryComponent())
+    if (UInventoryComponent* InventoryComp = Character->GetInventoryComponent())
     {
         // 装備中の防具の防御力を合計
         TArray<FInventorySlot> AllSlots = InventoryComp->GetAllInventorySlots();
@@ -736,7 +736,7 @@ int32 UCombatCalculator::GetShieldDefense(AC_IdleCharacter* Character)
 
     // TODO: 装備システム実装後に正式実装
     // 現在は暫定的にインベントリから盾を検索
-    UCharacterInventoryComponent* InventoryComp = Character->GetInventoryComponent();
+    UInventoryComponent* InventoryComp = Character->GetInventoryComponent();
     if (!InventoryComp)
     {
         return 0;

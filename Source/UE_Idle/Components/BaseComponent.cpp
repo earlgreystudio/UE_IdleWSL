@@ -1,7 +1,7 @@
 #include "BaseComponent.h"
 #include "UE_Idle/Managers/FacilityManager.h"
 #include "UE_Idle/Managers/ItemDataTableManager.h"
-#include "UE_Idle/Components/GlobalInventoryComponent.h"
+#include "UE_Idle/Components/InventoryComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -10,11 +10,6 @@ UBaseComponent::UBaseComponent()
 {
     PrimaryComponentTick.bCanEverTick = true;
     PrimaryComponentTick.TickInterval = 0.1f;  // 100msごと
-
-    // 初期リソース
-    BaseResources.Add("wood", 100);
-    BaseResources.Add("stone", 50);
-    BaseResources.Add("vegetables", 30);
 }
 
 void UBaseComponent::BeginPlay()
@@ -31,7 +26,7 @@ void UBaseComponent::BeginPlay()
     // Get GlobalInventoryComponent from PlayerController
     if (APlayerController* PC = Cast<APlayerController>(GetOwner()))
     {
-        GlobalInventory = PC->FindComponentByClass<UGlobalInventoryComponent>();
+        GlobalInventory = PC->FindComponentByClass<UInventoryComponent>();
     }
 
     if (!FacilityManager)
@@ -86,54 +81,6 @@ void UBaseComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
     }
 }
 
-bool UBaseComponent::AddResource(const FString& ResourceId, int32 Amount)
-{
-    if (Amount <= 0)
-    {
-        return false;
-    }
-
-    int32& CurrentAmount = BaseResources.FindOrAdd(ResourceId, 0);
-    CurrentAmount += Amount;
-
-    OnResourceChanged.Broadcast(ResourceId, CurrentAmount);
-    UE_LOG(LogTemp, Log, TEXT("BaseComponent: Added %d %s (Total: %d)"), Amount, *ResourceId, CurrentAmount);
-
-    return true;
-}
-
-bool UBaseComponent::ConsumeResource(const FString& ResourceId, int32 Amount)
-{
-    if (Amount <= 0)
-    {
-        return false;
-    }
-
-    int32* CurrentAmount = BaseResources.Find(ResourceId);
-    if (!CurrentAmount || *CurrentAmount < Amount)
-    {
-        return false;
-    }
-
-    *CurrentAmount -= Amount;
-    OnResourceChanged.Broadcast(ResourceId, *CurrentAmount);
-
-    UE_LOG(LogTemp, Log, TEXT("BaseComponent: Consumed %d %s (Remaining: %d)"), Amount, *ResourceId, *CurrentAmount);
-
-    return true;
-}
-
-bool UBaseComponent::HasResource(const FString& ResourceId, int32 RequiredAmount) const
-{
-    const int32* CurrentAmount = BaseResources.Find(ResourceId);
-    return CurrentAmount && *CurrentAmount >= RequiredAmount;
-}
-
-int32 UBaseComponent::GetResourceAmount(const FString& ResourceId) const
-{
-    const int32* Amount = BaseResources.Find(ResourceId);
-    return Amount ? *Amount : 0;
-}
 
 FGuid UBaseComponent::PlanFacility(const FString& FacilityId, const FVector& Location)
 {
@@ -179,7 +126,24 @@ bool UBaseComponent::StartFacilityConstruction(const FGuid& InstanceId)
         return false;
     }
 
-    if (!FacilityManager->StartConstruction(InstanceId, BaseResources))
+    // FacilityManager用のリソース情報を取得
+    TMap<FString, int32> CurrentResources;
+    if (GlobalInventory)
+    {
+        // InventoryComponentからリソース情報を取得
+        TMap<EResourceType, int32> AllResources = GlobalInventory->GetAllResources();
+        for (const auto& ResourcePair : AllResources)
+        {
+            FString ResourceName = UEnum::GetValueAsString(ResourcePair.Key);
+            CurrentResources.Add(ResourceName, ResourcePair.Value);
+        }
+        
+        // アイテムもリソースとして追加
+        TMap<FString, int32> AllItems = GlobalInventory->GetAllItems();
+        CurrentResources.Append(AllItems);
+    }
+
+    if (!FacilityManager->StartConstruction(InstanceId, CurrentResources))
     {
         // 失敗したらリソースを返却
         RefundResources(Costs);
@@ -210,7 +174,22 @@ bool UBaseComponent::UpgradeFacility(const FGuid& InstanceId)
         return false;
     }
 
-    if (!FacilityManager->StartUpgrade(InstanceId, BaseResources))
+    // FacilityManager用のリソース情報を取得
+    TMap<FString, int32> CurrentResources;
+    if (GlobalInventory)
+    {
+        TMap<EResourceType, int32> AllResources = GlobalInventory->GetAllResources();
+        for (const auto& ResourcePair : AllResources)
+        {
+            FString ResourceName = UEnum::GetValueAsString(ResourcePair.Key);
+            CurrentResources.Add(ResourceName, ResourcePair.Value);
+        }
+        
+        TMap<FString, int32> AllItems = GlobalInventory->GetAllItems();
+        CurrentResources.Append(AllItems);
+    }
+
+    if (!FacilityManager->StartUpgrade(InstanceId, CurrentResources))
     {
         // 失敗したらリソースを返却
         RefundResources(Costs);
@@ -265,22 +244,46 @@ bool UBaseComponent::DemolishFacility(const FGuid& InstanceId)
 
 bool UBaseComponent::CanBuildFacility(const FString& FacilityId) const
 {
-    if (!FacilityManager)
+    if (!FacilityManager || !GlobalInventory)
     {
         return false;
     }
 
-    return FacilityManager->CanBuildFacility(FacilityId, BaseResources);
+    // PlayerControllerのInventoryからリソース情報を取得
+    TMap<FString, int32> CurrentResources;
+    TMap<EResourceType, int32> AllResources = GlobalInventory->GetAllResources();
+    for (const auto& ResourcePair : AllResources)
+    {
+        FString ResourceName = UEnum::GetValueAsString(ResourcePair.Key);
+        CurrentResources.Add(ResourceName, ResourcePair.Value);
+    }
+    
+    TMap<FString, int32> AllItems = GlobalInventory->GetAllItems();
+    CurrentResources.Append(AllItems);
+
+    return FacilityManager->CanBuildFacility(FacilityId, CurrentResources);
 }
 
 bool UBaseComponent::CanUpgradeFacility(const FGuid& InstanceId) const
 {
-    if (!FacilityManager)
+    if (!FacilityManager || !GlobalInventory)
     {
         return false;
     }
 
-    return FacilityManager->CanUpgradeFacility(InstanceId, BaseResources);
+    // PlayerControllerのInventoryからリソース情報を取得
+    TMap<FString, int32> CurrentResources;
+    TMap<EResourceType, int32> AllResources = GlobalInventory->GetAllResources();
+    for (const auto& ResourcePair : AllResources)
+    {
+        FString ResourceName = UEnum::GetValueAsString(ResourcePair.Key);
+        CurrentResources.Add(ResourceName, ResourcePair.Value);
+    }
+    
+    TMap<FString, int32> AllItems = GlobalInventory->GetAllItems();
+    CurrentResources.Append(AllItems);
+
+    return FacilityManager->CanUpgradeFacility(InstanceId, CurrentResources);
 }
 
 bool UBaseComponent::AssignWorkersToFacility(const FGuid& InstanceId, int32 WorkerCount)
@@ -540,19 +543,93 @@ bool UBaseComponent::DeserializeBaseData(const FString& SerializedData)
 
 bool UBaseComponent::ConsumeResourcesForCost(const TMap<FString, int32>& Costs)
 {
+    if (!GlobalInventory)
+    {
+        return false;
+    }
+
     // まず全てのコストが払えるか確認
     for (const auto& CostPair : Costs)
     {
-        if (!HasResource(CostPair.Key, CostPair.Value))
+        // リソースまたはアイテムをチェック
+        EResourceType ResourceType;
+        bool bIsResource = false;
+        
+        // EResourceTypeの値をチェック
+        if (CostPair.Key == TEXT("Gold"))
         {
-            return false;
+            ResourceType = EResourceType::Gold;
+            bIsResource = true;
+        }
+        else if (CostPair.Key == TEXT("Wood"))
+        {
+            ResourceType = EResourceType::Wood;
+            bIsResource = true;
+        }
+        else if (CostPair.Key == TEXT("Stone"))
+        {
+            ResourceType = EResourceType::Stone;
+            bIsResource = true;
+        }
+        else if (CostPair.Key == TEXT("Water"))
+        {
+            ResourceType = EResourceType::Water;
+            bIsResource = true;
+        }
+        
+        if (bIsResource)
+        {
+            // Enumリソースの場合
+            if (GlobalInventory->GetResource(ResourceType) < CostPair.Value)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            // アイテムの場合
+            if (!GlobalInventory->HasItem(CostPair.Key, CostPair.Value))
+            {
+                return false;
+            }
         }
     }
 
     // 実際に消費
     for (const auto& CostPair : Costs)
     {
-        ConsumeResource(CostPair.Key, CostPair.Value);
+        EResourceType ResourceType;
+        bool bIsResource = false;
+        
+        if (CostPair.Key == TEXT("Gold"))
+        {
+            ResourceType = EResourceType::Gold;
+            bIsResource = true;
+        }
+        else if (CostPair.Key == TEXT("Wood"))
+        {
+            ResourceType = EResourceType::Wood;
+            bIsResource = true;
+        }
+        else if (CostPair.Key == TEXT("Stone"))
+        {
+            ResourceType = EResourceType::Stone;
+            bIsResource = true;
+        }
+        else if (CostPair.Key == TEXT("Water"))
+        {
+            ResourceType = EResourceType::Water;
+            bIsResource = true;
+        }
+        
+        if (bIsResource)
+        {
+            GlobalInventory->SpendResource(ResourceType, CostPair.Value);
+        }
+        else
+        {
+            GlobalInventory->RemoveItem(CostPair.Key, CostPair.Value);
+        }
     }
 
     return true;
@@ -560,9 +637,45 @@ bool UBaseComponent::ConsumeResourcesForCost(const TMap<FString, int32>& Costs)
 
 void UBaseComponent::RefundResources(const TMap<FString, int32>& Resources)
 {
+    if (!GlobalInventory)
+    {
+        return;
+    }
+
     for (const auto& ResourcePair : Resources)
     {
-        AddResource(ResourcePair.Key, ResourcePair.Value);
+        EResourceType ResourceType;
+        bool bIsResource = false;
+        
+        if (ResourcePair.Key == TEXT("Gold"))
+        {
+            ResourceType = EResourceType::Gold;
+            bIsResource = true;
+        }
+        else if (ResourcePair.Key == TEXT("Wood"))
+        {
+            ResourceType = EResourceType::Wood;
+            bIsResource = true;
+        }
+        else if (ResourcePair.Key == TEXT("Stone"))
+        {
+            ResourceType = EResourceType::Stone;
+            bIsResource = true;
+        }
+        else if (ResourcePair.Key == TEXT("Water"))
+        {
+            ResourceType = EResourceType::Water;
+            bIsResource = true;
+        }
+        
+        if (bIsResource)
+        {
+            GlobalInventory->AddResource(ResourceType, ResourcePair.Value);
+        }
+        else
+        {
+            GlobalInventory->AddItem(ResourcePair.Key, ResourcePair.Value);
+        }
     }
 }
 
@@ -599,9 +712,41 @@ void UBaseComponent::ProcessAutoProduction(float DeltaTime)
                 ProductionRate *= GetProductionSpeedMultiplier();
                 
                 int32 ProducedAmount = FMath::RoundToInt(ProductionRate * DeltaTime);
-                if (ProducedAmount > 0)
+                if (ProducedAmount > 0 && GlobalInventory)
                 {
-                    AddResource(Effect.TargetId, ProducedAmount);
+                    // リソースまたはアイテムとして追加
+                    EResourceType ResourceType;
+                    bool bIsResource = false;
+                    
+                    if (Effect.TargetId == TEXT("Gold"))
+                    {
+                        ResourceType = EResourceType::Gold;
+                        bIsResource = true;
+                    }
+                    else if (Effect.TargetId == TEXT("Wood"))
+                    {
+                        ResourceType = EResourceType::Wood;
+                        bIsResource = true;
+                    }
+                    else if (Effect.TargetId == TEXT("Stone"))
+                    {
+                        ResourceType = EResourceType::Stone;
+                        bIsResource = true;
+                    }
+                    else if (Effect.TargetId == TEXT("Water"))
+                    {
+                        ResourceType = EResourceType::Water;
+                        bIsResource = true;
+                    }
+                    
+                    if (bIsResource)
+                    {
+                        GlobalInventory->AddResource(ResourceType, ProducedAmount);
+                    }
+                    else
+                    {
+                        GlobalInventory->AddItem(Effect.TargetId, ProducedAmount);
+                    }
                 }
             }
         }

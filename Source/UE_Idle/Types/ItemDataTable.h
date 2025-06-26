@@ -57,6 +57,26 @@ enum class EItemQualityTable : uint8
     Legendary   UMETA(DisplayName = "マスターワーク")
 };
 
+UENUM(BlueprintType)
+enum class EInventoryOwnerType : uint8
+{
+    None        UMETA(DisplayName = "未設定"),
+    Storage     UMETA(DisplayName = "グローバルストレージ"),
+    Character   UMETA(DisplayName = "キャラクター"),
+    Team        UMETA(DisplayName = "チーム"),
+    Location    UMETA(DisplayName = "場所")
+};
+
+UENUM(BlueprintType)
+enum class EResourceType : uint8
+{
+    Gold        UMETA(DisplayName = "金"),
+    Wood        UMETA(DisplayName = "木材"),
+    Stone       UMETA(DisplayName = "石"),
+    Water       UMETA(DisplayName = "水")
+};
+
+
 USTRUCT(BlueprintType)
 struct UE_IDLE_API FItemDataRow : public FTableRowBase
 {

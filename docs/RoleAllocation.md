@@ -12,12 +12,12 @@
 
 ### C_IdleCharacter
 ・全てのキャラクターの元になるクラス
-・CharacterStatusComponent、CharacterInventoryComponentを持つ
+・CharacterStatusComponent、InventoryComponent（キャラクター設定）を持つ
 ・IIdleCharacterInterfaceを実装
 
 ### C_PlayerController
 ・プレイヤーコントローラーのメインクラス
-・GlobalInventoryComponent、TeamComponentを持つ
+・InventoryComponent（ストレージ設定）、TeamComponentを持つ
 ・IPlayerControllerInterfaceを実装
 ・プレイヤー固有の機能（チーム管理、インベントリ）に特化
 
@@ -28,20 +28,18 @@
 
 ## Components
 
-### CharacterInventoryComponent
-・キャラクターの所持品と装備を管理する
-・アイテムの受け渡し、装備、売却機能
+### InventoryComponent
+・統一されたインベントリシステム
+・設定に応じてキャラクター用またはストレージ用として動作
+・アイテム管理、装備管理、お金管理の統合機能
 ・装備スロット管理とステータス計算
+・キャラクター間でのアイテム受け渡し機能
+・後方互換性のため旧コンポーネントのメソッド名も保持
 
 ### CharacterStatusComponent
 ・キャラクターのステータス（HP、能力値）を管理
 ・部活動、才能データを保持
 ・各種ステータス変更イベントを発信
-
-### GlobalInventoryComponent
-・全キャラクター共有のストレージシステム
-・アイテム管理とお金の管理
-・キャラクター間でのアイテム受け渡し機能
 
 ### BaseComponent
 ・拠点システムの中核管理コンポーネント
@@ -113,7 +111,7 @@
 
 ## CharacterGenerator
 
-### ClubSystem
+### SpecialtySystem
 ・ランダムな部活動選択機能
 ・部活動タイプの提供
 
@@ -136,6 +134,26 @@
 ・プレイヤーコントローラーの統一インターフェース
 ・アイテム管理、キャラクター管理の操作
 ・グローバルストレージとチーム管理へのアクセス
+
+## UI
+
+### C_CharacterList
+・キャラクターカードのメインコンテナウィジェット
+・キャラクターリストを自動取得・表示
+・TeamComponentのイベントと連携した自動更新機能
+・キャラクターカードの動的生成と管理
+
+### C_CharacterCard
+・個別キャラクター情報表示カード
+・名前、専門、DPS、防御力、体力を表示
+・プログレスバーで体力・スタミナ・メンタル状態を視覚化
+・各UIパネル間で移動可能な設計（不変性維持）
+
+### C_CharacterSheet
+・キャラクターの詳細ステータス表示
+・全属性、戦闘能力、作業能力を日本語ラベル付きで表示
+・特性とスキルの一覧表示機能
+・ExposeOnSpawn対応でBlueprint連携強化
 
 ## Types
 
@@ -178,23 +196,3 @@
 ### ItemTypes
 ・旧JSON用アイテム構造体（非推奨）
 ・DataTable移行により使用終了予定
-
-## UI
-
-### C_CharacterList
-・キャラクター一覧表示のメインUIウィジェット
-・PlayerControllerからキャラクター配列を取得
-・C_CharacterCardを動的生成してPanelWidgetに配置
-・キャラクターリスト変更の自動検知と更新機能
-
-### C_CharacterCard
-・個別キャラクターの基本情報表示カード
-・キャラクター名、部活、DPS、防御力、HPを表示
-・HP、スタミナ、メンタルのプログレスバー表示
-・CharacterStatusComponentの変更イベントに対応
-
-### C_CharacterSheet
-・キャラクターの詳細ステータス表示ウィジェット
-・全能力値、戦闘ステータス、作業能力を数値表示
-・キャラクター特性配列とスキル配列をテキスト表示
-・Enumの表示名変換機能を内蔵

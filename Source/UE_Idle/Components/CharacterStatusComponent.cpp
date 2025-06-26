@@ -1,6 +1,6 @@
 #include "CharacterStatusComponent.h"
 #include "../Actor/C_IdleCharacter.h"
-#include "../Components/CharacterInventoryComponent.h"
+#include "../Components/InventoryComponent.h"
 #include "../Managers/ItemDataTableManager.h"
 #include "Engine/World.h"
 
@@ -368,7 +368,7 @@ FString UCharacterStatusComponent::GetEquippedWeaponId() const
 		return TEXT(""); // 素手
 	}
 
-	UCharacterInventoryComponent* InventoryComp = Character->GetInventoryComponent();
+	UInventoryComponent* InventoryComp = Character->GetInventoryComponent();
 	if (!InventoryComp)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("GetEquippedWeaponId - No InventoryComponent found"));
@@ -536,7 +536,7 @@ float UCharacterStatusComponent::GetArmorDefense() const
 		return 0.0f;
 	}
 
-	UCharacterInventoryComponent* InventoryComp = Character->GetInventoryComponent();
+	UInventoryComponent* InventoryComp = Character->GetInventoryComponent();
 	if (!InventoryComp)
 	{
 		return 0.0f;

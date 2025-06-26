@@ -34,8 +34,8 @@ public:
 	virtual class UCharacterStatusComponent* GetCharacterStatusComponent_Implementation() { return nullptr; }
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Idle Character")
-	class UCharacterInventoryComponent* GetCharacterInventoryComponent();
-	virtual class UCharacterInventoryComponent* GetCharacterInventoryComponent_Implementation() { return nullptr; }
+	class UInventoryComponent* GetCharacterInventoryComponent();
+	virtual class UInventoryComponent* GetCharacterInventoryComponent_Implementation() { return nullptr; }
 
 	// 才能取得
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Idle Character")

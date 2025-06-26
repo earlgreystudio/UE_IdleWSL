@@ -6,7 +6,6 @@
 #include "BaseComponent.generated.h"
 
 // Event Delegates
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnResourceChanged, const FString&, ResourceId, int32, NewAmount);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPopulationChanged, int32, NewPopulation);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWorkerAssignmentChanged, int32, AvailableWorkers);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnFacilityAdded, const FGuid&, InstanceId, const FString&, FacilityId);
@@ -27,9 +26,6 @@ protected:
 public:
     // Event Dispatchers
     UPROPERTY(BlueprintAssignable, Category = "Base Events")
-    FOnResourceChanged OnResourceChanged;
-
-    UPROPERTY(BlueprintAssignable, Category = "Base Events")
     FOnPopulationChanged OnPopulationChanged;
 
     UPROPERTY(BlueprintAssignable, Category = "Base Events")
@@ -41,10 +37,6 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Base Events")
     FOnFacilityRemoved OnFacilityRemoved;
 
-    // Base Resources
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Base Resources")
-    TMap<FString, int32> BaseResources;
-
     // Population Management
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Population")
     int32 CurrentPopulation = 1;  // 初期人口
@@ -55,21 +47,6 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Population")
     int32 AvailableWorkers = 1;
 
-    // Resource Management
-    UFUNCTION(BlueprintCallable, Category = "Base Resources")
-    bool AddResource(const FString& ResourceId, int32 Amount);
-
-    UFUNCTION(BlueprintCallable, Category = "Base Resources")
-    bool ConsumeResource(const FString& ResourceId, int32 Amount);
-
-    UFUNCTION(BlueprintCallable, Category = "Base Resources")
-    bool HasResource(const FString& ResourceId, int32 RequiredAmount = 1) const;
-
-    UFUNCTION(BlueprintCallable, Category = "Base Resources")
-    int32 GetResourceAmount(const FString& ResourceId) const;
-
-    UFUNCTION(BlueprintCallable, Category = "Base Resources")
-    TMap<FString, int32> GetAllResources() const { return BaseResources; }
 
     // Facility Construction
     UFUNCTION(BlueprintCallable, Category = "Facility Construction")
@@ -172,7 +149,7 @@ private:
     class UItemDataTableManager* ItemManager;
 
     UPROPERTY()
-    class UGlobalInventoryComponent* GlobalInventory;
+    class UInventoryComponent* GlobalInventory;
 
     // Timing
     float ProductionTimer = 0.0f;

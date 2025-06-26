@@ -1,7 +1,7 @@
 #include "ActionSystemComponent.h"
 #include "../Actor/C_IdleCharacter.h"
 #include "../Components/CharacterStatusComponent.h"
-#include "../Components/CharacterInventoryComponent.h"
+#include "../Components/InventoryComponent.h"
 #include "../Managers/CombatCalculator.h"
 #include "EventLogManager.h"
 #include "../C_PlayerController.h"
@@ -701,13 +701,14 @@ FString UActionSystemComponent::SelectWeapon(AC_IdleCharacter* Character)
     UE_LOG(LogTemp, VeryVerbose, TEXT("SelectWeapon for character: %s"), *Character->GetName());
 
     // 1. まず装備された武器をチェック
-    if (UCharacterInventoryComponent* InventoryComp = Character->GetInventoryComponent())
+    if (UInventoryComponent* InventoryComp = Character->GetInventoryComponent())
     {
-        FItemDataRow EquippedWeapon = InventoryComp->GetEquippedWeaponData();
-        if (!EquippedWeapon.Name.IsEmpty())
+        // 装備武器のチェック
+        if (InventoryComp->HasEquippedWeapon())
         {
-            UE_LOG(LogTemp, VeryVerbose, TEXT("SelectWeapon: Using equipped weapon: %s"), *EquippedWeapon.Name.ToString());
-            return EquippedWeapon.Name.ToString();
+            FString WeaponId = InventoryComp->GetEquippedWeaponId();
+            UE_LOG(LogTemp, VeryVerbose, TEXT("SelectWeapon: Using equipped weapon: %s"), *WeaponId);
+            return WeaponId;
         }
     }
 

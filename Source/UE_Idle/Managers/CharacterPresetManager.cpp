@@ -1,7 +1,7 @@
 #include "CharacterPresetManager.h"
 #include "../Actor/C_IdleCharacter.h"
 #include "../Components/CharacterStatusComponent.h"
-#include "../Components/CharacterInventoryComponent.h"
+#include "../Components/InventoryComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -206,7 +206,7 @@ void UCharacterPresetManager::InitializeCharacter(AC_IdleCharacter* Character, c
     }
 
     // 初期装備設定
-    if (UCharacterInventoryComponent* InventoryComp = Character->GetInventoryComponent())
+    if (UInventoryComponent* InventoryComp = Character->GetInventoryComponent())
     {
         TMap<FString, int32> InitialItems = PresetData.ParseInitialItems();
         

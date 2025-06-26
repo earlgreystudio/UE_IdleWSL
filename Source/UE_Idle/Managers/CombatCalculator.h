@@ -8,7 +8,7 @@
 
 class AC_IdleCharacter;
 class UCharacterStatusComponent;
-class UCharacterInventoryComponent;
+class UInventoryComponent;
 
 UCLASS(BlueprintType)
 class UE_IDLE_API UCombatCalculator : public UObject

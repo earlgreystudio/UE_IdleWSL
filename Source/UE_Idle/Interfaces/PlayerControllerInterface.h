@@ -4,7 +4,7 @@
 #include "UObject/Interface.h"
 #include "PlayerControllerInterface.generated.h"
 
-class UGlobalInventoryComponent;
+class UInventoryComponent;
 class AC_IdleCharacter;
 class UTeamComponent;
 
@@ -31,8 +31,8 @@ public:
 
 	// GlobalInventoryComponent取得
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Player Controller Interface")
-	UGlobalInventoryComponent* GetGlobalInventoryComp();
-	virtual UGlobalInventoryComponent* GetGlobalInventoryComp_Implementation() { return nullptr; }
+	UInventoryComponent* GetGlobalInventoryComp();
+	virtual UInventoryComponent* GetGlobalInventoryComp_Implementation() { return nullptr; }
 
 	// キャラクターリスト取得（シンプル版）
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Player Controller Interface")

@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "C_PlayerController.h"
-#include "Components/GlobalInventoryComponent.h"
+#include "Components/InventoryComponent.h"
 #include "Components/TeamComponent.h"
 #include "Components/EventLogManager.h"
 #include "Actor/C_IdleCharacter.h"
@@ -9,7 +9,12 @@
 AC_PlayerController::AC_PlayerController()
 {
 	// Create components
-	GlobalInventory = CreateDefaultSubobject<UGlobalInventoryComponent>(TEXT("GlobalInventory"));
+	GlobalInventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("GlobalInventory"));
+	if (GlobalInventory)
+	{
+		// Set owner ID for logging purposes
+		GlobalInventory->OwnerId = TEXT("Storage");
+	}
 	TeamComponent = CreateDefaultSubobject<UTeamComponent>(TEXT("TeamComponent"));
 	EventLogManager = CreateDefaultSubobject<UEventLogManager>(TEXT("EventLogManager"));
 }
@@ -23,7 +28,7 @@ void AC_PlayerController::AddItemToStorage_Implementation(const FString& ItemId,
 {
 	if (GlobalInventory)
 	{
-		GlobalInventory->AddItemToStorage(ItemId, Quantity);
+		GlobalInventory->AddItem(ItemId, Quantity);
 	}
 }
 
@@ -39,7 +44,7 @@ void AC_PlayerController::AddCharacter_Implementation(AActor* NewCharacter)
 	}
 }
 
-UGlobalInventoryComponent* AC_PlayerController::GetGlobalInventoryComp_Implementation()
+UInventoryComponent* AC_PlayerController::GetGlobalInventoryComp_Implementation()
 {
 	return GlobalInventory;
 }

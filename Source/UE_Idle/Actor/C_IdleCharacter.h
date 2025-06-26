@@ -9,7 +9,7 @@
 #include "C_IdleCharacter.generated.h"
 
 class UCharacterStatusComponent;
-class UCharacterInventoryComponent;
+class UInventoryComponent;
 
 UCLASS()
 class UE_IDLE_API AC_IdleCharacter : public AActor, public IIdleCharacterInterface
@@ -32,7 +32,7 @@ public:
 	virtual FString GetCharacterName_Implementation() override;
 	virtual bool IsActive_Implementation() override;
 	virtual UCharacterStatusComponent* GetCharacterStatusComponent_Implementation() override;
-	virtual UCharacterInventoryComponent* GetCharacterInventoryComponent_Implementation() override;
+	virtual UInventoryComponent* GetCharacterInventoryComponent_Implementation() override;
 	virtual FCharacterTalent GetCharacterTalent_Implementation() override;
 
 	// ステータス関連（安全性チェック付き）
@@ -40,7 +40,7 @@ public:
 	UCharacterStatusComponent* GetStatusComponent() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Character")
-	UCharacterInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
+	UInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
 
 	// キャラクター名設定
 	UFUNCTION(BlueprintCallable, Category = "Character")
@@ -67,7 +67,7 @@ protected:
 	TObjectPtr<UCharacterStatusComponent> StatusComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UCharacterInventoryComponent> InventoryComponent;
+	TObjectPtr<UInventoryComponent> InventoryComponent;
 
 	// キャラクター基本データ
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")

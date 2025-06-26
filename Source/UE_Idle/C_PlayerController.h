@@ -7,7 +7,7 @@
 #include "Interfaces/PlayerControllerInterface.h"
 #include "C_PlayerController.generated.h"
 
-class UGlobalInventoryComponent;
+class UInventoryComponent;
 class UTeamComponent;
 class UEventLogManager;
 class AC_IdleCharacter;
@@ -29,7 +29,7 @@ protected:
 public:
 	// Components
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UGlobalInventoryComponent> GlobalInventory;
+	TObjectPtr<UInventoryComponent> GlobalInventory;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UTeamComponent> TeamComponent;
@@ -40,7 +40,7 @@ public:
 	// IPlayerControllerInterface Implementation
 	virtual void AddItemToStorage_Implementation(const FString& ItemId, int32 Quantity) override;
 	virtual void AddCharacter_Implementation(AActor* NewCharacter) override;
-	virtual UGlobalInventoryComponent* GetGlobalInventoryComp_Implementation() override;
+	virtual UInventoryComponent* GetGlobalInventoryComp_Implementation() override;
 	virtual TArray<AActor*> GetCharacterList_Implementation() override;
 	virtual UTeamComponent* GetTeamComponent_Implementation() override;
 
