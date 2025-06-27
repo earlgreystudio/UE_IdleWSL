@@ -11,8 +11,13 @@
 class UInventoryComponent;
 class UTeamComponent;
 class UEventLogManager;
+class UTaskManagerComponent;
+class UTimeManagerComponent;
+class UCraftingComponent;
 class AC_IdleCharacter;
 class UC__InventoryList;
+class UC_TaskList;
+class UC_TaskMakeSheet;
 
 /**
  * 
@@ -39,12 +44,36 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UEventLogManager> EventLogManager;
 
+	// Task Management System Components
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Task Management")
+	TObjectPtr<UTaskManagerComponent> TaskManager;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Task Management")
+	TObjectPtr<UTimeManagerComponent> TimeManager;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Task Management")
+	TObjectPtr<UCraftingComponent> CraftingComponent;
+
 	// IPlayerControllerInterface Implementation
 	virtual void AddItemToStorage_Implementation(const FString& ItemId, int32 Quantity) override;
 	virtual void AddCharacter_Implementation(AActor* NewCharacter) override;
 	virtual UInventoryComponent* GetGlobalInventoryComp_Implementation() override;
 	virtual TArray<AActor*> GetCharacterList_Implementation() override;
 	virtual UTeamComponent* GetTeamComponent_Implementation() override;
+
+	// Task Management Interface
+	UFUNCTION(BlueprintCallable, Category = "Task Management")
+	UTaskManagerComponent* GetTaskManager() const { return TaskManager; }
+
+	UFUNCTION(BlueprintCallable, Category = "Task Management")
+	UTimeManagerComponent* GetTimeManager() const { return TimeManager; }
+
+	// System Control
+	UFUNCTION(BlueprintCallable, Category = "Task Management")
+	void StartTaskManagementSystem();
+
+	UFUNCTION(BlueprintCallable, Category = "Task Management")
+	void StopTaskManagementSystem();
 
 	// UI Management
 	UFUNCTION(BlueprintCallable, Category = "UI")
@@ -56,14 +85,48 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	UC__InventoryList* GetInventoryUI();
 
+	// Task Management UI
+	UFUNCTION(BlueprintCallable, Category = "Task UI")
+	void ShowTaskListUI();
+
+	UFUNCTION(BlueprintCallable, Category = "Task UI")
+	void HideTaskListUI();
+
+	UFUNCTION(BlueprintCallable, Category = "Task UI")
+	UC_TaskList* GetTaskListUI();
+
+	// Task Make Sheet UI
+	UFUNCTION(BlueprintCallable, Category = "Task UI")
+	void ShowTaskMakeSheetUI();
+
+	UFUNCTION(BlueprintCallable, Category = "Task UI")
+	void HideTaskMakeSheetUI();
+
+	UFUNCTION(BlueprintCallable, Category = "Task UI")
+	UC_TaskMakeSheet* GetTaskMakeSheetUI();
+
 protected:
+	// Internal initialization
+	void InitializeTaskManagementSystem();
 	// UI Widget Classes (set in Blueprint)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI Classes")
 	TSubclassOf<UC__InventoryList> InventoryListWidgetClass;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI Classes")
+	TSubclassOf<UC_TaskList> TaskListWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI Classes")
+	TSubclassOf<UC_TaskMakeSheet> TaskMakeSheetWidgetClass;
+
 	// UI Widget Instances
 	UPROPERTY()
 	UC__InventoryList* InventoryListWidget;
+
+	UPROPERTY()
+	UC_TaskList* TaskListWidget;
+
+	UPROPERTY()
+	UC_TaskMakeSheet* TaskMakeSheetWidget;
 
 
 };

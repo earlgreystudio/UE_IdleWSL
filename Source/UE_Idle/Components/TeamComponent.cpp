@@ -2,6 +2,7 @@
 #include "../Actor/C_IdleCharacter.h"
 #include "../Managers/BattleSystemManager.h"
 #include "InventoryComponent.h"
+#include "Engine/World.h"
 
 UTeamComponent::UTeamComponent()
 {
@@ -9,11 +10,38 @@ UTeamComponent::UTeamComponent()
 
 	// InventoryComponentは動的に作成するため、コンストラクタでは何もしない
 	// チーム作成時にCreateTeamInventoryComponent()で作成
+
+	// 新しいタスク管理フィールドの初期化
+	bCombatEndProcessing = false;
+	bTaskSwitchProcessing = false;
+	MaxTeamTasks = 3;
 }
 
 void UTeamComponent::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	UE_LOG(LogTemp, Log, TEXT("TeamComponent: BeginPlay - Initialized"));
+}
+
+void UTeamComponent::BeginDestroy()
+{
+	// 進行中の処理をクリア
+	bCombatEndProcessing = false;
+	bTaskSwitchProcessing = false;
+	
+	// タイマーをクリア
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearAllTimersForObject(this);
+	}
+	
+	// タスクリストをクリア
+	TeamTasks.Empty();
+	
+	UE_LOG(LogTemp, Log, TEXT("TeamComponent: BeginDestroy - Cleaned up"));
+	
+	Super::BeginDestroy();
 }
 
 void UTeamComponent::AddCharacter(AC_IdleCharacter* IdleCharacter)
@@ -72,9 +100,15 @@ int32 UTeamComponent::CreateTeam(const FString& TeamName)
 	// チーム用InventoryComponentを動的作成
 	CreateTeamInventoryComponent(NewTeamIndex);
 	
+	// 新しいタスク管理データの初期化
+	FTeamTaskList EmptyTaskList;
+	TeamTasks.Add(EmptyTaskList);
+	
 	// イベント通知
 	OnTeamCreated.Broadcast(NewTeamIndex, TeamName);
 	OnTeamsUpdated.Broadcast();
+	
+	UE_LOG(LogTemp, Log, TEXT("CreateTeam: Created team '%s' at index %d"), *TeamName, NewTeamIndex);
 	
 	return NewTeamIndex;
 }
@@ -93,14 +127,24 @@ bool UTeamComponent::DeleteTeam(int32 TeamIndex)
 			TeamInventories.RemoveAt(TeamIndex);
 		}
 		
+		// 対応するタスクリストを削除
+		if (TeamTasks.IsValidIndex(TeamIndex))
+		{
+			TeamTasks.RemoveAt(TeamIndex);
+		}
+		
 		Teams.RemoveAt(TeamIndex);
 		
 		// イベント通知
 		OnTeamDeleted.Broadcast(TeamIndex);
 		OnTeamsUpdated.Broadcast();
 		
+		UE_LOG(LogTemp, Log, TEXT("DeleteTeam: Deleted team at index %d"), TeamIndex);
+		
 		return true;
 	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("DeleteTeam: Invalid team index %d"), TeamIndex);
 	return false;
 }
 
@@ -315,7 +359,7 @@ TArray<FString> UTeamComponent::GetAllTaskTypeNames()
 {
 	return {
 		TEXT("待機"),
-		TEXT("自由"),
+		TEXT("全て"),
 		TEXT("冒険"),
 		TEXT("料理")
 	};
@@ -325,8 +369,8 @@ ETaskType UTeamComponent::GetTaskTypeFromString(const FString& TaskName)
 {
 	if (TaskName == TEXT("待機"))
 		return ETaskType::Idle;
-	else if (TaskName == TEXT("自由"))
-		return ETaskType::Free;
+	else if (TaskName == TEXT("全て"))
+		return ETaskType::All;
 	else if (TaskName == TEXT("冒険"))
 		return ETaskType::Adventure;
 	else if (TaskName == TEXT("料理"))
@@ -341,8 +385,8 @@ FString UTeamComponent::GetTaskTypeDisplayName(ETaskType TaskType)
 	{
 	case ETaskType::Idle:
 		return TEXT("待機");
-	case ETaskType::Free:
-		return TEXT("自由");
+	case ETaskType::All:
+		return TEXT("全て");
 	case ETaskType::Adventure:
 		return TEXT("冒険");
 	case ETaskType::Cooking:
@@ -356,7 +400,7 @@ TArray<ETaskType> UTeamComponent::GetAllTaskTypes()
 {
 	return {
 		ETaskType::Idle,
-		ETaskType::Free,
+		ETaskType::All,
 		ETaskType::Adventure,
 		ETaskType::Cooking
 	};
@@ -560,4 +604,370 @@ float UTeamComponent::GetTeamLoadRatio(int32 TeamIndex) const
 
 	float CurrentWeight = GetTeamCurrentWeight(TeamIndex);
 	return CurrentWeight / TotalCapacity;
+}
+
+// ======== 新しいチーム別タスク管理機能実装 ========
+
+bool UTeamComponent::AddTeamTask(int32 TeamIndex, const FTeamTask& NewTask)
+{
+	if (!IsValidTeamIndex(TeamIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AddTeamTask: Invalid team index %d"), TeamIndex);
+		return false;
+	}
+
+	// タスクリストのサイズ確保
+	while (TeamTasks.Num() <= TeamIndex)
+	{
+		FTeamTaskList EmptyTaskList;
+		TeamTasks.Add(EmptyTaskList);
+	}
+
+	FTeamTaskList& TaskList = TeamTasks[TeamIndex];
+
+	if (TaskList.Num() >= MaxTeamTasks)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AddTeamTask: Team %d has reached maximum task limit (%d)"), TeamIndex, MaxTeamTasks);
+		return false;
+	}
+
+	if (!NewTask.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AddTeamTask: Invalid task provided for team %d"), TeamIndex);
+		return false;
+	}
+
+	// 優先度重複チェック
+	for (const FTeamTask& ExistingTask : TaskList.Tasks)
+	{
+		if (ExistingTask.Priority == NewTask.Priority)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("AddTeamTask: Priority %d already exists in team %d"), NewTask.Priority, TeamIndex);
+			return false;
+		}
+	}
+
+	TaskList.Add(NewTask);
+	
+	UE_LOG(LogTemp, Log, TEXT("AddTeamTask: Added task with priority %d to team %d"), NewTask.Priority, TeamIndex);
+	OnTeamTaskStarted.Broadcast(TeamIndex, NewTask);
+	
+	return true;
+}
+
+bool UTeamComponent::RemoveTeamTask(int32 TeamIndex, int32 TaskPriority)
+{
+	if (!IsValidTeamIndex(TeamIndex) || !TeamTasks.IsValidIndex(TeamIndex))
+	{
+		return false;
+	}
+
+	FTeamTaskList& TaskList = TeamTasks[TeamIndex];
+	
+	for (int32 i = 0; i < TaskList.Num(); i++)
+	{
+		if (TaskList[i].Priority == TaskPriority)
+		{
+			FTeamTask RemovedTask = TaskList[i];
+			TaskList.RemoveAt(i);
+			
+			UE_LOG(LogTemp, Log, TEXT("RemoveTeamTask: Removed task with priority %d from team %d"), TaskPriority, TeamIndex);
+			OnTeamTaskCompleted.Broadcast(TeamIndex, RemovedTask);
+			
+			return true;
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("RemoveTeamTask: Task with priority %d not found in team %d"), TaskPriority, TeamIndex);
+	return false;
+}
+
+FTeamTask UTeamComponent::GetCurrentTeamTask(int32 TeamIndex) const
+{
+	if (!IsValidTeamIndex(TeamIndex) || !TeamTasks.IsValidIndex(TeamIndex))
+	{
+		return FTeamTask(); // デフォルトタスク
+	}
+
+	const FTeamTaskList& TaskList = TeamTasks[TeamIndex];
+	
+	if (TaskList.Num() == 0)
+	{
+		return FTeamTask(); // 空のタスク
+	}
+
+	// 優先度順にソートして最高優先度のタスクを返す
+	TArray<FTeamTask> SortedTasks = TaskList.Tasks;
+	SortedTasks.Sort([](const FTeamTask& A, const FTeamTask& B) {
+		return A.Priority < B.Priority;
+	});
+
+	return SortedTasks[0];
+}
+
+TArray<FTeamTask> UTeamComponent::GetTeamTasks(int32 TeamIndex) const
+{
+	if (IsValidTeamIndex(TeamIndex) && TeamTasks.IsValidIndex(TeamIndex))
+	{
+		return TeamTasks[TeamIndex].Tasks;
+	}
+	
+	return TArray<FTeamTask>();
+}
+
+bool UTeamComponent::SwitchToNextAvailableTask(int32 TeamIndex)
+{
+	if (bTaskSwitchProcessing)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SwitchToNextAvailableTask: Already processing task switch for team %d"), TeamIndex);
+		return false;
+	}
+
+	return SwitchToNextAvailableTaskSafe(TeamIndex);
+}
+
+bool UTeamComponent::SwitchToNextAvailableTaskSafe(int32 TeamIndex)
+{
+	if (bTaskSwitchProcessing || !IsValidTeamIndex(TeamIndex))
+	{
+		return false;
+	}
+
+	bTaskSwitchProcessing = true;
+
+	bool bResult = false;
+
+	if (TeamTasks.IsValidIndex(TeamIndex))
+	{
+		const FTeamTaskList& TaskList = TeamTasks[TeamIndex];
+		
+		// 優先度順に実行可能なタスクを検索
+		TArray<FTeamTask> SortedTasks = TaskList.Tasks;
+		SortedTasks.Sort([](const FTeamTask& A, const FTeamTask& B) {
+			return A.Priority < B.Priority;
+		});
+
+		for (const FTeamTask& Task : SortedTasks)
+		{
+			if (CanExecuteTask(TeamIndex, Task))
+			{
+				ExecuteTask(TeamIndex, Task);
+				OnTeamTaskSwitched.Broadcast(TeamIndex, ETaskSwitchType::Normal);
+				bResult = true;
+				break;
+			}
+		}
+	}
+
+	if (!bResult)
+	{
+		// 実行可能なタスクがない場合は待機
+		SetTeamActionState(TeamIndex, ETeamActionState::Idle);
+	}
+
+	bTaskSwitchProcessing = false;
+	return bResult;
+}
+
+bool UTeamComponent::CanExecuteTask(int32 TeamIndex, const FTeamTask& Task) const
+{
+	if (!IsValidTeamIndex(TeamIndex) || !Task.IsValid())
+	{
+		return false;
+	}
+
+	const FTeam& Team = Teams[TeamIndex];
+
+	// チームが中断可能な状態かチェック
+	if (!Team.CanInterruptAction())
+	{
+		return false;
+	}
+
+	// 最小人数チェック
+	if (Team.Members.Num() < Task.MinTeamSize)
+	{
+		return false;
+	}
+
+	// リソース要件チェック（将来的に詳細実装）
+	// TODO: TaskManagerComponentとの連携でリソースチェック
+
+	return true;
+}
+
+void UTeamComponent::ExecuteTask(int32 TeamIndex, const FTeamTask& Task)
+{
+	if (!IsValidTeamIndex(TeamIndex) || !Task.IsValid())
+	{
+		return;
+	}
+
+	FTeam& Team = Teams[TeamIndex];
+	
+	// タスク実行状態に設定
+	Team.ActionState = ETeamActionState::Working;
+	Team.ActionStartTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	Team.EstimatedCompletionTime = Task.EstimatedCompletionTime * 3600.0f; // 時間を秒に変換
+
+	UE_LOG(LogTemp, Log, TEXT("ExecuteTask: Team %d started executing task with priority %d"), TeamIndex, Task.Priority);
+	OnTeamTaskStarted.Broadcast(TeamIndex, Task);
+}
+
+// ======== チーム状態管理機能実装 ========
+
+void UTeamComponent::SetTeamActionState(int32 TeamIndex, ETeamActionState NewState)
+{
+	if (!IsValidTeamIndex(TeamIndex))
+	{
+		return;
+	}
+
+	ETeamActionState OldState = Teams[TeamIndex].ActionState;
+	Teams[TeamIndex].ActionState = NewState;
+
+	if (OldState != NewState)
+	{
+		UE_LOG(LogTemp, Log, TEXT("SetTeamActionState: Team %d state changed from %s to %s"), 
+			   TeamIndex, *UTaskTypeUtils::GetActionStateDisplayName(OldState), *UTaskTypeUtils::GetActionStateDisplayName(NewState));
+		
+		OnTeamActionStateChanged.Broadcast(TeamIndex, NewState);
+		OnTeamsUpdated.Broadcast();
+	}
+}
+
+ETeamActionState UTeamComponent::GetTeamActionState(int32 TeamIndex) const
+{
+	if (IsValidTeamIndex(TeamIndex))
+	{
+		return Teams[TeamIndex].ActionState;
+	}
+	
+	return ETeamActionState::Idle;
+}
+
+ETaskType UTeamComponent::GetCurrentTaskType(int32 TeamIndex) const
+{
+	if (IsValidTeamIndex(TeamIndex))
+	{
+		return Teams[TeamIndex].AssignedTask;
+	}
+	
+	return ETaskType::Idle;
+}
+
+bool UTeamComponent::CanInterruptAction(int32 TeamIndex) const
+{
+	if (IsValidTeamIndex(TeamIndex))
+	{
+		return Teams[TeamIndex].CanInterruptAction();
+	}
+	
+	return false;
+}
+
+float UTeamComponent::GetRemainingActionTime(int32 TeamIndex) const
+{
+	if (IsValidTeamIndex(TeamIndex))
+	{
+		float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+		return Teams[TeamIndex].GetRemainingActionTime(CurrentTime);
+	}
+	
+	return 0.0f;
+}
+
+bool UTeamComponent::IsValidTeamIndex(int32 TeamIndex) const
+{
+	return Teams.IsValidIndex(TeamIndex) && IsValid(this);
+}
+
+// ======== 戦闘関連機能実装（安全性強化） ========
+
+bool UTeamComponent::IsCombatFinished(int32 TeamIndex) const
+{
+	// 防御的プログラミング - 範囲チェック
+	if (!IsValidTeamIndex(TeamIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("IsCombatFinished: Invalid TeamIndex %d"), TeamIndex);
+		return false;
+	}
+	
+	// オブジェクト有効性チェック
+	if (!IsValid(this))
+	{
+		UE_LOG(LogTemp, Error, TEXT("IsCombatFinished: Invalid TeamComponent"));
+		return false;
+	}
+	
+	// 処理中フラグチェック（重複処理防止）
+	if (bCombatEndProcessing)
+	{
+		return false;
+	}
+	
+	// 実際の状態判定
+	return Teams[TeamIndex].IsCombatFinished();
+}
+
+void UTeamComponent::StartCombat(int32 TeamIndex, float EstimatedDuration)
+{
+	if (!IsValidTeamIndex(TeamIndex))
+	{
+		return;
+	}
+
+	float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	Teams[TeamIndex].StartCombatSafe(CurrentTime, EstimatedDuration);
+	
+	UE_LOG(LogTemp, Log, TEXT("StartCombat: Team %d entered combat (Duration: %.1fs)"), TeamIndex, EstimatedDuration);
+	OnTeamActionStateChanged.Broadcast(TeamIndex, ETeamActionState::InCombat);
+}
+
+void UTeamComponent::EndCombat(int32 TeamIndex)
+{
+	// 重複処理防止
+	if (bCombatEndProcessing || !IsValidTeamIndex(TeamIndex))
+	{
+		return;
+	}
+	
+	// 処理中フラグセット
+	bCombatEndProcessing = true;
+	
+	// 状態遷移
+	Teams[TeamIndex].EndCombatSafe();
+	
+	// イベント通知（非同期安全）
+	GetWorld()->GetTimerManager().SetTimerForNextTick([this, TeamIndex]() {
+		if (IsValid(this) && IsValidTeamIndex(TeamIndex))
+		{
+			Teams[TeamIndex].ActionState = ETeamActionState::Idle;
+			Teams[TeamIndex].bInCombat = false;
+			OnCombatEnded.Broadcast(TeamIndex);
+			bCombatEndProcessing = false;
+			
+			UE_LOG(LogTemp, Log, TEXT("EndCombat: Team %d combat ended safely"), TeamIndex);
+		}
+	});
+}
+
+ETeamCombatState UTeamComponent::GetCombatState(int32 TeamIndex) const
+{
+	if (IsValidTeamIndex(TeamIndex))
+	{
+		return Teams[TeamIndex].CombatState;
+	}
+	
+	return ETeamCombatState::NotInCombat;
+}
+
+bool UTeamComponent::IsTeamInCombat(int32 TeamIndex) const
+{
+	if (IsValidTeamIndex(TeamIndex))
+	{
+		return Teams[TeamIndex].IsInCombat();
+	}
+	
+	return false;
 }

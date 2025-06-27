@@ -17,7 +17,8 @@
       "Bash(python:*)",
       "Bash(true)",
       "Bash(/home/yo314/UnrealEngine/Engine/Build/BatchFiles/Linux/Build.sh UE_Idle Linux Development -Project=\"/home/yo314/UE_IdleWSL/UE_Idle.uproject\" -WaitMutex -FromMsBuild)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(./compile.sh)"
     ],
     "deny": []
   }

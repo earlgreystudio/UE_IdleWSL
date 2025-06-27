@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "../Interfaces/IdleCharacterInterface.h"
 #include "../Types/ItemTypes.h"
+#include "../Types/CharacterTypes.h"
 #include "C_IdleCharacter.generated.h"
 
 class UCharacterStatusComponent;
@@ -52,6 +53,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Character")
 	void SetCharacterRace(const FString& NewRace) { CharacterRace = NewRace; }
+
+	// 派生ステータス取得
+	UFUNCTION(BlueprintCallable, Category = "Character")
+	FDerivedStats GetDerivedStats() const;
 
 protected:
 	// Equipment change handlers

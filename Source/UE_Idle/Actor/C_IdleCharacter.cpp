@@ -132,3 +132,12 @@ FCharacterTalent AC_IdleCharacter::GetCharacterTalent_Implementation()
 	return FCharacterTalent();
 }
 
+FDerivedStats AC_IdleCharacter::GetDerivedStats() const
+{
+	if (StatusComponent)
+	{
+		return StatusComponent->GetDerivedStats();
+	}
+	return FDerivedStats();
+}
+
