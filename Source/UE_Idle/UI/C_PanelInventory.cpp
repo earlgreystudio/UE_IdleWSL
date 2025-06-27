@@ -594,15 +594,17 @@ FString UC_PanelInventory::GetCurrentDisplayName() const
             if (CachedTeamComponent && CurrentTeamIndex >= 0)
             {
                 FTeam Team = CachedTeamComponent->GetTeam(CurrentTeamIndex);
+                FString CarrierName = Team.GetCarrierDisplayName();
+                
                 if (!Team.TeamName.IsEmpty())
                 {
-                    return FString::Printf(TEXT("%s の荷車"), *Team.TeamName);
+                    return FString::Printf(TEXT("%s の%s"), *Team.TeamName, *CarrierName);
                 }
                 else
                 {
                     // A, B, C, D, E... 形式でデフォルト名を生成
                     FString TeamLetter = FString::Printf(TEXT("%c"), 'A' + CurrentTeamIndex);
-                    return FString::Printf(TEXT("チーム%s の荷車"), *TeamLetter);
+                    return FString::Printf(TEXT("チーム%s の%s"), *TeamLetter, *CarrierName);
                 }
             }
             break;

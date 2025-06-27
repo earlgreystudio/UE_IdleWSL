@@ -637,9 +637,34 @@ float UInventoryComponent::GetMaxCarryingCapacity() const
         return 0.0f;
     }
 
-    // PlayerController = 無限積載量
+    // TeamInventoryの場合は、OwnerIdから判別してチーム積載量を返す
+    if (OwnerId.StartsWith(TEXT("TeamInventory_")))
+    {
+        UE_LOG(LogTemp, Log, TEXT("InventoryComponent::GetMaxCarryingCapacity - Detected TeamInventory: %s"), *OwnerId);
+        
+        // Extract team index from OwnerId
+        FString TeamIndexStr = OwnerId.Replace(TEXT("TeamInventory_"), TEXT(""));
+        int32 TeamIndex = FCString::Atoi(*TeamIndexStr);
+        
+        // Get team carrying capacity from TeamComponent
+        if (UTeamComponent* TeamComp = Owner->FindComponentByClass<UTeamComponent>())
+        {
+            TArray<FTeam> AllTeams = TeamComp->GetAllTeams();
+            if (AllTeams.IsValidIndex(TeamIndex))
+            {
+                float TeamCapacity = AllTeams[TeamIndex].GetTotalCarryingCapacity();
+                UE_LOG(LogTemp, Log, TEXT("InventoryComponent::GetMaxCarryingCapacity - Team %d capacity: %.1fkg"), TeamIndex, TeamCapacity);
+                return TeamCapacity;
+            }
+        }
+        UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::GetMaxCarryingCapacity - Failed to get team capacity for %s"), *OwnerId);
+        return 20.0f; // デフォルト（袋1人分）
+    }
+
+    // PlayerController = 無限積載量（拠点の倉庫）
     if (Owner->IsA<APlayerController>())
     {
+        UE_LOG(LogTemp, Log, TEXT("InventoryComponent::GetMaxCarryingCapacity - PlayerController (Base storage): Infinite"));
         return FLT_MAX; // 実質無限
     }
 
@@ -648,20 +673,14 @@ float UInventoryComponent::GetMaxCarryingCapacity() const
     {
         if (UCharacterStatusComponent* StatusComp = Character->FindComponentByClass<UCharacterStatusComponent>())
         {
-            return StatusComp->GetCarryingCapacity();
+            float CharacterCapacity = StatusComp->GetCarryingCapacity();
+            UE_LOG(LogTemp, Log, TEXT("InventoryComponent::GetMaxCarryingCapacity - Character capacity: %.1fkg"), CharacterCapacity);
+            return CharacterCapacity;
         }
         return 20.0f; // デフォルト値
     }
 
-    // TeamComponent所有者の場合 = チームの積載量
-    if (UTeamComponent* TeamComp = Owner->FindComponentByClass<UTeamComponent>())
-    {
-        // OwnerId から TeamIndex を取得 (例: "Team_0" -> 0)
-        FString TeamIndexStr = OwnerId.Replace(TEXT("Team_"), TEXT(""));
-        int32 TeamIndex = FCString::Atoi(*TeamIndexStr);
-        return TeamComp->GetTeamTotalCarryingCapacity(TeamIndex);
-    }
-
+    UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::GetMaxCarryingCapacity - Unknown owner type: %s"), *Owner->GetClass()->GetName());
     return 0.0f;
 }
 

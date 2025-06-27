@@ -217,16 +217,18 @@ void UC__InventoryList::UpdateInventoryName()
                 TArray<FTeam> AllTeams = TeamComp->GetAllTeams();
                 if (AllTeams.IsValidIndex(TeamIndex))
                 {
+                    FString CarrierName = AllTeams[TeamIndex].GetCarrierDisplayName();
+                    
                     if (!AllTeams[TeamIndex].TeamName.IsEmpty())
                     {
-                        InventoryName = FString::Printf(TEXT("%s の荷車"), *AllTeams[TeamIndex].TeamName);
+                        InventoryName = FString::Printf(TEXT("%s の%s"), *AllTeams[TeamIndex].TeamName, *CarrierName);
                     }
                     else
                     {
                         FString TeamLetter = FString::Printf(TEXT("%c"), 'A' + TeamIndex);
-                        InventoryName = FString::Printf(TEXT("チーム%s の荷車"), *TeamLetter);
+                        InventoryName = FString::Printf(TEXT("チーム%s の%s"), *TeamLetter, *CarrierName);
                     }
-                    UE_LOG(LogTemp, Log, TEXT("InventoryList::UpdateInventoryName - Identified as Team %d inventory: %s"), TeamIndex, *InventoryName);
+                    UE_LOG(LogTemp, Log, TEXT("InventoryList::UpdateInventoryName - Identified as Team %d inventory: %s (Carrier: %s)"), TeamIndex, *InventoryName, *CarrierName);
                 }
             }
         }

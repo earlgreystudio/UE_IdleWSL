@@ -15,15 +15,13 @@ enum class ETaskType : uint8
     Cooking     UMETA(DisplayName = "料理")
 };
 
-// 運搬手段（後に生産システムで追加予定）
+// 運搬手段
 UENUM(BlueprintType)
 enum class ECarrierType : uint8
 {
-    None            UMETA(DisplayName = "なし"),
-    HandCart        UMETA(DisplayName = "手押し車"),      // +50kg
-    SmallWagon      UMETA(DisplayName = "小型馬車"),      // +100kg
-    LargeWagon      UMETA(DisplayName = "大型馬車"),      // +200kg
-    MagicBag        UMETA(DisplayName = "魔法の袋")       // +500kg
+    Bag             UMETA(DisplayName = "袋"),            // 20kg * メンバー数
+    HandCart        UMETA(DisplayName = "手押し車"),      // 50kg * メンバー数
+    Wagon           UMETA(DisplayName = "荷車")           // 100kg * メンバー数
 };
 
 class AC_IdleCharacter;
@@ -72,33 +70,48 @@ struct FTeam
         bIsActive = true;
         AdventureLocationId = TEXT("");
         bInCombat = false;
-        CarrierType = ECarrierType::None;
+        CarrierType = ECarrierType::Bag;
         BaseCarryingCapacity = 0.0f;
     }
 
-    // 総積載量計算（基本積載量 + 運搬手段ボーナス）
+    // 総積載量計算（運搬手段 * メンバー数）
     float GetTotalCarryingCapacity() const
     {
-        float CarrierBonus = 0.0f;
+        int32 MemberCount = Members.Num();
+        if (MemberCount == 0) MemberCount = 1; // 最低1人分として計算
+        
+        float CarrierCapacityPerMember = 0.0f;
         switch (CarrierType)
         {
+            case ECarrierType::Bag:
+                CarrierCapacityPerMember = 20.0f;
+                break;
             case ECarrierType::HandCart:
-                CarrierBonus = 50.0f;
+                CarrierCapacityPerMember = 50.0f;
                 break;
-            case ECarrierType::SmallWagon:
-                CarrierBonus = 100.0f;
+            case ECarrierType::Wagon:
+                CarrierCapacityPerMember = 100.0f;
                 break;
-            case ECarrierType::LargeWagon:
-                CarrierBonus = 200.0f;
-                break;
-            case ECarrierType::MagicBag:
-                CarrierBonus = 500.0f;
-                break;
-            case ECarrierType::None:
             default:
-                CarrierBonus = 0.0f;
+                CarrierCapacityPerMember = 20.0f; // デフォルトは袋
                 break;
         }
-        return BaseCarryingCapacity + CarrierBonus;
+        return CarrierCapacityPerMember * MemberCount;
+    }
+    
+    // 運搬手段の表示名を取得
+    FString GetCarrierDisplayName() const
+    {
+        switch (CarrierType)
+        {
+            case ECarrierType::Bag:
+                return TEXT("袋");
+            case ECarrierType::HandCart:
+                return TEXT("手押し車");
+            case ECarrierType::Wagon:
+                return TEXT("荷車");
+            default:
+                return TEXT("袋");
+        }
     }
 };
