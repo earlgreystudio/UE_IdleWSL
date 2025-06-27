@@ -1,10 +1,14 @@
 #include "TeamComponent.h"
 #include "../Actor/C_IdleCharacter.h"
 #include "../Managers/BattleSystemManager.h"
+#include "InventoryComponent.h"
 
 UTeamComponent::UTeamComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+
+	// InventoryComponentは動的に作成するため、コンストラクタでは何もしない
+	// チーム作成時にCreateTeamInventoryComponent()で作成
 }
 
 void UTeamComponent::BeginPlay()
@@ -65,6 +69,9 @@ int32 UTeamComponent::CreateTeam(const FString& TeamName)
 	Teams.Add(NewTeam);
 	int32 NewTeamIndex = Teams.Num() - 1;
 	
+	// チーム用InventoryComponentを動的作成
+	CreateTeamInventoryComponent(NewTeamIndex);
+	
 	// イベント通知
 	OnTeamCreated.Broadcast(NewTeamIndex, TeamName);
 	OnTeamsUpdated.Broadcast();
@@ -79,6 +86,12 @@ bool UTeamComponent::DeleteTeam(int32 TeamIndex)
 		// チームメンバーを解放する
 		FTeam& Team = Teams[TeamIndex];
 		Team.Members.Empty();
+		
+		// 対応するInventoryComponentを削除
+		if (TeamInventories.IsValidIndex(TeamIndex))
+		{
+			TeamInventories.RemoveAt(TeamIndex);
+		}
 		
 		Teams.RemoveAt(TeamIndex);
 		
@@ -444,4 +457,103 @@ void UTeamComponent::OnCombatEnd(const TArray<AC_IdleCharacter*>& Winners, const
 	
 	// チーム更新通知
 	OnTeamsUpdated.Broadcast();
+}
+
+// ======== チームInventory機能 ========
+
+UInventoryComponent* UTeamComponent::GetTeamInventoryComponent(int32 TeamIndex) const
+{
+	if (TeamInventories.IsValidIndex(TeamIndex))
+	{
+		return TeamInventories[TeamIndex];
+	}
+	return nullptr;
+}
+
+void UTeamComponent::CreateTeamInventoryComponent(int32 TeamIndex)
+{
+	// 既に存在する場合は何もしない
+	if (TeamInventories.IsValidIndex(TeamIndex))
+	{
+		return;
+	}
+
+	// 配列のサイズを調整
+	while (TeamInventories.Num() <= TeamIndex)
+	{
+		// NewObjectを使用して動的作成
+		UInventoryComponent* TeamInventory = NewObject<UInventoryComponent>(this, UInventoryComponent::StaticClass(),
+			*FString::Printf(TEXT("TeamInventory_%d"), TeamInventories.Num()));
+		
+		if (TeamInventory)
+		{
+			TeamInventory->OwnerId = FString::Printf(TEXT("Team_%d"), TeamInventories.Num());
+			TeamInventories.Add(TeamInventory);
+		}
+		else
+		{
+			// 作成に失敗した場合はnullptrを追加
+			TeamInventories.Add(nullptr);
+		}
+	}
+}
+
+// ======== チーム運搬手段機能 ========
+
+bool UTeamComponent::SetTeamCarrier(int32 TeamIndex, ECarrierType NewCarrierType)
+{
+	if (!Teams.IsValidIndex(TeamIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SetTeamCarrier: Invalid TeamIndex %d"), TeamIndex);
+		return false;
+	}
+
+	Teams[TeamIndex].CarrierType = NewCarrierType;
+	OnTeamsUpdated.Broadcast();
+	return true;
+}
+
+bool UTeamComponent::SetTeamBaseCarryingCapacity(int32 TeamIndex, float NewCapacity)
+{
+	if (!Teams.IsValidIndex(TeamIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SetTeamBaseCarryingCapacity: Invalid TeamIndex %d"), TeamIndex);
+		return false;
+	}
+
+	Teams[TeamIndex].BaseCarryingCapacity = FMath::Max(0.0f, NewCapacity);
+	OnTeamsUpdated.Broadcast();
+	return true;
+}
+
+float UTeamComponent::GetTeamTotalCarryingCapacity(int32 TeamIndex) const
+{
+	if (!Teams.IsValidIndex(TeamIndex))
+	{
+		return 0.0f;
+	}
+
+	return Teams[TeamIndex].GetTotalCarryingCapacity();
+}
+
+float UTeamComponent::GetTeamCurrentWeight(int32 TeamIndex) const
+{
+	UInventoryComponent* TeamInventory = GetTeamInventoryComponent(TeamIndex);
+	if (TeamInventory)
+	{
+		return TeamInventory->GetTotalWeight();
+	}
+	return 0.0f;
+}
+
+float UTeamComponent::GetTeamLoadRatio(int32 TeamIndex) const
+{
+	float TotalCapacity = GetTeamTotalCarryingCapacity(TeamIndex);
+	if (TotalCapacity <= 0.0f)
+	{
+		return 0.0f; // 積載量0の場合は0%
+	}
+
+	float CurrentWeight = GetTeamCurrentWeight(TeamIndex);
+	return CurrentWeight / TotalCapacity;
 }

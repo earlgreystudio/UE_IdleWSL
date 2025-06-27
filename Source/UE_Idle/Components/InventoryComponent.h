@@ -75,6 +75,24 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     float GetTotalWeight() const;
 
+    // ========== Carrying Capacity Functions ==========
+
+    // 最大積載量取得（所有者に応じて自動計算）
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Carrying Capacity")
+    float GetMaxCarryingCapacity() const;
+
+    // 現在の積載率取得（0.0-1.0）
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Carrying Capacity")
+    float GetLoadRatio() const;
+
+    // 積載量オーバーかどうか
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Carrying Capacity")
+    bool IsOverweight() const;
+
+    // アイテム追加可能かどうか（重量チェック）
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Carrying Capacity")
+    bool CanAddItemByWeight(const FString& ItemId, int32 Quantity = 1) const;
+
     // ========== Equipment Functions (for Characters) ==========
     
     UFUNCTION(BlueprintCallable, Category = "Equipment")

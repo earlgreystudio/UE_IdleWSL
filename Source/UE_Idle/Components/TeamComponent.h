@@ -6,6 +6,7 @@
 #include "TeamComponent.generated.h"
 
 class AC_IdleCharacter;
+class UInventoryComponent;
 
 // デリゲート宣言
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnTeamCreated, int32, TeamIndex, const FString&, TeamName);
@@ -35,6 +36,10 @@ public:
 	// キャラクターリスト
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Team")
 	TArray<AC_IdleCharacter*> AllPlayerCharacters;
+
+	// チーム用InventoryComponent（動的作成）
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Team Inventories")
+	TArray<UInventoryComponent*> TeamInventories;
 
 	// キャラクター追加
 	UFUNCTION(BlueprintCallable, Category = "Team")
@@ -123,6 +128,38 @@ public:
 	// 戦闘終了処理
 	UFUNCTION(BlueprintCallable, Category = "Team Management")
 	void OnCombatEnd(const TArray<AC_IdleCharacter*>& Winners, const TArray<AC_IdleCharacter*>& Losers);
+
+	// ======== チームInventory機能 ========
+
+	// チームInventoryComponent取得
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Team Inventory")
+	UInventoryComponent* GetTeamInventoryComponent(int32 TeamIndex) const;
+
+	// チームInventoryComponent動的作成
+	UFUNCTION(BlueprintCallable, Category = "Team Inventory")
+	void CreateTeamInventoryComponent(int32 TeamIndex);
+
+	// ======== チーム運搬手段機能 ========
+
+	// チームに運搬手段を設定
+	UFUNCTION(BlueprintCallable, Category = "Team Carrying")
+	bool SetTeamCarrier(int32 TeamIndex, ECarrierType NewCarrierType);
+
+	// チームの基本積載量を設定
+	UFUNCTION(BlueprintCallable, Category = "Team Carrying")
+	bool SetTeamBaseCarryingCapacity(int32 TeamIndex, float NewCapacity);
+
+	// チームの総積載量取得（基本積載量 + 運搬手段ボーナス）
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Team Carrying")
+	float GetTeamTotalCarryingCapacity(int32 TeamIndex) const;
+
+	// チームの現在の積載重量取得
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Team Carrying")
+	float GetTeamCurrentWeight(int32 TeamIndex) const;
+
+	// チームの積載率取得（現在重量 / 最大積載量）
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Team Carrying")
+	float GetTeamLoadRatio(int32 TeamIndex) const;
 
 	// ======== イベントディスパッチャー ========
 	

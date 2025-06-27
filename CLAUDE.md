@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an Unreal Engine idle game project (UE_IdleWSL) featuring a comprehensive DataTable-based item management system. The project implements a unified system for weapons, armor, and consumables with quality variants, equipment slots, and character inventories.
+This is an Unreal Engine idle game project (UE_IdleWSL) targeting **iOS and Android mobile platforms**. The project features a comprehensive DataTable-based item management system designed for mobile gameplay. The project implements a unified system for weapons, armor, and consumables with quality variants, equipment slots, and character inventories.
 
 ## Repository Structure
 
@@ -275,3 +275,10 @@ if (auto* CustomPC = Cast<AC_PlayerController>(Actor)) {
 - Equipment durability and repair mechanics
 
 The system architecture supports these extensions through the CustomData system and flexible DataTable structure.
+
+## Mobile Platform Considerations
+
+**Target Platforms**: iOS and Android mobile devices
+- Touch-first UI design required
+- Performance optimizations for mobile hardware
+- Memory management considerations for mobile constraints

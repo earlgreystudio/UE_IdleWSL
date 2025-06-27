@@ -5,6 +5,8 @@
 #include "Components/TeamComponent.h"
 #include "Components/EventLogManager.h"
 #include "Actor/C_IdleCharacter.h"
+#include "UI/C__InventoryList.h"
+#include "Blueprint/UserWidget.h"
 
 AC_PlayerController::AC_PlayerController()
 {
@@ -17,11 +19,37 @@ AC_PlayerController::AC_PlayerController()
 	}
 	TeamComponent = CreateDefaultSubobject<UTeamComponent>(TEXT("TeamComponent"));
 	EventLogManager = CreateDefaultSubobject<UEventLogManager>(TEXT("EventLogManager"));
+
+	// Initialize UI variables
+	InventoryListWidget = nullptr;
 }
 
 void AC_PlayerController::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Auto-initialize inventory UI if widget class is set
+	if (InventoryListWidgetClass && GlobalInventory)
+	{
+		// Create inventory UI widget
+		InventoryListWidget = CreateWidget<UC__InventoryList>(this, InventoryListWidgetClass);
+		if (InventoryListWidget)
+		{
+			// Initialize with global inventory
+			InventoryListWidget->InitializeWithInventory(GlobalInventory);
+			
+			// Don't add to viewport yet - let Blueprint/UI system control visibility
+			UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: Inventory UI initialized successfully"));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("AC_PlayerController: Failed to create inventory UI widget"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: InventoryListWidgetClass not set or GlobalInventory is null"));
+	}
 }
 
 void AC_PlayerController::AddItemToStorage_Implementation(const FString& ItemId, int32 Quantity)
@@ -71,6 +99,53 @@ TArray<AActor*> AC_PlayerController::GetCharacterList_Implementation()
 UTeamComponent* AC_PlayerController::GetTeamComponent_Implementation()
 {
 	return TeamComponent;
+}
+
+void AC_PlayerController::ShowInventoryUI()
+{
+	if (!InventoryListWidget)
+	{
+		// Try to create widget if it doesn't exist
+		if (InventoryListWidgetClass && GlobalInventory)
+		{
+			InventoryListWidget = CreateWidget<UC__InventoryList>(this, InventoryListWidgetClass);
+			if (InventoryListWidget)
+			{
+				InventoryListWidget->InitializeWithInventory(GlobalInventory);
+			}
+		}
+	}
+
+	if (InventoryListWidget)
+	{
+		if (!InventoryListWidget->IsInViewport())
+		{
+			InventoryListWidget->AddToViewport();
+			// Set input mode to UI for interaction
+			SetInputMode(FInputModeGameAndUI());
+			bShowMouseCursor = true;
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AC_PlayerController::ShowInventoryUI: InventoryListWidget is null"));
+	}
+}
+
+void AC_PlayerController::HideInventoryUI()
+{
+	if (InventoryListWidget && InventoryListWidget->IsInViewport())
+	{
+		InventoryListWidget->RemoveFromParent();
+		// Return input mode to game only
+		SetInputMode(FInputModeGameOnly());
+		bShowMouseCursor = false;
+	}
+}
+
+UC__InventoryList* AC_PlayerController::GetInventoryUI()
+{
+	return InventoryListWidget;
 }
 
 

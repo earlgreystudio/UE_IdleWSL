@@ -50,6 +50,9 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Character Status")
 	float GetMaxHealth() const { return Status.MaxHealth; }
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Character Status")
+	float GetCarryingCapacity() const { return Status.CarryingCapacity; }
+
 	UFUNCTION(BlueprintCallable, Category = "Character Status")
 	void SetStatus(const FCharacterStatus& NewStatus);
 

@@ -5,12 +5,14 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "Interfaces/PlayerControllerInterface.h"
+#include "Blueprint/UserWidget.h"
 #include "C_PlayerController.generated.h"
 
 class UInventoryComponent;
 class UTeamComponent;
 class UEventLogManager;
 class AC_IdleCharacter;
+class UC__InventoryList;
 
 /**
  * 
@@ -43,6 +45,25 @@ public:
 	virtual UInventoryComponent* GetGlobalInventoryComp_Implementation() override;
 	virtual TArray<AActor*> GetCharacterList_Implementation() override;
 	virtual UTeamComponent* GetTeamComponent_Implementation() override;
+
+	// UI Management
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void ShowInventoryUI();
+
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void HideInventoryUI();
+
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	UC__InventoryList* GetInventoryUI();
+
+protected:
+	// UI Widget Classes (set in Blueprint)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI Classes")
+	TSubclassOf<UC__InventoryList> InventoryListWidgetClass;
+
+	// UI Widget Instances
+	UPROPERTY()
+	UC__InventoryList* InventoryListWidget;
 
 
 };

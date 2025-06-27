@@ -1,6 +1,10 @@
 #include "InventoryComponent.h"
 #include "../Managers/ItemDataTableManager.h"
 #include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "TeamComponent.h"
+#include "../Actor/C_IdleCharacter.h"
+#include "../Components/CharacterStatusComponent.h"
 
 UInventoryComponent::UInventoryComponent()
 {
@@ -41,6 +45,13 @@ bool UInventoryComponent::AddItem(const FString& ItemId, int32 Quantity)
 {
     if (!ItemManager || Quantity <= 0)
     {
+        return false;
+    }
+
+    // 重量チェック
+    if (!CanAddItemByWeight(ItemId, Quantity))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("InventoryComponent: Cannot add item %s x%d - would exceed carrying capacity"), *ItemId, Quantity);
         return false;
     }
 
@@ -614,4 +625,90 @@ int32 UInventoryComponent::GetResource(EResourceType ResourceType) const
         return Resources[ResourceType];
     }
     return 0;
+}
+
+// ========== Carrying Capacity Functions ==========
+
+float UInventoryComponent::GetMaxCarryingCapacity() const
+{
+    AActor* Owner = GetOwner();
+    if (!Owner)
+    {
+        return 0.0f;
+    }
+
+    // PlayerController = 無限積載量
+    if (Owner->IsA<APlayerController>())
+    {
+        return FLT_MAX; // 実質無限
+    }
+
+    // Character = そのキャラクターのCarryingCapacity
+    if (AC_IdleCharacter* Character = Cast<AC_IdleCharacter>(Owner))
+    {
+        if (UCharacterStatusComponent* StatusComp = Character->FindComponentByClass<UCharacterStatusComponent>())
+        {
+            return StatusComp->GetCarryingCapacity();
+        }
+        return 20.0f; // デフォルト値
+    }
+
+    // TeamComponent所有者の場合 = チームの積載量
+    if (UTeamComponent* TeamComp = Owner->FindComponentByClass<UTeamComponent>())
+    {
+        // OwnerId から TeamIndex を取得 (例: "Team_0" -> 0)
+        FString TeamIndexStr = OwnerId.Replace(TEXT("Team_"), TEXT(""));
+        int32 TeamIndex = FCString::Atoi(*TeamIndexStr);
+        return TeamComp->GetTeamTotalCarryingCapacity(TeamIndex);
+    }
+
+    return 0.0f;
+}
+
+float UInventoryComponent::GetLoadRatio() const
+{
+    float MaxCapacity = GetMaxCarryingCapacity();
+    if (MaxCapacity <= 0.0f || MaxCapacity == FLT_MAX)
+    {
+        return 0.0f; // 無限の場合は0%扱い
+    }
+
+    float CurrentWeight = GetTotalWeight();
+    return CurrentWeight / MaxCapacity;
+}
+
+bool UInventoryComponent::IsOverweight() const
+{
+    float MaxCapacity = GetMaxCarryingCapacity();
+    if (MaxCapacity == FLT_MAX)
+    {
+        return false; // 無限積載の場合はオーバーしない
+    }
+
+    return GetTotalWeight() > MaxCapacity;
+}
+
+bool UInventoryComponent::CanAddItemByWeight(const FString& ItemId, int32 Quantity) const
+{
+    if (!ItemManager)
+    {
+        return false;
+    }
+
+    float MaxCapacity = GetMaxCarryingCapacity();
+    if (MaxCapacity == FLT_MAX)
+    {
+        return true; // 無限積載の場合は常にOK
+    }
+
+    FItemDataRow ItemData;
+    if (!ItemManager->GetItemData(ItemId, ItemData))
+    {
+        return false;
+    }
+
+    float ItemWeight = ItemData.Weight * Quantity;
+    float CurrentWeight = GetTotalWeight();
+    
+    return (CurrentWeight + ItemWeight) <= MaxCapacity;
 }
