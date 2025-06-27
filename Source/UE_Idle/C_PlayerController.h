@@ -100,6 +100,9 @@ public:
 	void ShowTaskMakeSheetUI();
 
 	UFUNCTION(BlueprintCallable, Category = "Task UI")
+	void ShowTaskMakeSheetUIAtPosition(FVector2D Position);
+
+	UFUNCTION(BlueprintCallable, Category = "Task UI")
 	void HideTaskMakeSheetUI();
 
 	UFUNCTION(BlueprintCallable, Category = "Task UI")
@@ -108,6 +111,9 @@ public:
 protected:
 	// Internal initialization
 	void InitializeTaskManagementSystem();
+
+	// Add default tasks for testing
+	void AddDefaultTasks();
 	// UI Widget Classes (set in Blueprint)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI Classes")
 	TSubclassOf<UC__InventoryList> InventoryListWidgetClass;

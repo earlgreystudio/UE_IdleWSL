@@ -38,6 +38,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Task Make Sheet")
     void SetCraftingComponent(UCraftingComponent* InCraftingComponent);
 
+    // PlayerControllerから自動初期化
+    UFUNCTION(BlueprintCallable, Category = "Task Make Sheet")
+    void AutoInitializeFromPlayerController();
+
     // UI更新
     UFUNCTION(BlueprintCallable, Category = "Task Make Sheet")
     void RefreshTaskList();
@@ -113,6 +117,9 @@ private:
     // タスクタイプに応じたUI制御
     void UpdateUIVisibilityForTaskType(ETaskType TaskType);
 
+    // Widget閉じる処理
+    void CloseTaskMakeSheet();
+
     // 入力検証
     bool ValidateInput(FString& OutErrorMessage) const;
 
@@ -157,4 +164,7 @@ protected:
 
     UFUNCTION(BlueprintImplementableEvent, Category = "Task Make Sheet")
     void OnTaskCreationCancelled();
+
+    UFUNCTION(BlueprintImplementableEvent, Category = "Task Make Sheet")
+    void OnTaskMakeSheetClosed();
 };

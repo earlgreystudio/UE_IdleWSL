@@ -2,6 +2,7 @@
 #include "C_GlobalTaskCard.h"
 #include "../Components/TaskManagerComponent.h"
 #include "../Components/CraftingComponent.h"
+#include "../C_PlayerController.h"
 #include "Components/ComboBoxString.h"
 #include "Components/EditableTextBox.h"
 #include "Components/SpinBox.h"
@@ -20,7 +21,9 @@ void UC_TaskMakeSheet::NativeConstruct()
     UE_LOG(LogTemp, Warning, TEXT("LocationComboBox: %s"), LocationComboBox ? TEXT("OK") : TEXT("NULL"));
     UE_LOG(LogTemp, Warning, TEXT("TargetQuantitySpinBox: %s"), TargetQuantitySpinBox ? TEXT("OK") : TEXT("NULL"));
     UE_LOG(LogTemp, Warning, TEXT("KeepQuantityCheckBox: %s"), KeepQuantityCheckBox ? TEXT("OK") : TEXT("NULL"));
-    UE_LOG(LogTemp, Warning, TEXT("CraftingComponent: %s"), CraftingComponent ? TEXT("OK") : TEXT("NULL"));
+
+    // PlayerControllerから必要なコンポーネントを自動取得
+    AutoInitializeFromPlayerController();
 
     InitializeTaskTypeComboBox();
     InitializeDefaultValues();
@@ -75,6 +78,55 @@ void UC_TaskMakeSheet::SetCraftingComponent(UCraftingComponent* InCraftingCompon
     }
     
     UE_LOG(LogTemp, Warning, TEXT("=== SetCraftingComponent COMPLETED ==="));
+}
+
+void UC_TaskMakeSheet::AutoInitializeFromPlayerController()
+{
+    UE_LOG(LogTemp, Warning, TEXT("=== AutoInitializeFromPlayerController START ==="));
+    
+    // PlayerControllerを取得
+    if (APlayerController* PC = GetOwningPlayer())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("PlayerController found: %s"), PC ? TEXT("OK") : TEXT("NULL"));
+        
+        // カスタムPlayerControllerにキャスト
+        if (AC_PlayerController* CustomPC = Cast<AC_PlayerController>(PC))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Cast to AC_PlayerController: SUCCESS"));
+            
+            // TaskManagerComponentを取得・設定
+            if (CustomPC->TaskManager)
+            {
+                SetTaskManagerComponent(CustomPC->TaskManager);
+                UE_LOG(LogTemp, Warning, TEXT("TaskManagerComponent set from PlayerController"));
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("TaskManager is NULL in PlayerController"));
+            }
+            
+            // CraftingComponentを取得・設定
+            if (CustomPC->CraftingComponent)
+            {
+                SetCraftingComponent(CustomPC->CraftingComponent);
+                UE_LOG(LogTemp, Warning, TEXT("CraftingComponent set from PlayerController"));
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("CraftingComponent is NULL in PlayerController"));
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Failed to cast to AC_PlayerController"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to get OwningPlayer"));
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("=== AutoInitializeFromPlayerController COMPLETED ==="));
 }
 
 void UC_TaskMakeSheet::RefreshTaskList()
@@ -181,6 +233,9 @@ void UC_TaskMakeSheet::OnCreateTaskClicked()
         
         // 成功通知（Blueprint側で実装）
         OnTaskCreatedSuccessfully(NewTask);
+        
+        // タスク作成成功後、Widgetを自動で閉じる
+        CloseTaskMakeSheet();
     }
     else
     {
@@ -196,6 +251,24 @@ void UC_TaskMakeSheet::OnCancelClicked()
     
     // キャンセル通知（Blueprint側で実装）
     OnTaskCreationCancelled();
+    
+    // Widgetを閉じる
+    CloseTaskMakeSheet();
+}
+
+void UC_TaskMakeSheet::CloseTaskMakeSheet()
+{
+    UE_LOG(LogTemp, Log, TEXT("UC_TaskMakeSheet: Closing TaskMakeSheet"));
+    
+    // ViewportからWidgetを削除
+    if (IsInViewport())
+    {
+        RemoveFromParent();
+        UE_LOG(LogTemp, Log, TEXT("UC_TaskMakeSheet: Removed from viewport"));
+    }
+    
+    // Blueprint側での追加処理があれば実行
+    OnTaskMakeSheetClosed();
 }
 
 void UC_TaskMakeSheet::InitializeTaskTypeComboBox()
@@ -500,15 +573,10 @@ FGlobalTask UC_TaskMakeSheet::CreateTaskFromInput() const
     // ユニークなタスクID生成
     NewTask.TaskId = GenerateUniqueTaskId();
 
-    // 表示名を自動生成
-    FString TaskTypeName = UTaskTypeUtils::GetTaskTypeDisplayName(NewTask.TaskType);
-    NewTask.DisplayName = FString::Printf(TEXT("%s: %s x%d"), 
-        *TaskTypeName, *NewTask.TargetItemId, NewTask.TargetQuantity);
-
     // 優先度
     NewTask.Priority = static_cast<int32>(PrioritySpinBox->GetValue());
 
-    // タスクタイプ
+    // タスクタイプを先に設定
     FString SelectedTaskTypeName = TaskTypeComboBox->GetSelectedOption();
     NewTask.TaskType = UTaskTypeUtils::GetTaskTypeFromString(SelectedTaskTypeName);
 
@@ -572,8 +640,30 @@ FGlobalTask UC_TaskMakeSheet::CreateTaskFromInput() const
             break;
     }
 
-    // 数量キープ型
-    NewTask.bIsKeepQuantity = KeepQuantityCheckBox->IsChecked();
+    // 数量キープ型（冒険は常にfalse）
+    if (NewTask.TaskType == ETaskType::Adventure)
+    {
+        NewTask.bIsKeepQuantity = false;
+    }
+    else
+    {
+        NewTask.bIsKeepQuantity = KeepQuantityCheckBox->IsChecked();
+    }
+
+    // 表示名を生成（タスクタイプとTargetItemIdが設定された後）
+    FString TaskTypeName = UTaskTypeUtils::GetTaskTypeDisplayName(NewTask.TaskType);
+    if (NewTask.TaskType == ETaskType::Adventure)
+    {
+        // 冒険の場合は場所名を表示
+        NewTask.DisplayName = FString::Printf(TEXT("%s: %s"), 
+            *TaskTypeName, *NewTask.TargetItemId);
+    }
+    else
+    {
+        // その他は数量も表示
+        NewTask.DisplayName = FString::Printf(TEXT("%s: %s x%d"), 
+            *TaskTypeName, *NewTask.TargetItemId, NewTask.TargetQuantity);
+    }
 
     // 関連スキル情報を自動設定
     NewTask.RelatedSkills = UTaskTypeUtils::GetTaskRelatedSkills(NewTask.TaskType);
@@ -582,6 +672,9 @@ FGlobalTask UC_TaskMakeSheet::CreateTaskFromInput() const
     NewTask.CurrentProgress = 0;
     NewTask.bIsCompleted = false;
     NewTask.CreatedTime = FDateTime::Now();
+
+    UE_LOG(LogTemp, Warning, TEXT("Created task: %s (Type: %d, Target: %s, Quantity: %d)"), 
+        *NewTask.DisplayName, (int32)NewTask.TaskType, *NewTask.TargetItemId, NewTask.TargetQuantity);
 
     return NewTask;
 }

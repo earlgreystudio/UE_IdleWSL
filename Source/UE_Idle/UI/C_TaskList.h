@@ -32,11 +32,14 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Task List")
     void RefreshTaskList();
 
+    // PlayerControllerから自動初期化
+    void AutoInitializeFromPlayerController();
+
 
 protected:
     // ウィジェットバインディング
     UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
-    UScrollBox* TaskScrollBox;
+    class UPanelWidget* TaskCardPanel;
 
 
     // タスクカードのウィジェットクラス

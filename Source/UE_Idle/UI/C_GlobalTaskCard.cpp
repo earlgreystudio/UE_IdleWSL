@@ -40,15 +40,23 @@ void UC_GlobalTaskCard::NativeDestruct()
 
 void UC_GlobalTaskCard::InitializeWithTask(const FGlobalTask& InTask, int32 InTaskIndex, UTaskManagerComponent* InTaskManager)
 {
+    UE_LOG(LogTemp, Warning, TEXT("=== GlobalTaskCard::InitializeWithTask START ==="));
+    UE_LOG(LogTemp, Warning, TEXT("Task: %s (Index: %d)"), *InTask.DisplayName, InTaskIndex);
+    
     TaskData = InTask;
     TaskIndex = InTaskIndex;
     TaskManager = InTaskManager;
 
+    UE_LOG(LogTemp, Warning, TEXT("Calling UpdateDisplay..."));
     UpdateDisplay();
+    
+    UE_LOG(LogTemp, Warning, TEXT("=== GlobalTaskCard::InitializeWithTask COMPLETED ==="));
 }
 
 void UC_GlobalTaskCard::UpdateDisplay()
 {
+    UE_LOG(LogTemp, Warning, TEXT("=== GlobalTaskCard::UpdateDisplay START ==="));
+    
     UpdateTaskTypeDisplay();
     UpdateItemNameDisplay();
     UpdateQuantityDisplay();
@@ -56,14 +64,23 @@ void UC_GlobalTaskCard::UpdateDisplay()
     UpdatePriorityDisplay();
     UpdateProgressDisplay();
     UpdateButtonStates();
+    
+    UE_LOG(LogTemp, Warning, TEXT("=== GlobalTaskCard::UpdateDisplay COMPLETED ==="));
 }
 
 void UC_GlobalTaskCard::UpdateTaskTypeDisplay()
 {
+    UE_LOG(LogTemp, Warning, TEXT("UpdateTaskTypeDisplay: TaskTypeText = %s"), TaskTypeText ? TEXT("OK") : TEXT("NULL"));
+    
     if (TaskTypeText)
     {
         FString TypeName = UTaskTypeUtils::GetTaskTypeDisplayName(TaskData.TaskType);
         TaskTypeText->SetText(FText::FromString(TypeName));
+        UE_LOG(LogTemp, Warning, TEXT("TaskTypeText set to: %s"), *TypeName);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("TaskTypeText is NULL - BindWidget not working"));
     }
 }
 
@@ -125,24 +142,17 @@ void UC_GlobalTaskCard::UpdateProgressDisplay()
 {
     if (ProgressBox)
     {
-        // 完了済みタスクは進行状況を非表示
-        if (TaskData.bIsCompleted)
+        // タスクは完了時に削除されるため、常に進行中として表示
+        ProgressBox->SetVisibility(ESlateVisibility::Visible);
+        
+        if (ProgressText)
         {
-            ProgressBox->SetVisibility(ESlateVisibility::Collapsed);
-        }
-        else
-        {
-            ProgressBox->SetVisibility(ESlateVisibility::Visible);
+            FString ProgressStr = FString::Printf(TEXT("進行: %d / %d (%.1f%%)"),
+                TaskData.CurrentProgress,
+                TaskData.TargetQuantity,
+                TaskData.GetProgressRatio() * 100.0f);
             
-            if (ProgressText)
-            {
-                FString ProgressStr = FString::Printf(TEXT("進行: %d / %d (%.1f%%)"),
-                    TaskData.CurrentProgress,
-                    TaskData.TargetQuantity,
-                    TaskData.GetProgressRatio() * 100.0f);
-                
-                ProgressText->SetText(FText::FromString(ProgressStr));
-            }
+            ProgressText->SetText(FText::FromString(ProgressStr));
         }
     }
 }

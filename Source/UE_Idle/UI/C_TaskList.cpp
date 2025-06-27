@@ -1,14 +1,46 @@
 #include "C_TaskList.h"
 #include "../Components/TaskManagerComponent.h"
 #include "C_GlobalTaskCard.h"
-#include "Components/ScrollBox.h"
-#include "Components/VerticalBox.h"
-#include "Components/ScrollBoxSlot.h"
+#include "Components/PanelWidget.h"
+#include "../C_PlayerController.h"
 
 void UC_TaskList::NativeConstruct()
 {
     Super::NativeConstruct();
+    
+    // PlayerControllerから自動的にTaskManagerを取得
+    AutoInitializeFromPlayerController();
+    
+    // Widget自体の表示状況確認
+    UE_LOG(LogTemp, Warning, TEXT("=== TaskList NativeConstruct Debug ==="));
+    UE_LOG(LogTemp, Warning, TEXT("TaskList IsInViewport: %s"), IsInViewport() ? TEXT("TRUE") : TEXT("FALSE"));
+    UE_LOG(LogTemp, Warning, TEXT("TaskList IsVisible: %s"), IsVisible() ? TEXT("TRUE") : TEXT("FALSE"));
+    UE_LOG(LogTemp, Warning, TEXT("TaskCardPanel: %s"), TaskCardPanel ? TEXT("OK") : TEXT("NULL"));
+}
 
+void UC_TaskList::AutoInitializeFromPlayerController()
+{
+    if (TaskManager)
+    {
+        return; // 既に初期化済み
+    }
+    
+    if (AC_PlayerController* CustomPC = Cast<AC_PlayerController>(GetOwningPlayer()))
+    {
+        if (CustomPC->TaskManager)
+        {
+            InitializeWithTaskManager(CustomPC->TaskManager);
+            UE_LOG(LogTemp, Log, TEXT("UC_TaskList: Auto-initialized from PlayerController"));
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("UC_TaskList: PlayerController TaskManager is null"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UC_TaskList: Failed to get PlayerController"));
+    }
 }
 
 void UC_TaskList::NativeDestruct()
@@ -44,13 +76,13 @@ void UC_TaskList::InitializeWithTaskManager(UTaskManagerComponent* InTaskManager
 
 void UC_TaskList::RefreshTaskList()
 {
-    if (!TaskManager || !TaskScrollBox)
+    if (!TaskManager || !TaskCardPanel)
     {
         return;
     }
 
     // 既存のカードをクリア
-    TaskScrollBox->ClearChildren();
+    TaskCardPanel->ClearChildren();
     TaskCards.Empty();
 
     // タスクを優先度順に取得
@@ -63,11 +95,7 @@ void UC_TaskList::RefreshTaskList()
         int32 OriginalIndex = TaskManager->FindTaskByID(SortedTasks[i].TaskId);
         if (OriginalIndex >= 0)
         {
-            UC_GlobalTaskCard* NewCard = CreateTaskCard(SortedTasks[i], OriginalIndex);
-            if (NewCard)
-            {
-                TaskCards.Add(NewCard);
-            }
+            CreateTaskCard(SortedTasks[i], OriginalIndex);
         }
     }
 
@@ -76,9 +104,9 @@ void UC_TaskList::RefreshTaskList()
 
 UC_GlobalTaskCard* UC_TaskList::CreateTaskCard(const FGlobalTask& Task, int32 TaskIndex)
 {
-    if (!GlobalTaskCardClass || !TaskScrollBox)
+    if (!GlobalTaskCardClass || !TaskCardPanel)
     {
-        UE_LOG(LogTemp, Error, TEXT("UC_TaskList::CreateTaskCard - GlobalTaskCardClass or TaskScrollBox is null"));
+        UE_LOG(LogTemp, Error, TEXT("UC_TaskList::CreateTaskCard - GlobalTaskCardClass or TaskCardPanel is null"));
         return nullptr;
     }
 
@@ -87,9 +115,11 @@ UC_GlobalTaskCard* UC_TaskList::CreateTaskCard(const FGlobalTask& Task, int32 Ta
     if (NewCard)
     {
         NewCard->InitializeWithTask(Task, TaskIndex, TaskManager);
-        TaskScrollBox->AddChild(NewCard);
         
-        UE_LOG(LogTemp, VeryVerbose, TEXT("UC_TaskList::CreateTaskCard - Created card for task %s"), *Task.TaskId);
+        // PanelWidgetに追加
+        TaskCardPanel->AddChild(NewCard);
+        
+        UE_LOG(LogTemp, Log, TEXT("UC_TaskList::CreateTaskCard - Created card for task %s"), *Task.TaskId);
     }
 
     return NewCard;

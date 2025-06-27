@@ -82,28 +82,23 @@ void AC_PlayerController::BeginPlay()
 		UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: TaskListWidgetClass not set or TaskManager is null"));
 	}
 
-	// Initialize Task Make Sheet UI
-	if (TaskMakeSheetWidgetClass && TaskManager && CraftingComponent)
-	{
-		TaskMakeSheetWidget = CreateWidget<UC_TaskMakeSheet>(this, TaskMakeSheetWidgetClass);
-		if (TaskMakeSheetWidget)
-		{
-			TaskMakeSheetWidget->SetTaskManagerComponent(TaskManager);
-			TaskMakeSheetWidget->SetCraftingComponent(CraftingComponent);
-			UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: Task Make Sheet UI initialized successfully"));
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("AC_PlayerController: Failed to create Task Make Sheet UI widget"));
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: TaskMakeSheetWidgetClass not set or required components are null"));
-	}
+	// TaskMakeSheet UI は Widget側で自動初期化するため、ここでは作成しない
+	// Widget が NativeConstruct で AutoInitializeFromPlayerController() を呼び出す
+	UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: TaskMakeSheet UI will auto-initialize from Widget side"));
 	
 	// Initialize Task Management System
 	InitializeTaskManagementSystem();
+
+	// Add default tasks for testing
+	AddDefaultTasks();
+	
+	// デバッグ：TaskListUIを手動表示してテスト
+	FTimerHandle TimerHandle;
+	GetWorldTimerManager().SetTimer(TimerHandle, [this]()
+	{
+		UE_LOG(LogTemp, Warning, TEXT("=== Manual TaskList Test ==="));
+		ShowTaskListUI();
+	}, 1.0f, false); // 1秒後に実行
 }
 
 void AC_PlayerController::AddItemToStorage_Implementation(const FString& ItemId, int32 Quantity)
@@ -253,17 +248,31 @@ UC_TaskList* AC_PlayerController::GetTaskListUI()
 
 void AC_PlayerController::ShowTaskMakeSheetUI()
 {
+	UE_LOG(LogTemp, Warning, TEXT("=== ShowTaskMakeSheetUI CALLED ==="));
+	UE_LOG(LogTemp, Warning, TEXT("TaskMakeSheetWidget: %s"), TaskMakeSheetWidget ? TEXT("EXISTS") : TEXT("NULL"));
+	
 	if (!TaskMakeSheetWidget)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("TaskMakeSheetWidget is null, trying to create..."));
+		UE_LOG(LogTemp, Warning, TEXT("TaskMakeSheetWidgetClass: %s"), TaskMakeSheetWidgetClass ? TEXT("OK") : TEXT("NULL"));
+		UE_LOG(LogTemp, Warning, TEXT("TaskManager: %s"), TaskManager ? TEXT("OK") : TEXT("NULL"));
+		UE_LOG(LogTemp, Warning, TEXT("CraftingComponent: %s"), CraftingComponent ? TEXT("OK") : TEXT("NULL"));
+		
 		// Try to create widget if it doesn't exist
 		if (TaskMakeSheetWidgetClass && TaskManager && CraftingComponent)
 		{
 			TaskMakeSheetWidget = CreateWidget<UC_TaskMakeSheet>(this, TaskMakeSheetWidgetClass);
 			if (TaskMakeSheetWidget)
 			{
+				UE_LOG(LogTemp, Warning, TEXT("TaskMakeSheetWidget created, setting components..."));
 				TaskMakeSheetWidget->SetTaskManagerComponent(TaskManager);
 				TaskMakeSheetWidget->SetCraftingComponent(CraftingComponent);
+				UE_LOG(LogTemp, Warning, TEXT("Components set successfully"));
 			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Cannot create TaskMakeSheetWidget - missing requirements"));
 		}
 	}
 
@@ -275,11 +284,23 @@ void AC_PlayerController::ShowTaskMakeSheetUI()
 			// Set input mode to UI for interaction
 			SetInputMode(FInputModeGameAndUI());
 			bShowMouseCursor = true;
+			UE_LOG(LogTemp, Warning, TEXT("TaskMakeSheetWidget added to viewport"));
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("AC_PlayerController::ShowTaskMakeSheetUI: TaskMakeSheetWidget is null"));
+		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController::ShowTaskMakeSheetUI: TaskMakeSheetWidget is still null"));
+	}
+}
+
+void AC_PlayerController::ShowTaskMakeSheetUIAtPosition(FVector2D Position)
+{
+	ShowTaskMakeSheetUI(); // 基本表示処理
+	
+	if (TaskMakeSheetWidget && TaskMakeSheetWidget->IsInViewport())
+	{
+		TaskMakeSheetWidget->SetPositionInViewport(Position);
+		UE_LOG(LogTemp, Log, TEXT("TaskMakeSheet UI positioned at (%f, %f)"), Position.X, Position.Y);
 	}
 }
 
@@ -312,6 +333,66 @@ void AC_PlayerController::StartTaskManagementSystem()
 	{
 		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController: TimeManager is null, cannot start system"));
 	}
+}
+
+void AC_PlayerController::AddDefaultTasks()
+{
+	if (!TaskManager)
+	{
+		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController::AddDefaultTasks - TaskManager is null"));
+		return;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: Adding default tasks"));
+
+	// デフォルトタスク1: 料理
+	FGlobalTask CookingTask;
+	CookingTask.TaskId = TEXT("default_cooking_001");
+	CookingTask.DisplayName = TEXT("料理: スープ x3");
+	CookingTask.TaskType = ETaskType::Cooking;
+	CookingTask.TargetItemId = TEXT("cooking_soup");
+	CookingTask.TargetQuantity = 3;
+	CookingTask.Priority = 1;
+	CookingTask.CurrentProgress = 0;
+	CookingTask.bIsCompleted = false;
+	CookingTask.bIsKeepQuantity = false;
+	CookingTask.CreatedTime = FDateTime::Now();
+	CookingTask.RelatedSkills = UTaskTypeUtils::GetTaskRelatedSkills(ETaskType::Cooking);
+
+	// デフォルトタスク2: 建築
+	FGlobalTask ConstructionTask;
+	ConstructionTask.TaskId = TEXT("default_construction_001");
+	ConstructionTask.DisplayName = TEXT("建築: 木の壁 x1");
+	ConstructionTask.TaskType = ETaskType::Construction;
+	ConstructionTask.TargetItemId = TEXT("construction_wooden_wall");
+	ConstructionTask.TargetQuantity = 1;
+	ConstructionTask.Priority = 2;
+	ConstructionTask.CurrentProgress = 0;
+	ConstructionTask.bIsCompleted = false;
+	ConstructionTask.bIsKeepQuantity = false;
+	ConstructionTask.CreatedTime = FDateTime::Now();
+	ConstructionTask.RelatedSkills = UTaskTypeUtils::GetTaskRelatedSkills(ETaskType::Construction);
+
+	// デフォルトタスク3: 冒険
+	FGlobalTask AdventureTask;
+	AdventureTask.TaskId = TEXT("default_adventure_001");
+	AdventureTask.DisplayName = TEXT("冒険: 森の奥地");
+	AdventureTask.TaskType = ETaskType::Adventure;
+	AdventureTask.TargetItemId = TEXT("森の奥地");
+	AdventureTask.TargetQuantity = 1;
+	AdventureTask.Priority = 3;
+	AdventureTask.CurrentProgress = 0;
+	AdventureTask.bIsCompleted = false;
+	AdventureTask.bIsKeepQuantity = false;
+	AdventureTask.CreatedTime = FDateTime::Now();
+	AdventureTask.RelatedSkills = UTaskTypeUtils::GetTaskRelatedSkills(ETaskType::Adventure);
+
+	// タスクを追加
+	TaskManager->AddGlobalTask(CookingTask);
+	TaskManager->AddGlobalTask(ConstructionTask);
+	TaskManager->AddGlobalTask(AdventureTask);
+
+	UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: Added 3 default tasks"));
 }
 
 void AC_PlayerController::StopTaskManagementSystem()
