@@ -481,13 +481,17 @@ void UTeamComponent::CreateTeamInventoryComponent(int32 TeamIndex)
 	// 配列のサイズを調整
 	while (TeamInventories.Num() <= TeamIndex)
 	{
-		// NewObjectを使用して動的作成
-		UInventoryComponent* TeamInventory = NewObject<UInventoryComponent>(this, UInventoryComponent::StaticClass(),
+		// NewObjectを使用して動的作成 - TeamComponentを直接オーナーとして設定
+		UInventoryComponent* TeamInventory = NewObject<UInventoryComponent>(GetOwner(), UInventoryComponent::StaticClass(),
 			*FString::Printf(TEXT("TeamInventory_%d"), TeamInventories.Num()));
 		
 		if (TeamInventory)
 		{
-			TeamInventory->OwnerId = FString::Printf(TEXT("Team_%d"), TeamInventories.Num());
+			// Team識別用のOwnerIdを設定
+			TeamInventory->OwnerId = FString::Printf(TEXT("TeamInventory_%d"), TeamInventories.Num());
+			UE_LOG(LogTemp, Log, TEXT("TeamComponent::CreateTeamInventoryComponent - Created inventory %d with Owner: %s, OwnerId: %s"), 
+			       TeamInventories.Num(), TeamInventory->GetOwner() ? *TeamInventory->GetOwner()->GetName() : TEXT("Null"),
+			       *TeamInventory->OwnerId);
 			TeamInventories.Add(TeamInventory);
 		}
 		else

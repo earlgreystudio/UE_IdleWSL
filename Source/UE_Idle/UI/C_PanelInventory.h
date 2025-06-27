@@ -100,6 +100,9 @@ public:
     // Team Selection
     UFUNCTION()
     void OnTeamButtonClicked();
+    
+    UFUNCTION()
+    void OnTeamButtonClickedWithIndex(int32 TeamIndex);
 
     UFUNCTION(BlueprintCallable, Category = "Panel Inventory|Team")
     void SelectBase();
@@ -120,6 +123,9 @@ public:
     // Member Selection
     UFUNCTION()
     void OnMemberButtonClicked();
+    
+    UFUNCTION()
+    void OnMemberButtonClickedWithData(UObject* Data);
 
     UFUNCTION(BlueprintCallable, Category = "Panel Inventory|Team")
     void RefreshTeamButtons();
@@ -137,6 +143,10 @@ protected:
     // Auto-initialization
     UFUNCTION()
     void AutoInitializeWithPlayerController();
+    
+    // Auto-select first member
+    UFUNCTION()
+    void AutoSelectFirstMember();
 
     // UI Creation Functions
     UFUNCTION()
@@ -171,9 +181,9 @@ protected:
     void UnbindTeamEvents();
 
 private:
-    // Button Widget Class
+    // Button Widget Classes
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Widget Classes", meta = (AllowPrivateAccess = "true"))
-    TSubclassOf<UButton> MemberButtonWidgetClass;
+    TSubclassOf<class UC_InventorySelectButton> InventorySelectButtonClass;
 
     // Button styling
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Button Style", meta = (AllowPrivateAccess = "true"))

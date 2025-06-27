@@ -39,22 +39,55 @@ void UC_ItemListCard::NativeDestruct()
 
 void UC_ItemListCard::InitializeWithSlot(const FInventorySlot& InSlot, UInventoryComponent* InInventoryComponent)
 {
+    UE_LOG(LogTemp, Log, TEXT("ItemListCard::InitializeWithSlot - ItemId=%s, Quantity=%d"), *InSlot.ItemId, InSlot.Quantity);
+    
     ItemSlot = InSlot;
     InventoryComponent = InInventoryComponent;
+
+    // Ensure ItemManager is available
+    if (!ItemManager)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ItemListCard::InitializeWithSlot - ItemManager is null, attempting to get it..."));
+        UWorld* World = GetWorld();
+        if (World)
+        {
+            UGameInstance* GameInstance = World->GetGameInstance();
+            if (GameInstance)
+            {
+                ItemManager = GameInstance->GetSubsystem<UItemDataTableManager>();
+                UE_LOG(LogTemp, Log, TEXT("ItemListCard::InitializeWithSlot - World: Valid, GameInstance: Valid, ItemManager retrieved: %s"), ItemManager ? TEXT("Success") : TEXT("Failed"));
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("ItemListCard::InitializeWithSlot - GameInstance is null"));
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("ItemListCard::InitializeWithSlot - World is null"));
+        }
+    }
 
     // Cache item data
     if (ItemManager)
     {
+        UE_LOG(LogTemp, Log, TEXT("ItemListCard::InitializeWithSlot - ItemManager is valid, attempting to get data for %s"), *ItemSlot.ItemId);
         FItemDataRow ItemData;
         if (ItemManager->GetItemData(ItemSlot.ItemId, ItemData))
         {
             // Create a copy on heap for caching
             CachedItemData = new FItemDataRow(ItemData);
+            UE_LOG(LogTemp, Log, TEXT("ItemListCard::InitializeWithSlot - Successfully cached item data for %s"), *ItemData.Name.ToString());
         }
         else
         {
             CachedItemData = nullptr;
+            UE_LOG(LogTemp, Warning, TEXT("ItemListCard::InitializeWithSlot - Failed to get item data for %s - DataTable might not be set"), *ItemSlot.ItemId);
         }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("ItemListCard::InitializeWithSlot - ItemManager is still null after retry"));
     }
 
     bIsInitialized = true;
@@ -63,23 +96,33 @@ void UC_ItemListCard::InitializeWithSlot(const FInventorySlot& InSlot, UInventor
 
 void UC_ItemListCard::UpdateDisplay()
 {
+    UE_LOG(LogTemp, Log, TEXT("ItemListCard::UpdateDisplay - Initialized=%s, CachedItemData=%s"), 
+           bIsInitialized ? TEXT("True") : TEXT("False"),
+           CachedItemData ? TEXT("Valid") : TEXT("Null"));
+           
     if (!bIsInitialized || !CachedItemData)
     {
+        UE_LOG(LogTemp, Warning, TEXT("ItemListCard::UpdateDisplay - Skipping update due to invalid state"));
         return;
     }
 
+    UE_LOG(LogTemp, Log, TEXT("ItemListCard::UpdateDisplay - Updating display for %s"), *CachedItemData->Name.ToString());
+    
     UpdateItemName();
     UpdateDurability();
     UpdateQuantity();
     UpdateItemType();
     UpdateWeight();
     UpdateValue();
+    
+    UE_LOG(LogTemp, Log, TEXT("ItemListCard::UpdateDisplay - Update complete"));
 }
 
 void UC_ItemListCard::UpdateItemName()
 {
     if (!CachedItemData)
     {
+        UE_LOG(LogTemp, Warning, TEXT("ItemListCard::UpdateItemName - CachedItemData is null"));
         return;
     }
 
@@ -91,6 +134,9 @@ void UC_ItemListCard::UpdateItemName()
         DisplayName = FString::Printf(TEXT("%s %s"), *QualityName, *DisplayName);
     }
 
+    UE_LOG(LogTemp, Log, TEXT("ItemListCard::UpdateItemName - Setting name to '%s', Widget exists: %s"), 
+           *DisplayName, ItemNameText ? TEXT("True") : TEXT("False"));
+    
     SetTextSafe(ItemNameText, DisplayName);
 }
 

@@ -26,13 +26,22 @@ void UItemDataTableManager::SetItemDataTable(UDataTable* InDataTable)
 
 bool UItemDataTableManager::GetItemData(const FString& ItemId, FItemDataRow& OutItemData) const
 {
+    if (!ItemDataTable)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ItemDataTableManager::GetItemData - ItemDataTable is not set for ItemId: %s"), *ItemId);
+        return false;
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("ItemDataTableManager::GetItemData - Looking for ItemId: %s"), *ItemId);
     const FItemDataRow* ItemData = FindItemByItemId(ItemId);
     if (ItemData)
     {
         OutItemData = *ItemData;
+        UE_LOG(LogTemp, Log, TEXT("ItemDataTableManager::GetItemData - Found item data for: %s"), *ItemId);
         return true;
     }
     
+    UE_LOG(LogTemp, Warning, TEXT("ItemDataTableManager::GetItemData - Item not found: %s"), *ItemId);
     return false;
 }
 

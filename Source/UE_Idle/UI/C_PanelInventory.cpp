@@ -8,6 +8,7 @@
 #include "../Components/InventoryComponent.h"
 #include "../Actor/C_IdleCharacter.h"
 #include "C__InventoryList.h"
+#include "C_InventorySelectButton.h"
 
 UC_PanelInventory::UC_PanelInventory(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer)
@@ -62,7 +63,29 @@ void UC_PanelInventory::AutoInitializeWithPlayerController()
     // Initialize panel
     InitializePanel(TeamComp, BaseInventory);
     
+    // Auto-select first member after initialization
+    AutoSelectFirstMember();
+    RefreshMemberInventory();
+    UpdateDisplayTexts();
+    
     UE_LOG(LogTemp, Log, TEXT("UC_PanelInventory: Auto-initialized successfully"));
+}
+
+void UC_PanelInventory::AutoSelectFirstMember()
+{
+    TArray<AC_IdleCharacter*> Members = GetCurrentMemberList();
+    
+    if (Members.Num() > 0)
+    {
+        CurrentSelectedMember = Members[0];
+        UE_LOG(LogTemp, Log, TEXT("UC_PanelInventory::AutoSelectFirstMember - Auto-selected: %s"), 
+               CurrentSelectedMember ? *CurrentSelectedMember->GetCharacterName_Implementation() : TEXT("NULL"));
+    }
+    else
+    {
+        CurrentSelectedMember = nullptr;
+        UE_LOG(LogTemp, Log, TEXT("UC_PanelInventory::AutoSelectFirstMember - No members available, cleared selection"));
+    }
 }
 
 void UC_PanelInventory::NativeDestruct()
@@ -122,6 +145,18 @@ void UC_PanelInventory::OnTeamButtonClicked()
     }
 }
 
+void UC_PanelInventory::OnTeamButtonClickedWithIndex(int32 TeamIndex)
+{
+    if (TeamIndex == -1)
+    {
+        SelectBase();
+    }
+    else
+    {
+        SelectTeam(TeamIndex);
+    }
+}
+
 void UC_PanelInventory::SelectBase()
 {
     UE_LOG(LogTemp, Log, TEXT("UC_PanelInventory::SelectBase - Switching to Base mode"));
@@ -132,6 +167,10 @@ void UC_PanelInventory::SelectBase()
 
     RefreshMemberButtons();
     RefreshTeamInventory();
+    
+    // Auto-select first member if available
+    AutoSelectFirstMember();
+    
     RefreshMemberInventory();
     UpdateDisplayTexts();
     
@@ -163,6 +202,10 @@ void UC_PanelInventory::SelectTeam(int32 TeamIndex)
 
     RefreshMemberButtons();
     RefreshTeamInventory();
+    
+    // Auto-select first member if available
+    AutoSelectFirstMember();
+    
     RefreshMemberInventory();
     UpdateDisplayTexts();
     
@@ -298,7 +341,20 @@ void UC_PanelInventory::CreateTeamButton(const FString& ButtonText, int32 TeamIn
         return;
     }
 
-    // ボタンを作成（WidgetTree::ConstructWidgetを使用）
+    // InventorySelectButtonClassが設定されている場合は専用ウィジェットを使用
+    if (InventorySelectButtonClass)
+    {
+        UC_InventorySelectButton* SelectButton = CreateWidget<UC_InventorySelectButton>(this, InventorySelectButtonClass);
+        if (SelectButton)
+        {
+            SelectButton->InitializeButton(TeamIndex, ButtonText);
+            SelectButton->OnClicked.AddDynamic(this, &UC_PanelInventory::OnTeamButtonClickedWithIndex);
+            TeamSelectionScrollBox->AddChild(SelectButton);
+            return;
+        }
+    }
+
+    // フォールバック: 通常のボタンを作成
     UButton* NewButton = WidgetTree->ConstructWidget<UButton>();
     if (!NewButton)
     {
@@ -320,23 +376,23 @@ void UC_PanelInventory::CreateTeamButton(const FString& ButtonText, int32 TeamIn
     if (TeamIndex == -1)
     {
         // 拠点ボタン
-        NewButton->OnClicked.AddUObject(this, &UC_PanelInventory::SelectBase);
+        NewButton->OnClicked.AddDynamic(this, &UC_PanelInventory::SelectBase);
     }
     else
     {
-        // チームボタン（AddUObjectでキャプチャ変数を渡せないため、一時的な解決策）
+        // チームボタン（AddDynamicでキャプチャ変数を渡せないため、一時的な解決策）
         // TODO: より良い解決策を実装する
         if (TeamIndex == 0)
         {
-            NewButton->OnClicked.AddUObject(this, &UC_PanelInventory::SelectTeam0);
+            NewButton->OnClicked.AddDynamic(this, &UC_PanelInventory::SelectTeam0);
         }
         else if (TeamIndex == 1)
         {
-            NewButton->OnClicked.AddUObject(this, &UC_PanelInventory::SelectTeam1);
+            NewButton->OnClicked.AddDynamic(this, &UC_PanelInventory::SelectTeam1);
         }
         else if (TeamIndex == 2)
         {
-            NewButton->OnClicked.AddUObject(this, &UC_PanelInventory::SelectTeam2);
+            NewButton->OnClicked.AddDynamic(this, &UC_PanelInventory::SelectTeam2);
         }
         else
         {
@@ -357,7 +413,22 @@ void UC_PanelInventory::CreateMemberButton(AC_IdleCharacter* Character)
         return;
     }
 
-    // ボタンを作成（WidgetTree::ConstructWidgetを使用）
+    // InventorySelectButtonClassが設定されている場合は専用ウィジェットを使用
+    if (InventorySelectButtonClass)
+    {
+        UC_InventorySelectButton* SelectButton = CreateWidget<UC_InventorySelectButton>(this, InventorySelectButtonClass);
+        if (SelectButton)
+        {
+            FString CharacterName = Character->GetCharacterName_Implementation();
+            UE_LOG(LogTemp, Log, TEXT("CreateMemberButton: Character=%s, Name=%s"), *Character->GetName(), *CharacterName);
+            SelectButton->InitializeButton(0, CharacterName, Character);
+            SelectButton->OnClickedWithData.AddDynamic(this, &UC_PanelInventory::OnMemberButtonClickedWithData);
+            MemberButtonsScrollBox->AddChild(SelectButton);
+            return;
+        }
+    }
+
+    // フォールバック: 通常のボタンを作成
     UButton* NewButton = WidgetTree->ConstructWidget<UButton>();
     if (!NewButton)
     {
@@ -368,8 +439,8 @@ void UC_PanelInventory::CreateMemberButton(AC_IdleCharacter* Character)
     UTextBlock* ButtonText = WidgetTree->ConstructWidget<UTextBlock>();
     if (ButtonText)
     {
-        // キャラクター名を取得（とりあえずGetNameを使用、後で適切なメソッドに変更）
-        FString CharacterName = Character->GetName();
+        FString CharacterName = Character->GetCharacterName_Implementation();
+        UE_LOG(LogTemp, Log, TEXT("CreateMemberButton (fallback): Character=%s, Name=%s"), *Character->GetName(), *CharacterName);
         ButtonText->SetText(FText::FromString(CharacterName));
         NewButton->AddChild(ButtonText);
     }
@@ -383,6 +454,18 @@ void UC_PanelInventory::CreateMemberButton(AC_IdleCharacter* Character)
     // ボタンをScrollBoxに追加
     MemberButtonsScrollBox->AddChild(NewButton);
     MemberButtons.Add(NewButton);
+}
+
+void UC_PanelInventory::OnMemberButtonClickedWithData(UObject* Data)
+{
+    if (AC_IdleCharacter* Character = Cast<AC_IdleCharacter>(Data))
+    {
+        CurrentSelectedMember = Character;
+        RefreshMemberInventory();
+        UpdateDisplayTexts();
+        
+        UE_LOG(LogTemp, Log, TEXT("Selected member: %s"), *Character->GetName());
+    }
 }
 
 void UC_PanelInventory::ClearTeamButtons()
