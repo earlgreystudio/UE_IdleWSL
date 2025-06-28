@@ -63,9 +63,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Team")
 	TArray<AC_IdleCharacter*> AllPlayerCharacters;
 
-	// チーム用InventoryComponent（動的作成）
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Team Inventories")
-	TArray<UInventoryComponent*> TeamInventories;
+	// TeamInventories削除 - 採集システムでは個人インベントリを使用
 
 	// キャラクター追加
 	UFUNCTION(BlueprintCallable, Category = "Team")
@@ -124,6 +122,14 @@ public:
 	// 冒険タスク開始（場所指定付き）
 	UFUNCTION(BlueprintCallable, Category = "Team Management")
 	bool StartAdventure(int32 TeamIndex, const FString& LocationId);
+
+	// 採集タスク用場所設定
+	UFUNCTION(BlueprintCallable, Category = "Team Management")
+	bool SetTeamGatheringLocation(int32 TeamIndex, const FString& LocationId);
+
+	// 採集タスク開始（場所指定付き）
+	UFUNCTION(BlueprintCallable, Category = "Team Management")
+	bool StartGathering(int32 TeamIndex, const FString& LocationId);
 
 	// キャラクターが所属するチームインデックス取得（-1なら未所属）
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Team Management")
@@ -248,35 +254,11 @@ public:
 
 	// ======== チームInventory機能 ========
 
-	// チームInventoryComponent取得
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Team Inventory")
-	UInventoryComponent* GetTeamInventoryComponent(int32 TeamIndex) const;
+	// 旧TeamInventory関連メソッド削除
+	// 新採集システムでは個人インベントリとGatheringComponentを使用
 
-	// チームInventoryComponent動的作成
-	UFUNCTION(BlueprintCallable, Category = "Team Inventory")
-	void CreateTeamInventoryComponent(int32 TeamIndex);
-
-	// ======== チーム運搬手段機能 ========
-
-	// チームに運搬手段を設定
-	UFUNCTION(BlueprintCallable, Category = "Team Carrying")
-	bool SetTeamCarrier(int32 TeamIndex, ECarrierType NewCarrierType);
-
-	// チームの基本積載量を設定
-	UFUNCTION(BlueprintCallable, Category = "Team Carrying")
-	bool SetTeamBaseCarryingCapacity(int32 TeamIndex, float NewCapacity);
-
-	// チームの総積載量取得（基本積載量 + 運搬手段ボーナス）
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Team Carrying")
-	float GetTeamTotalCarryingCapacity(int32 TeamIndex) const;
-
-	// チームの現在の積載重量取得
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Team Carrying")
-	float GetTeamCurrentWeight(int32 TeamIndex) const;
-
-	// チームの積載率取得（現在重量 / 最大積載量）
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Team Carrying")
-	float GetTeamLoadRatio(int32 TeamIndex) const;
+	// ======== 旧チーム運搬手段機能（削除） ========
+	// 新採集システムでは個人キャラクターの積載量を使用
 
 	// ======== イベントディスパッチャー ========
 	

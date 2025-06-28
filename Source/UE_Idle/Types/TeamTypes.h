@@ -13,6 +13,7 @@ UENUM(BlueprintType)
 enum class ETeamActionState : uint8
 {
     Idle            UMETA(DisplayName = "待機"),
+    Moving          UMETA(DisplayName = "移動中"),       // 中断可能
     Working         UMETA(DisplayName = "作業中"),       // 中断可能
     InCombat        UMETA(DisplayName = "戦闘中"),       // 中断不可
     Locked          UMETA(DisplayName = "アクション中")   // 中断不可
@@ -54,14 +55,7 @@ enum class ETaskType : uint8
     Scouting        UMETA(DisplayName = "偵察")
 };
 
-// 運搬手段
-UENUM(BlueprintType)
-enum class ECarrierType : uint8
-{
-    Bag             UMETA(DisplayName = "袋"),            // 20kg * メンバー数
-    HandCart        UMETA(DisplayName = "手押し車"),      // 50kg * メンバー数
-    Wagon           UMETA(DisplayName = "荷車")           // 100kg * メンバー数
-};
+// ECarrierType削除 - 新採集システムでは運搬キャラクターを使用
 
 class AC_IdleCharacter;
 
@@ -91,17 +85,16 @@ struct FTeam
     UPROPERTY(BlueprintReadWrite, Category = "Adventure")
     FString AdventureLocationId;
 
+    // 採集先の場所ID（Gatheringタスクで使用）
+    UPROPERTY(BlueprintReadWrite, Category = "Gathering")
+    FString GatheringLocationId;
+
     // 戦闘中かどうか
     UPROPERTY(BlueprintReadWrite, Category = "Combat")
     bool bInCombat;
 
-    // チーム運搬手段
-    UPROPERTY(BlueprintReadWrite, Category = "Team Carrying")
-    ECarrierType CarrierType;
-
-    // チーム基本積載量
-    UPROPERTY(BlueprintReadWrite, Category = "Team Carrying")
-    float BaseCarryingCapacity;
+    // 旧運搬手段フィールド削除
+    // 新採集システムでは個人キャラクターの運搬能力を使用
 
     // === 新しいタスク管理機能 ===
 
@@ -130,9 +123,9 @@ struct FTeam
         AssignedTask = ETaskType::Idle;  // デフォルトは待機
         bIsActive = true;
         AdventureLocationId = TEXT("");
+        GatheringLocationId = TEXT("");
         bInCombat = false;
-        CarrierType = ECarrierType::Bag;
-        BaseCarryingCapacity = 0.0f;
+        // 旧運搬手段フィールド削除済み
         
         // 新しいフィールドの初期化
         ActionState = ETeamActionState::Idle;
@@ -142,46 +135,8 @@ struct FTeam
         bProcessingAction = false;
     }
 
-    // 総積載量計算（運搬手段 * メンバー数）
-    float GetTotalCarryingCapacity() const
-    {
-        int32 MemberCount = Members.Num();
-        if (MemberCount == 0) MemberCount = 1; // 最低1人分として計算
-        
-        float CarrierCapacityPerMember = 0.0f;
-        switch (CarrierType)
-        {
-            case ECarrierType::Bag:
-                CarrierCapacityPerMember = 20.0f;
-                break;
-            case ECarrierType::HandCart:
-                CarrierCapacityPerMember = 50.0f;
-                break;
-            case ECarrierType::Wagon:
-                CarrierCapacityPerMember = 100.0f;
-                break;
-            default:
-                CarrierCapacityPerMember = 20.0f; // デフォルトは袋
-                break;
-        }
-        return CarrierCapacityPerMember * MemberCount;
-    }
-    
-    // 運搬手段の表示名を取得
-    FString GetCarrierDisplayName() const
-    {
-        switch (CarrierType)
-        {
-            case ECarrierType::Bag:
-                return TEXT("袋");
-            case ECarrierType::HandCart:
-                return TEXT("手押し車");
-            case ECarrierType::Wagon:
-                return TEXT("荷車");
-            default:
-                return TEXT("袋");
-        }
-    }
+    // 旧積載量計算・運搬手段メソッド削除
+    // 新採集システムでは個人キャラクターの積載量をGatheringComponentで管理
 
     // === 新しいヘルパー関数 ===
 

@@ -106,3 +106,35 @@ UE_IdleWSL/
 ### Mobile Platform Target
 - **Platforms**: iOS and Android
 - **Design**: Touch-first UI, performance optimized for mobile hardware
+
+## Code Modification Guidelines
+
+### Live Coding vs Full Rebuild Requirements
+
+**Live Coding Sufficient** (Hot reload while editor is running):
+- Implementation changes in `.cpp` files only
+- Changing function bodies, logic, calculations
+- Adding/removing code within existing functions
+- Modifying variable values and constants
+- Blueprint graph changes
+
+**Full Rebuild Required** (Close editor, compile, reopen):
+- Any changes to `.h` header files
+- Adding/removing class members (variables, functions)
+- Changing function signatures (parameters, return types)
+- Adding/removing `UPROPERTY()` or `UFUNCTION()` macros
+- Modifying class inheritance
+- Adding/removing #include statements
+- Changing enum definitions or struct layouts
+
+**Example Scenarios**:
+- Adding `UPROPERTY(BlueprintReadWrite) UImage* FacilityIconImage;` → **Full Rebuild Required**
+- Changing `GetFacilityCount() const` → **Full Rebuild Required** 
+- Modifying logic inside `UpdateDisplay()` function → **Live Coding Sufficient**
+- Adding new Blueprint nodes or connections → **Live Coding Sufficient**
+
+**Important**: After header changes, always close Unreal Editor completely, run full compile, then reopen editor. Live coding will not work properly with header modifications.
+
+**When providing code modifications, always end with:**
+- **「ライブコーディング可」** - if only .cpp function body changes
+- **「リビルドが必要」** - if header changes, new functions, or UFUNCTION additions

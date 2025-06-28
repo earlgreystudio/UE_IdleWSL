@@ -1,6 +1,7 @@
 #include "TaskManagerComponent.h"
 #include "../Components/InventoryComponent.h"
 #include "../Components/TeamComponent.h"
+#include "../Actor/C_IdleCharacter.h"
 #include "Engine/World.h"
 
 UTaskManagerComponent::UTaskManagerComponent()
@@ -397,14 +398,22 @@ int32 UTaskManagerComponent::GetTotalResourceAmount(const FString& ResourceId) c
         TotalAmount += GlobalInventoryRef->GetItemCount(ResourceId);
     }
 
-    // 全チームのインベントリから取得
+    // 全チームメンバーの個人インベントリから取得
     if (IsValid(TeamComponentRef))
     {
-        for (int32 i = 0; i < TeamComponentRef->GetTeams().Num(); i++)
+        const TArray<FTeam>& Teams = TeamComponentRef->GetTeams();
+        for (int32 i = 0; i < Teams.Num(); i++)
         {
-            if (UInventoryComponent* TeamInventory = TeamComponentRef->GetTeamInventoryComponent(i))
+            const FTeam& Team = Teams[i];
+            for (AC_IdleCharacter* Member : Team.Members)
             {
-                TotalAmount += TeamInventory->GetItemCount(ResourceId);
+                if (IsValid(Member))
+                {
+                    if (UInventoryComponent* MemberInventory = Member->GetInventoryComponent())
+                    {
+                        TotalAmount += MemberInventory->GetItemCount(ResourceId);
+                    }
+                }
             }
         }
     }
@@ -538,6 +547,101 @@ void UTaskManagerComponent::SetTeamComponentReference(UTeamComponent* TeamCompon
     {
         LogError(TEXT("SetTeamComponentReference: Invalid team component"));
     }
+}
+
+// === 採集継続判定機能 ===
+
+bool UTaskManagerComponent::ShouldContinueGathering(int32 TeamIndex, const FString& ItemId) const
+{
+    if (!IsValid(TeamComponentRef))
+    {
+        LogError(TEXT("ShouldContinueGathering: TeamComponent reference not set"));
+        return false;
+    }
+
+    // 1. 該当アイテムのアクティブなタスクを検索
+    FGlobalTask GatheringTask = FindActiveGatheringTask(ItemId);
+    if (GatheringTask.TaskId.IsEmpty())
+    {
+        // 該当アイテムのアクティブタスクがない場合は継続しない
+        UE_LOG(LogTemp, VeryVerbose, TEXT("ShouldContinueGathering: No active task found for item %s"), *ItemId);
+        return false;
+    }
+
+    // 2. 現在の利用可能アイテム数を取得
+    int32 CurrentAvailable = GetCurrentItemAvailability(TeamIndex, ItemId);
+    
+    // 3. タスクタイプに応じた継続判定
+    if (GatheringTask.bIsKeepQuantity)
+    {
+        // キープ型：目標数量を下回っている場合は継続
+        bool bShouldContinue = CurrentAvailable < GatheringTask.TargetQuantity;
+        UE_LOG(LogTemp, VeryVerbose, TEXT("ShouldContinueGathering: Keep task for %s - Current: %d, Target: %d, Continue: %s"), 
+               *ItemId, CurrentAvailable, GatheringTask.TargetQuantity, bShouldContinue ? TEXT("Yes") : TEXT("No"));
+        return bShouldContinue;
+    }
+    else
+    {
+        // 通常タスク：目標数量に達していない場合は継続
+        bool bShouldContinue = CurrentAvailable < GatheringTask.TargetQuantity && !GatheringTask.bIsCompleted;
+        UE_LOG(LogTemp, VeryVerbose, TEXT("ShouldContinueGathering: Normal task for %s - Current: %d, Target: %d, Completed: %s, Continue: %s"), 
+               *ItemId, CurrentAvailable, GatheringTask.TargetQuantity, 
+               GatheringTask.bIsCompleted ? TEXT("Yes") : TEXT("No"), bShouldContinue ? TEXT("Yes") : TEXT("No"));
+        return bShouldContinue;
+    }
+}
+
+int32 UTaskManagerComponent::GetCurrentItemAvailability(int32 TeamIndex, const FString& ItemId) const
+{
+    int32 TotalAvailable = 0;
+    
+    // 1. 拠点倉庫の数量を取得
+    if (IsValid(GlobalInventoryRef))
+    {
+        TotalAvailable += GlobalInventoryRef->GetItemCount(ItemId);
+    }
+    
+    // 2. 該当チームのメンバーが持つ数量を取得
+    if (IsValid(TeamComponentRef))
+    {
+        FTeam Team = TeamComponentRef->GetTeam(TeamIndex);
+        for (AC_IdleCharacter* Member : Team.Members)
+        {
+            if (IsValid(Member))
+            {
+                if (UInventoryComponent* MemberInventory = Member->GetInventoryComponent())
+                {
+                    TotalAvailable += MemberInventory->GetItemCount(ItemId);
+                }
+            }
+        }
+    }
+    
+    UE_LOG(LogTemp, VeryVerbose, TEXT("GetCurrentItemAvailability: Team %d has %d %s"), TeamIndex, TotalAvailable, *ItemId);
+    return TotalAvailable;
+}
+
+FGlobalTask UTaskManagerComponent::FindActiveGatheringTask(const FString& ItemId) const
+{
+    // 優先度順にソート
+    TArray<FGlobalTask> SortedTasks = GlobalTasks;
+    SortedTasks.Sort([](const FGlobalTask& A, const FGlobalTask& B) {
+        return A.Priority < B.Priority;
+    });
+    
+    // 該当アイテムの未完了タスクを検索
+    for (const FGlobalTask& Task : SortedTasks)
+    {
+        if (Task.TargetItemId == ItemId && 
+            !Task.bIsCompleted && 
+            (Task.TaskType == ETaskType::Gathering || Task.TaskType == ETaskType::All))
+        {
+            return Task;
+        }
+    }
+    
+    // 見つからない場合は空のタスクを返す
+    return FGlobalTask();
 }
 
 // === ユーティリティ ===

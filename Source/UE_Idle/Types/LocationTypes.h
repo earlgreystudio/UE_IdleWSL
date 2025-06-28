@@ -37,6 +37,27 @@ struct FEnemySpawnInfo
     }
 };
 
+// 採集可能アイテム情報
+USTRUCT(BlueprintType)
+struct FGatherableItemInfo
+{
+    GENERATED_BODY()
+
+    // アイテムID (ItemData.csvのRowName)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gathering")
+    FString ItemId;
+
+    // 採取係数 (GatheringPower×係数÷40 = 秒あたり採取量)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gathering")
+    float GatheringCoefficient;
+
+    FGatherableItemInfo()
+    {
+        ItemId = TEXT("");
+        GatheringCoefficient = 0.0f;
+    }
+};
+
 // 場所データ構造体
 USTRUCT(BlueprintType)
 struct FLocationDataRow : public FTableRowBase
@@ -59,12 +80,22 @@ struct FLocationDataRow : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemies")
     FString EnemySpawnListString;
 
+    // 拠点からの距離（メートル）
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
+    float Distance;
+
+    // 採集可能アイテムリスト文字列 (CSV用: "wood:2|stone:1")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gathering")
+    FString GatherableItemsString;
+
     FLocationDataRow()
     {
         Name = TEXT("");
         Description = TEXT("");
         LocationType = ELocationType::Base;
         EnemySpawnListString = TEXT("");
+        Distance = 0.0f;
+        GatherableItemsString = TEXT("");
     }
 
     // CSV文字列から敵出現情報を解析するヘルパー関数
@@ -127,5 +158,38 @@ struct FLocationDataRow : public FTableRowBase
 
         // 念のため最後の要素を返す
         return SpawnList.Last().PresetId;
+    }
+
+    // CSV文字列から採集可能アイテム情報を解析するヘルパー関数
+    TArray<FGatherableItemInfo> ParseGatherableItemsList() const
+    {
+        TArray<FGatherableItemInfo> GatherableList;
+        
+        if (!GatherableItemsString.IsEmpty())
+        {
+            TArray<FString> ItemPairs;
+            GatherableItemsString.ParseIntoArray(ItemPairs, TEXT("|"), true);
+
+            for (const FString& ItemPair : ItemPairs)
+            {
+                FString ItemId;
+                FString CoefficientStr;
+                if (ItemPair.Split(TEXT(":"), &ItemId, &CoefficientStr))
+                {
+                    FGatherableItemInfo GatherableInfo;
+                    GatherableInfo.ItemId = ItemId;
+                    GatherableInfo.GatheringCoefficient = FCString::Atof(*CoefficientStr);
+                    GatherableList.Add(GatherableInfo);
+                }
+            }
+        }
+
+        return GatherableList;
+    }
+
+    // 採集可能アイテムが存在するかチェック
+    bool HasGatherableItems() const
+    {
+        return !GatherableItemsString.IsEmpty();
     }
 };

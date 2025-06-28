@@ -2,6 +2,7 @@
 #include "UE_Idle/Managers/FacilityManager.h"
 #include "UE_Idle/Managers/ItemDataTableManager.h"
 #include "UE_Idle/Components/InventoryComponent.h"
+#include "UE_Idle/C_GameInstance.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -15,33 +16,7 @@ UBaseComponent::UBaseComponent()
 void UBaseComponent::BeginPlay()
 {
     Super::BeginPlay();
-
-    // Get references to managers
-    if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
-    {
-        FacilityManager = GameInstance->GetSubsystem<UFacilityManager>();
-        ItemManager = GameInstance->GetSubsystem<UItemDataTableManager>();
-    }
-
-    // Get GlobalInventoryComponent from PlayerController
-    if (APlayerController* PC = Cast<APlayerController>(GetOwner()))
-    {
-        GlobalInventory = PC->FindComponentByClass<UInventoryComponent>();
-    }
-
-    if (!FacilityManager)
-    {
-        UE_LOG(LogTemp, Error, TEXT("BaseComponent: FacilityManager not found!"));
-    }
-    if (!ItemManager)
-    {
-        UE_LOG(LogTemp, Error, TEXT("BaseComponent: ItemDataTableManager not found!"));
-    }
-
-    // 初期設定：人口1人、上限0（住居がない状態）
-    CurrentPopulation = 1;
-    MaxPopulation = 0;
-    AvailableWorkers = 1;
+    UE_LOG(LogTemp, Warning, TEXT("BaseComponent::BeginPlay - Auto initialization (no manual setup)"));
 }
 
 void UBaseComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -126,21 +101,13 @@ bool UBaseComponent::StartFacilityConstruction(const FGuid& InstanceId)
         return false;
     }
 
-    // FacilityManager用のリソース情報を取得
+    // FacilityManager用のアイテム情報を取得（新Item-basedシステム）
     TMap<FString, int32> CurrentResources;
     if (GlobalInventory)
     {
-        // InventoryComponentからリソース情報を取得
-        TMap<EResourceType, int32> AllResources = GlobalInventory->GetAllResources();
-        for (const auto& ResourcePair : AllResources)
-        {
-            FString ResourceName = UEnum::GetValueAsString(ResourcePair.Key);
-            CurrentResources.Add(ResourceName, ResourcePair.Value);
-        }
-        
-        // アイテムもリソースとして追加
+        // 新採集システムでは全てアイテムとして管理
         TMap<FString, int32> AllItems = GlobalInventory->GetAllItems();
-        CurrentResources.Append(AllItems);
+        CurrentResources = AllItems;
     }
 
     if (!FacilityManager->StartConstruction(InstanceId, CurrentResources))
@@ -174,19 +141,13 @@ bool UBaseComponent::UpgradeFacility(const FGuid& InstanceId)
         return false;
     }
 
-    // FacilityManager用のリソース情報を取得
+    // FacilityManager用のアイテム情報を取得（新Item-basedシステム）
     TMap<FString, int32> CurrentResources;
     if (GlobalInventory)
     {
-        TMap<EResourceType, int32> AllResources = GlobalInventory->GetAllResources();
-        for (const auto& ResourcePair : AllResources)
-        {
-            FString ResourceName = UEnum::GetValueAsString(ResourcePair.Key);
-            CurrentResources.Add(ResourceName, ResourcePair.Value);
-        }
-        
+        // 新採集システムでは全てアイテムとして管理
         TMap<FString, int32> AllItems = GlobalInventory->GetAllItems();
-        CurrentResources.Append(AllItems);
+        CurrentResources = AllItems;
     }
 
     if (!FacilityManager->StartUpgrade(InstanceId, CurrentResources))
@@ -249,17 +210,10 @@ bool UBaseComponent::CanBuildFacility(const FString& FacilityId) const
         return false;
     }
 
-    // PlayerControllerのInventoryからリソース情報を取得
+    // PlayerControllerのInventoryからアイテム情報を取得（新Item-basedシステム）
     TMap<FString, int32> CurrentResources;
-    TMap<EResourceType, int32> AllResources = GlobalInventory->GetAllResources();
-    for (const auto& ResourcePair : AllResources)
-    {
-        FString ResourceName = UEnum::GetValueAsString(ResourcePair.Key);
-        CurrentResources.Add(ResourceName, ResourcePair.Value);
-    }
-    
     TMap<FString, int32> AllItems = GlobalInventory->GetAllItems();
-    CurrentResources.Append(AllItems);
+    CurrentResources = AllItems;
 
     return FacilityManager->CanBuildFacility(FacilityId, CurrentResources);
 }
@@ -271,17 +225,10 @@ bool UBaseComponent::CanUpgradeFacility(const FGuid& InstanceId) const
         return false;
     }
 
-    // PlayerControllerのInventoryからリソース情報を取得
+    // PlayerControllerのInventoryからアイテム情報を取得（新Item-basedシステム）
     TMap<FString, int32> CurrentResources;
-    TMap<EResourceType, int32> AllResources = GlobalInventory->GetAllResources();
-    for (const auto& ResourcePair : AllResources)
-    {
-        FString ResourceName = UEnum::GetValueAsString(ResourcePair.Key);
-        CurrentResources.Add(ResourceName, ResourcePair.Value);
-    }
-    
     TMap<FString, int32> AllItems = GlobalInventory->GetAllItems();
-    CurrentResources.Append(AllItems);
+    CurrentResources = AllItems;
 
     return FacilityManager->CanUpgradeFacility(InstanceId, CurrentResources);
 }
@@ -548,87 +495,26 @@ bool UBaseComponent::ConsumeResourcesForCost(const TMap<FString, int32>& Costs)
         return false;
     }
 
+    // 新採集システム：全てアイテムとして管理
     // まず全てのコストが払えるか確認
     for (const auto& CostPair : Costs)
     {
-        // リソースまたはアイテムをチェック
-        EResourceType ResourceType;
-        bool bIsResource = false;
-        
-        // EResourceTypeの値をチェック
-        if (CostPair.Key == TEXT("Gold"))
+        if (!GlobalInventory->HasItem(CostPair.Key, CostPair.Value))
         {
-            ResourceType = EResourceType::Gold;
-            bIsResource = true;
-        }
-        else if (CostPair.Key == TEXT("Wood"))
-        {
-            ResourceType = EResourceType::Wood;
-            bIsResource = true;
-        }
-        else if (CostPair.Key == TEXT("Stone"))
-        {
-            ResourceType = EResourceType::Stone;
-            bIsResource = true;
-        }
-        else if (CostPair.Key == TEXT("Water"))
-        {
-            ResourceType = EResourceType::Water;
-            bIsResource = true;
-        }
-        
-        if (bIsResource)
-        {
-            // Enumリソースの場合
-            if (GlobalInventory->GetResource(ResourceType) < CostPair.Value)
-            {
-                return false;
-            }
-        }
-        else
-        {
-            // アイテムの場合
-            if (!GlobalInventory->HasItem(CostPair.Key, CostPair.Value))
-            {
-                return false;
-            }
+            UE_LOG(LogTemp, Warning, TEXT("ConsumeResourcesForCost: Insufficient %s (needed: %d, have: %d)"), 
+                *CostPair.Key, CostPair.Value, GlobalInventory->GetItemCount(CostPair.Key));
+            return false;
         }
     }
 
     // 実際に消費
     for (const auto& CostPair : Costs)
     {
-        EResourceType ResourceType;
-        bool bIsResource = false;
-        
-        if (CostPair.Key == TEXT("Gold"))
+        if (!GlobalInventory->RemoveItem(CostPair.Key, CostPair.Value))
         {
-            ResourceType = EResourceType::Gold;
-            bIsResource = true;
-        }
-        else if (CostPair.Key == TEXT("Wood"))
-        {
-            ResourceType = EResourceType::Wood;
-            bIsResource = true;
-        }
-        else if (CostPair.Key == TEXT("Stone"))
-        {
-            ResourceType = EResourceType::Stone;
-            bIsResource = true;
-        }
-        else if (CostPair.Key == TEXT("Water"))
-        {
-            ResourceType = EResourceType::Water;
-            bIsResource = true;
-        }
-        
-        if (bIsResource)
-        {
-            GlobalInventory->SpendResource(ResourceType, CostPair.Value);
-        }
-        else
-        {
-            GlobalInventory->RemoveItem(CostPair.Key, CostPair.Value);
+            UE_LOG(LogTemp, Error, TEXT("ConsumeResourcesForCost: Failed to remove %s x%d"), 
+                *CostPair.Key, CostPair.Value);
+            return false;
         }
     }
 
@@ -642,39 +528,18 @@ void UBaseComponent::RefundResources(const TMap<FString, int32>& Resources)
         return;
     }
 
+    // 新採集システム：全てアイテムとして追加
     for (const auto& ResourcePair : Resources)
     {
-        EResourceType ResourceType;
-        bool bIsResource = false;
-        
-        if (ResourcePair.Key == TEXT("Gold"))
+        if (!GlobalInventory->AddItem(ResourcePair.Key, ResourcePair.Value))
         {
-            ResourceType = EResourceType::Gold;
-            bIsResource = true;
-        }
-        else if (ResourcePair.Key == TEXT("Wood"))
-        {
-            ResourceType = EResourceType::Wood;
-            bIsResource = true;
-        }
-        else if (ResourcePair.Key == TEXT("Stone"))
-        {
-            ResourceType = EResourceType::Stone;
-            bIsResource = true;
-        }
-        else if (ResourcePair.Key == TEXT("Water"))
-        {
-            ResourceType = EResourceType::Water;
-            bIsResource = true;
-        }
-        
-        if (bIsResource)
-        {
-            GlobalInventory->AddResource(ResourceType, ResourcePair.Value);
+            UE_LOG(LogTemp, Error, TEXT("RefundResources: Failed to add %s x%d"), 
+                *ResourcePair.Key, ResourcePair.Value);
         }
         else
         {
-            GlobalInventory->AddItem(ResourcePair.Key, ResourcePair.Value);
+            UE_LOG(LogTemp, Log, TEXT("RefundResources: Refunded %s x%d"), 
+                *ResourcePair.Key, ResourcePair.Value);
         }
     }
 }
@@ -714,38 +579,16 @@ void UBaseComponent::ProcessAutoProduction(float DeltaTime)
                 int32 ProducedAmount = FMath::RoundToInt(ProductionRate * DeltaTime);
                 if (ProducedAmount > 0 && GlobalInventory)
                 {
-                    // リソースまたはアイテムとして追加
-                    EResourceType ResourceType;
-                    bool bIsResource = false;
-                    
-                    if (Effect.TargetId == TEXT("Gold"))
+                    // 新採集システム：全てアイテムとして追加
+                    if (!GlobalInventory->AddItem(Effect.TargetId, ProducedAmount))
                     {
-                        ResourceType = EResourceType::Gold;
-                        bIsResource = true;
-                    }
-                    else if (Effect.TargetId == TEXT("Wood"))
-                    {
-                        ResourceType = EResourceType::Wood;
-                        bIsResource = true;
-                    }
-                    else if (Effect.TargetId == TEXT("Stone"))
-                    {
-                        ResourceType = EResourceType::Stone;
-                        bIsResource = true;
-                    }
-                    else if (Effect.TargetId == TEXT("Water"))
-                    {
-                        ResourceType = EResourceType::Water;
-                        bIsResource = true;
-                    }
-                    
-                    if (bIsResource)
-                    {
-                        GlobalInventory->AddResource(ResourceType, ProducedAmount);
+                        UE_LOG(LogTemp, Error, TEXT("ProcessAutoProduction: Failed to add %s x%d"), 
+                            *Effect.TargetId, ProducedAmount);
                     }
                     else
                     {
-                        GlobalInventory->AddItem(Effect.TargetId, ProducedAmount);
+                        UE_LOG(LogTemp, Log, TEXT("ProcessAutoProduction: Produced %s x%d"), 
+                            *Effect.TargetId, ProducedAmount);
                     }
                 }
             }
@@ -782,3 +625,204 @@ void UBaseComponent::ProcessResourceConversion(float DeltaTime)
         }
     }
 }
+
+void UBaseComponent::AddTestFacilities()
+{
+    if (!FacilityManager)
+    {
+        UE_LOG(LogTemp, Error, TEXT("BaseComponent::AddTestFacilities - FacilityManager is null"));
+        return;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("BaseComponent::AddTestFacilities - Adding test facilities for display"));
+
+    // DataTableが設定されているかテスト
+    FFacilityDataRow TestData;
+    // GameInstanceのDataTable設定を強制確認
+    if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
+    {
+        if (UC_GameInstance* CustomGameInstance = Cast<UC_GameInstance>(GameInstance))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("BaseComponent::AddTestFacilities - Found C_GameInstance, checking DataTable..."));
+            // カスタムGameInstanceの場合、DataTableを直接設定を試行
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("BaseComponent::AddTestFacilities - Using default GameInstance instead of C_GameInstance!"));
+        }
+    }
+    
+    if (!FacilityManager->GetFacilityData(TEXT("small_house"), TestData))
+    {
+        UE_LOG(LogTemp, Error, TEXT("BaseComponent::AddTestFacilities - FacilityDataTable not properly set! Cannot find 'small_house' in DataTable."));
+        UE_LOG(LogTemp, Error, TEXT("BaseComponent::AddTestFacilities - This usually means:"));
+        UE_LOG(LogTemp, Error, TEXT("  1. FacilityData.csv was not imported as a DataTable asset in Unreal Editor"));
+        UE_LOG(LogTemp, Error, TEXT("  2. The DataTable asset path in C_GameInstance.cpp is incorrect"));
+        UE_LOG(LogTemp, Error, TEXT("  3. GameInstance initialization failed or hasn't completed yet"));
+        UE_LOG(LogTemp, Error, TEXT("BaseComponent::AddTestFacilities - Cannot create facilities without DataTable. Please import FacilityData.csv as DataTable asset."));
+        return;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("BaseComponent::AddTestFacilities - DataTable found, creating real facilities..."));
+
+    // 実在の設備を追加（それぞれ異なる状態・レベルで）
+    
+    // 1. 小屋 - 稼働中レベル1
+    FGuid HouseInstance = FacilityManager->CreateFacility(TEXT("small_house"), FVector(100, 0, 0));
+    if (HouseInstance.IsValid())
+    {
+        FacilityManager->SetFacilityState(HouseInstance, EFacilityState::Active);
+        OnFacilityAdded.Broadcast(HouseInstance, TEXT("small_house"));
+        UE_LOG(LogTemp, Warning, TEXT("BaseComponent::AddTestFacilities - Added small_house (Active, Level 1)"));
+    }
+
+    // 2. 作業台 - 建設中
+    FGuid WorkshopInstance = FacilityManager->CreateFacility(TEXT("workshop"), FVector(200, 0, 0));
+    if (WorkshopInstance.IsValid())
+    {
+        FacilityManager->SetFacilityState(WorkshopInstance, EFacilityState::Constructing);
+        // 建設進捗を50%に設定
+        if (FFacilityInstance* Instance = FacilityManager->GetFacilityInstanceForComponent(WorkshopInstance))
+        {
+            Instance->CompletionProgress = 50.0f;
+        }
+        OnFacilityAdded.Broadcast(WorkshopInstance, TEXT("workshop"));
+        UE_LOG(LogTemp, Warning, TEXT("BaseComponent::AddTestFacilities - Added workshop (Constructing, 50%%)"));
+    }
+
+    // 3. 鍛冶場 - 稼働中レベル2
+    FGuid ForgeInstance = FacilityManager->CreateFacility(TEXT("forge"), FVector(300, 0, 0));
+    if (ForgeInstance.IsValid())
+    {
+        FacilityManager->SetFacilityState(ForgeInstance, EFacilityState::Active);
+        if (FFacilityInstance* Instance = FacilityManager->GetFacilityInstanceForComponent(ForgeInstance))
+        {
+            Instance->Level = 2;
+        }
+        OnFacilityAdded.Broadcast(ForgeInstance, TEXT("forge"));
+        UE_LOG(LogTemp, Warning, TEXT("BaseComponent::AddTestFacilities - Added forge (Active, Level 2)"));
+    }
+
+    // 4. 倉庫 - 損傷状態
+    FGuid WarehouseInstance = FacilityManager->CreateFacility(TEXT("warehouse"), FVector(400, 0, 0));
+    if (WarehouseInstance.IsValid())
+    {
+        FacilityManager->SetFacilityState(WarehouseInstance, EFacilityState::Damaged);
+        if (FFacilityInstance* Instance = FacilityManager->GetFacilityInstanceForComponent(WarehouseInstance))
+        {
+            Instance->CurrentDurability = 30; // 低い耐久度
+        }
+        OnFacilityAdded.Broadcast(WarehouseInstance, TEXT("warehouse"));
+        UE_LOG(LogTemp, Warning, TEXT("BaseComponent::AddTestFacilities - Added warehouse (Damaged)"));
+    }
+
+    // 5. 畑 - アップグレード中
+    FGuid FieldInstance = FacilityManager->CreateFacility(TEXT("field"), FVector(500, 0, 0));
+    if (FieldInstance.IsValid())
+    {
+        FacilityManager->SetFacilityState(FieldInstance, EFacilityState::Upgrading);
+        if (FFacilityInstance* Instance = FacilityManager->GetFacilityInstanceForComponent(FieldInstance))
+        {
+            Instance->Level = 1;
+            Instance->CompletionProgress = 75.0f; // アップグレード進捗75%
+        }
+        OnFacilityAdded.Broadcast(FieldInstance, TEXT("field"));
+        UE_LOG(LogTemp, Warning, TEXT("BaseComponent::AddTestFacilities - Added field (Upgrading, 75%%)"));
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("BaseComponent::AddTestFacilities - Test facilities added successfully"));
+}
+
+void UBaseComponent::InitializeBaseComponent()
+{
+    UE_LOG(LogTemp, Warning, TEXT("BaseComponent::InitializeBaseComponent - Manual initialization called"));
+
+    // Get references to managers
+    if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("BaseComponent::InitializeBaseComponent - GameInstance found: %s"), 
+            *GameInstance->GetClass()->GetName());
+        
+        FacilityManager = GameInstance->GetSubsystem<UFacilityManager>();
+        ItemManager = GameInstance->GetSubsystem<UItemDataTableManager>();
+        
+        UE_LOG(LogTemp, Warning, TEXT("BaseComponent::InitializeBaseComponent - FacilityManager: %s"), 
+            FacilityManager ? TEXT("Found") : TEXT("NULL"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("BaseComponent::InitializeBaseComponent - GameInstance is NULL!"));
+    }
+
+    // Get GlobalInventoryComponent from PlayerController
+    if (APlayerController* PC = Cast<APlayerController>(GetOwner()))
+    {
+        GlobalInventory = PC->FindComponentByClass<UInventoryComponent>();
+    }
+
+    if (!FacilityManager)
+    {
+        UE_LOG(LogTemp, Error, TEXT("BaseComponent: FacilityManager not found!"));
+    }
+    else
+    {
+        // DataTableが設定されていない場合、手動で設定を試行
+        UE_LOG(LogTemp, Warning, TEXT("BaseComponent: Attempting manual DataTable setup..."));
+        if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
+        {
+            if (UC_GameInstance* CGameInstance = Cast<UC_GameInstance>(GameInstance))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("BaseComponent: Found C_GameInstance, calling InitializeDataTables manually"));
+                CGameInstance->InitializeDataTables();
+            }
+        }
+    }
+    if (!ItemManager)
+    {
+        UE_LOG(LogTemp, Error, TEXT("BaseComponent: ItemDataTableManager not found!"));
+    }
+
+    // 初期設定：人口1人、上限0（住居がない状態）
+    CurrentPopulation = 1;
+    MaxPopulation = 0;
+    AvailableWorkers = 1;
+
+    // 既存の設備データをクリアしてから新しいテスト設備を追加
+    if (FacilityManager)
+    {
+        FacilityManager->ClearAllFacilities();
+    }
+    
+    // 表示テスト用のデフォルト設備を追加
+    AddTestFacilities();
+}
+
+void UBaseComponent::ForceSetupTestFacilities()
+{
+    UE_LOG(LogTemp, Warning, TEXT("BaseComponent::ForceSetupTestFacilities - Force setup called"));
+    
+    // 管理者への参照がない場合は取得
+    if (!FacilityManager)
+    {
+        if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
+        {
+            UE_LOG(LogTemp, Error, TEXT("DEBUG: GameInstance class is: %s"), *GameInstance->GetClass()->GetName());
+            FacilityManager = GameInstance->GetSubsystem<UFacilityManager>();
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("DEBUG: GameInstance is NULL!"));
+        }
+    }
+    
+    if (!FacilityManager)
+    {
+        UE_LOG(LogTemp, Error, TEXT("BaseComponent::ForceSetupTestFacilities - FacilityManager still not found!"));
+        return;
+    }
+    
+    // データをクリアして新しい設備を追加
+    FacilityManager->ClearAllFacilities();
+    AddTestFacilities();
+}
+

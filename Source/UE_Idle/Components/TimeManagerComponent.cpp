@@ -1,6 +1,7 @@
 #include "TimeManagerComponent.h"
 #include "TaskManagerComponent.h"
 #include "../Components/TeamComponent.h"
+#include "../Components/GatheringComponent.h"
 #include "Engine/World.h"
 
 UTimeManagerComponent::UTimeManagerComponent()
@@ -304,9 +305,94 @@ void UTimeManagerComponent::ProcessSpecificTask(int32 TeamIndex, ETaskType TaskT
         return;
     }
 
-    // 特定タスクタイプの処理（将来的に詳細実装）
-    UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessSpecificTask: Team %d processing %s"), 
-           TeamIndex, *UTaskTypeUtils::GetTaskTypeDisplayName(TaskType));
+    // 特定タスクタイプ別の処理
+    switch (TaskType)
+    {
+        case ETaskType::Gathering:
+        {
+            ProcessGatheringTask(TeamIndex);
+            break;
+        }
+        case ETaskType::Adventure:
+        case ETaskType::Cooking:
+        case ETaskType::Construction:
+        case ETaskType::Crafting:
+        {
+            // 他のタスクタイプは将来的に実装
+            UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessSpecificTask: Team %d processing %s (not yet implemented)"), 
+                   TeamIndex, *UTaskTypeUtils::GetTaskTypeDisplayName(TaskType));
+            break;
+        }
+        default:
+        {
+            UE_LOG(LogTemp, Warning, TEXT("ProcessSpecificTask: Unknown task type for team %d"), TeamIndex);
+            break;
+        }
+    }
+}
+
+void UTimeManagerComponent::ProcessGatheringTask(int32 TeamIndex)
+{
+    if (!IsValidTeam(TeamIndex) || !GatheringComponent)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringTask: Invalid team %d or missing GatheringComponent"), TeamIndex);
+        return;
+    }
+
+    if (TeamIndex >= TeamComponents.Num())
+    {
+        UE_LOG(LogTemp, Error, TEXT("ProcessGatheringTask: TeamIndex %d out of range"), TeamIndex);
+        return;
+    }
+
+    UTeamComponent* TeamComp = TeamComponents[TeamIndex];
+    if (!TeamComp)
+    {
+        UE_LOG(LogTemp, Error, TEXT("ProcessGatheringTask: TeamComponent is null for team %d"), TeamIndex);
+        return;
+    }
+
+    FTeam Team = TeamComp->GetTeam(TeamIndex);
+    
+    // チームが採集可能な状態かチェック
+    if (Team.Members.Num() == 0)
+    {
+        UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringTask: Team %d has no members"), TeamIndex);
+        return;
+    }
+
+    // **修正**: 採集開始の判定のみを実行（実際の採集処理はGatheringComponentが独立して処理）
+    EGatheringState CurrentGatheringState = GatheringComponent->GetGatheringState(TeamIndex);
+    
+    if (CurrentGatheringState == EGatheringState::Inactive)
+    {
+        // 採集が開始されていない場合、開始を試行
+        if (!Team.GatheringLocationId.IsEmpty())
+        {
+            // 採集場所が設定されている場合、採集開始指示
+            bool bStarted = GatheringComponent->StartGathering(TeamIndex, Team.GatheringLocationId);
+            if (bStarted)
+            {
+                UE_LOG(LogTemp, Log, TEXT("ProcessGatheringTask: Started gathering for team %d at location %s"), 
+                    TeamIndex, *Team.GatheringLocationId);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringTask: Failed to start gathering for team %d at location %s"), 
+                    TeamIndex, *Team.GatheringLocationId);
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringTask: Team %d has Gathering task but no GatheringLocationId set"), TeamIndex);
+        }
+    }
+    else
+    {
+        // **修正**: 既に採集中の場合は状態監視のみ（実際の処理はGatheringComponentが独立実行）
+        UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringTask: Team %d is actively gathering (state: %d)"), 
+            TeamIndex, (int32)CurrentGatheringState);
+    }
 }
 
 void UTimeManagerComponent::MonitorLockedAction(int32 TeamIndex)
@@ -515,10 +601,24 @@ void UTimeManagerComponent::RegisterTeamComponent(UTeamComponent* InTeamComponen
     }
 }
 
+void UTimeManagerComponent::RegisterGatheringComponent(UGatheringComponent* InGatheringComponent)
+{
+    if (IsValid(InGatheringComponent))
+    {
+        GatheringComponent = InGatheringComponent;
+        UE_LOG(LogTemp, Log, TEXT("TimeManagerComponent: GatheringComponent registered successfully"));
+    }
+    else
+    {
+        LogTimeError(TEXT("RegisterGatheringComponent: Invalid GatheringComponent"));
+    }
+}
+
 void UTimeManagerComponent::ClearRegisteredComponents()
 {
     TaskManager = nullptr;
     TeamComponents.Empty();
+    GatheringComponent = nullptr;
     
     UE_LOG(LogTemp, Log, TEXT("TimeManagerComponent: All registered components cleared"));
 }
@@ -644,7 +744,7 @@ void UTimeManagerComponent::ProcessNormalTaskSafe(int32 TeamIndex)
 
 bool UTimeManagerComponent::AreReferencesValid() const
 {
-    return IsValid(TaskManager) && TeamComponents.Num() > 0;
+    return IsValid(TaskManager) && TeamComponents.Num() > 0 && IsValid(GatheringComponent);
 }
 
 FString UTimeManagerComponent::GetProcessingStats() const

@@ -6,7 +6,9 @@
 #include "Components/EventLogManager.h"
 #include "Components/TaskManagerComponent.h"
 #include "Components/TimeManagerComponent.h"
+#include "Components/GatheringComponent.h"
 #include "Components/CraftingComponent.h"
+#include "Components/BaseComponent.h"
 #include "Actor/C_IdleCharacter.h"
 #include "UI/C__InventoryList.h"
 #include "UI/C_TaskList.h"
@@ -28,7 +30,11 @@ AC_PlayerController::AC_PlayerController()
 	// Create Task Management System components
 	TaskManager = CreateDefaultSubobject<UTaskManagerComponent>(TEXT("TaskManager"));
 	TimeManager = CreateDefaultSubobject<UTimeManagerComponent>(TEXT("TimeManager"));
+	GatheringComponent = CreateDefaultSubobject<UGatheringComponent>(TEXT("GatheringComponent"));
 	CraftingComponent = CreateDefaultSubobject<UCraftingComponent>(TEXT("CraftingComponent"));
+
+	// Create Base Management System component
+	BaseComponent = CreateDefaultSubobject<UBaseComponent>(TEXT("BaseComponent"));
 
 	// Initialize UI variables
 	InventoryListWidget = nullptr;
@@ -39,6 +45,17 @@ AC_PlayerController::AC_PlayerController()
 void AC_PlayerController::BeginPlay()
 {
 	Super::BeginPlay();
+
+	UE_LOG(LogTemp, Warning, TEXT("AC_PlayerController::BeginPlay - Starting initialization"));
+	UE_LOG(LogTemp, Warning, TEXT("AC_PlayerController::BeginPlay - BaseComponent: %s"), 
+		BaseComponent ? TEXT("Valid") : TEXT("NULL"));
+	
+	// BaseComponentの手動初期化を確実に実行
+	if (BaseComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AC_PlayerController::BeginPlay - Manually calling BaseComponent::InitializeBaseComponent"));
+		BaseComponent->InitializeBaseComponent();
+	}
 
 	// Auto-initialize inventory UI if widget class is set
 	if (InventoryListWidgetClass && GlobalInventory)
@@ -91,6 +108,17 @@ void AC_PlayerController::BeginPlay()
 
 	// Add default tasks for testing
 	AddDefaultTasks();
+
+	// Force BaseComponent initialization for testing
+	if (BaseComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AC_PlayerController::BeginPlay - Forcing BaseComponent test facilities"));
+		BaseComponent->AddTestFacilities();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController::BeginPlay - BaseComponent is NULL!"));
+	}
 	
 }
 
@@ -413,17 +441,37 @@ void AC_PlayerController::InitializeTaskManagementSystem()
 		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController: Missing components for TaskManager setup"));
 	}
 	
-	if (TimeManager && TaskManager && TeamComponent)
+	if (TimeManager && TaskManager && TeamComponent && GatheringComponent)
 	{
 		// TimeManager references
 		TimeManager->RegisterTaskManager(TaskManager);
 		TimeManager->RegisterTeamComponent(TeamComponent);
+		TimeManager->RegisterGatheringComponent(GatheringComponent);
 		
 		UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: TimeManager references set"));
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController: Missing components for TimeManager setup"));
+		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController: Missing components for TimeManager setup (TaskManager: %s, TeamComponent: %s, GatheringComponent: %s)"), 
+			TaskManager ? TEXT("OK") : TEXT("NULL"),
+			TeamComponent ? TEXT("OK") : TEXT("NULL"),
+			GatheringComponent ? TEXT("OK") : TEXT("NULL"));
+	}
+	
+	// GatheringComponent initialization
+	if (GatheringComponent && TeamComponent && TaskManager)
+	{
+		// Set component references for GatheringComponent
+		GatheringComponent->RegisterTeamComponent(TeamComponent);
+		GatheringComponent->RegisterTaskManagerComponent(TaskManager);
+		
+		UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: GatheringComponent references set"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController: Missing components for GatheringComponent setup (TeamComponent: %s, TaskManager: %s)"),
+			TeamComponent ? TEXT("OK") : TEXT("NULL"),
+			TaskManager ? TEXT("OK") : TEXT("NULL"));
 	}
 	
 	// Bind combat end event

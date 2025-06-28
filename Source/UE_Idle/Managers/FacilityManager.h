@@ -30,6 +30,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Facility Manager")
     FFacilityDataRow GetFacilityDataByRowName(const FName& RowName) const;
 
+    // デバッグ・開発用
+    UFUNCTION(BlueprintCallable, Category = "Facility Manager")
+    void ClearAllFacilities();
+
     // 施設の作成・管理
     UFUNCTION(BlueprintCallable, Category = "Facility Manager")
     FGuid CreateFacility(const FString& FacilityId, const FVector& Location);
@@ -132,6 +136,10 @@ public:
     // 定期処理
     UFUNCTION(BlueprintCallable, Category = "Facility Manager")
     void ProcessMaintenance(float DeltaTime);
+
+    // Debug/Test function for BaseComponent
+    UFUNCTION(BlueprintCallable, Category = "Facility Manager")
+    void AddTestFacilityInstance(const FFacilityInstance& Instance);
 
     // イベント
     UPROPERTY(BlueprintAssignable, Category = "Facility Manager")

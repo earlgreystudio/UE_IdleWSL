@@ -13,7 +13,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryItemChanged, const FStr
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryItemEquipped, const FString&, ItemId, EEquipmentSlot, Slot);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryItemUnequipped, const FString&, ItemId, EEquipmentSlot, Slot);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryMoneyChanged, int32, NewAmount);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryResourceChanged, EResourceType, ResourceType, int32, NewAmount);
+// FOnInventoryResourceChanged削除 - 新採集システムではFOnInventoryItemChangedを使用
 
 UCLASS(BlueprintType, Blueprintable, ClassGroup=(Inventory), meta=(BlueprintSpawnableComponent))
 class UE_IDLE_API UInventoryComponent : public UActorComponent
@@ -41,8 +41,7 @@ protected:
     UPROPERTY(BlueprintReadOnly, Category = "Money")
     int32 Money = 0;
 
-    UPROPERTY(BlueprintReadOnly, Category = "Resources")
-    TMap<EResourceType, int32> Resources;
+    // Resources削除 - 新採集システムではResourceカテゴリのItemとして管理
 
 public:
     // Owner identification
@@ -142,19 +141,8 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Trading")
     bool SellItem(const FString& ItemId, int32 Quantity = 1);
 
-    // ========== Resource Functions (for Teams/Locations) ==========
-    
-    UFUNCTION(BlueprintCallable, Category = "Resources")
-    bool AddResource(EResourceType ResourceType, int32 Amount);
-    
-    UFUNCTION(BlueprintCallable, Category = "Resources")
-    bool SpendResource(EResourceType ResourceType, int32 Amount);
-    
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Resources")
-    int32 GetResource(EResourceType ResourceType) const;
-    
-    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Resources")
-    TMap<EResourceType, int32> GetAllResources() const { return Resources; }
+    // ========== Resource Functions 削除 ==========
+    // 新採集システムではResourceカテゴリのItemとして管理
 
     // ========== Equipment Access Functions ==========
     
@@ -178,8 +166,7 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Money Events")
     FOnInventoryMoneyChanged OnMoneyChanged;
 
-    UPROPERTY(BlueprintAssignable, Category = "Resource Events")
-    FOnInventoryResourceChanged OnResourceChanged;
+    // Resource Events削除 - 新採集システムではItem Eventsを使用
 
     // ========== Backward Compatibility ==========
     

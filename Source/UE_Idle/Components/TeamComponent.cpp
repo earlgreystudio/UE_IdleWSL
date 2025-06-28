@@ -97,8 +97,7 @@ int32 UTeamComponent::CreateTeam(const FString& TeamName)
 	Teams.Add(NewTeam);
 	int32 NewTeamIndex = Teams.Num() - 1;
 	
-	// チーム用InventoryComponentを動的作成
-	CreateTeamInventoryComponent(NewTeamIndex);
+	// TeamInventory削除 - 新採集システムでは個人インベントリを使用
 	
 	// 新しいタスク管理データの初期化
 	FTeamTaskList EmptyTaskList;
@@ -121,11 +120,7 @@ bool UTeamComponent::DeleteTeam(int32 TeamIndex)
 		FTeam& Team = Teams[TeamIndex];
 		Team.Members.Empty();
 		
-		// 対応するInventoryComponentを削除
-		if (TeamInventories.IsValidIndex(TeamIndex))
-		{
-			TeamInventories.RemoveAt(TeamIndex);
-		}
+		// TeamInventory削除済み
 		
 		// 対応するタスクリストを削除
 		if (TeamTasks.IsValidIndex(TeamIndex))
@@ -320,6 +315,66 @@ bool UTeamComponent::StartAdventure(int32 TeamIndex, const FString& LocationId)
 	return true;
 }
 
+bool UTeamComponent::SetTeamGatheringLocation(int32 TeamIndex, const FString& LocationId)
+{
+	if (!Teams.IsValidIndex(TeamIndex))
+	{
+		return false;
+	}
+
+	Teams[TeamIndex].GatheringLocationId = LocationId;
+	
+	// 採集場所を設定した場合、タスクも採集に変更
+	if (!LocationId.IsEmpty() && Teams[TeamIndex].AssignedTask != ETaskType::Gathering)
+	{
+		Teams[TeamIndex].AssignedTask = ETaskType::Gathering;
+		OnTaskChanged.Broadcast(TeamIndex, ETaskType::Gathering);
+	}
+	
+	OnTeamsUpdated.Broadcast();
+	
+	UE_LOG(LogTemp, Log, TEXT("Team %d gathering location set to: %s"), TeamIndex, *LocationId);
+	return true;
+}
+
+bool UTeamComponent::StartGathering(int32 TeamIndex, const FString& LocationId)
+{
+	if (!Teams.IsValidIndex(TeamIndex))
+	{
+		UE_LOG(LogTemp, Error, TEXT("StartGathering: Invalid team index %d"), TeamIndex);
+		return false;
+	}
+
+	FTeam& Team = Teams[TeamIndex];
+	
+	// チームメンバーがいるかチェック
+	if (Team.Members.Num() == 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("StartGathering: Team %d has no members"), TeamIndex);
+		return false;
+	}
+
+	// 既に戦闘中かチェック
+	if (Team.bInCombat)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("StartGathering: Team %d is in combat, cannot start gathering"), TeamIndex);
+		return false;
+	}
+
+	// 場所とタスク設定
+	Team.GatheringLocationId = LocationId;
+	Team.AssignedTask = ETaskType::Gathering;
+
+	// イベント通知
+	OnTaskChanged.Broadcast(TeamIndex, ETaskType::Gathering);
+	OnTeamsUpdated.Broadcast();
+
+	UE_LOG(LogTemp, Log, TEXT("Gathering task started for team %d at location %s with %d members"), 
+		TeamIndex, *LocationId, Team.Members.Num());
+	
+	return true;
+}
+
 int32 UTeamComponent::GetCharacterTeamIndex(AC_IdleCharacter* Character) const
 {
 	if (!Character)
@@ -503,108 +558,16 @@ void UTeamComponent::OnCombatEnd(const TArray<AC_IdleCharacter*>& Winners, const
 	OnTeamsUpdated.Broadcast();
 }
 
-// ======== チームInventory機能 ========
+// ======== 旧チームInventory機能（削除） ========
+// 新採集システムでは個人インベントリを使用
 
-UInventoryComponent* UTeamComponent::GetTeamInventoryComponent(int32 TeamIndex) const
-{
-	if (TeamInventories.IsValidIndex(TeamIndex))
-	{
-		return TeamInventories[TeamIndex];
-	}
-	return nullptr;
-}
+// CreateTeamInventoryComponent削除 - 新採集システムでは個人インベントリを使用
 
-void UTeamComponent::CreateTeamInventoryComponent(int32 TeamIndex)
-{
-	// 既に存在する場合は何もしない
-	if (TeamInventories.IsValidIndex(TeamIndex))
-	{
-		return;
-	}
+// ======== 旧チーム運搬手段機能（削除） ========
+// 新採集システムでは個人キャラクターの積載量を使用
 
-	// 配列のサイズを調整
-	while (TeamInventories.Num() <= TeamIndex)
-	{
-		// NewObjectを使用して動的作成 - TeamComponentを直接オーナーとして設定
-		UInventoryComponent* TeamInventory = NewObject<UInventoryComponent>(GetOwner(), UInventoryComponent::StaticClass(),
-			*FString::Printf(TEXT("TeamInventory_%d"), TeamInventories.Num()));
-		
-		if (TeamInventory)
-		{
-			// Team識別用のOwnerIdを設定
-			TeamInventory->OwnerId = FString::Printf(TEXT("TeamInventory_%d"), TeamInventories.Num());
-			UE_LOG(LogTemp, Log, TEXT("TeamComponent::CreateTeamInventoryComponent - Created inventory %d with Owner: %s, OwnerId: %s"), 
-			       TeamInventories.Num(), TeamInventory->GetOwner() ? *TeamInventory->GetOwner()->GetName() : TEXT("Null"),
-			       *TeamInventory->OwnerId);
-			TeamInventories.Add(TeamInventory);
-		}
-		else
-		{
-			// 作成に失敗した場合はnullptrを追加
-			TeamInventories.Add(nullptr);
-		}
-	}
-}
-
-// ======== チーム運搬手段機能 ========
-
-bool UTeamComponent::SetTeamCarrier(int32 TeamIndex, ECarrierType NewCarrierType)
-{
-	if (!Teams.IsValidIndex(TeamIndex))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("SetTeamCarrier: Invalid TeamIndex %d"), TeamIndex);
-		return false;
-	}
-
-	Teams[TeamIndex].CarrierType = NewCarrierType;
-	OnTeamsUpdated.Broadcast();
-	return true;
-}
-
-bool UTeamComponent::SetTeamBaseCarryingCapacity(int32 TeamIndex, float NewCapacity)
-{
-	if (!Teams.IsValidIndex(TeamIndex))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("SetTeamBaseCarryingCapacity: Invalid TeamIndex %d"), TeamIndex);
-		return false;
-	}
-
-	Teams[TeamIndex].BaseCarryingCapacity = FMath::Max(0.0f, NewCapacity);
-	OnTeamsUpdated.Broadcast();
-	return true;
-}
-
-float UTeamComponent::GetTeamTotalCarryingCapacity(int32 TeamIndex) const
-{
-	if (!Teams.IsValidIndex(TeamIndex))
-	{
-		return 0.0f;
-	}
-
-	return Teams[TeamIndex].GetTotalCarryingCapacity();
-}
-
-float UTeamComponent::GetTeamCurrentWeight(int32 TeamIndex) const
-{
-	UInventoryComponent* TeamInventory = GetTeamInventoryComponent(TeamIndex);
-	if (TeamInventory)
-	{
-		return TeamInventory->GetTotalWeight();
-	}
-	return 0.0f;
-}
-
-float UTeamComponent::GetTeamLoadRatio(int32 TeamIndex) const
-{
-	float TotalCapacity = GetTeamTotalCarryingCapacity(TeamIndex);
-	if (TotalCapacity <= 0.0f)
-	{
-		return 0.0f; // 積載量0の場合は0%
-	}
-
-	float CurrentWeight = GetTeamCurrentWeight(TeamIndex);
-	return CurrentWeight / TotalCapacity;
-}
+// 旧運搬手段関連メソッド削除済み
+// 新採集システムでは個人キャラクターの積載量をGatheringComponentで管理
 
 // ======== 新しいチーム別タスク管理機能実装 ========
 

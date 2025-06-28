@@ -11,6 +11,7 @@
 // Forward declarations
 class UTaskManagerComponent;
 class UTeamComponent;
+class UGatheringComponent;
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class UE_IDLE_API UTimeManagerComponent : public UActorComponent
@@ -72,6 +73,10 @@ protected:
     // チームコンポーネントへの参照
     UPROPERTY()
     TArray<UTeamComponent*> TeamComponents;
+
+    // 採集コンポーネントへの参照
+    UPROPERTY()
+    UGatheringComponent* GatheringComponent = nullptr;
 
     // 現在時刻（ゲーム内時間）
     UPROPERTY(BlueprintReadOnly, Category = "Time")
@@ -140,6 +145,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Task Processing")
     void ProcessSpecificTask(int32 TeamIndex, ETaskType TaskType);
 
+    // 採集タスク専用処理
+    UFUNCTION(BlueprintCallable, Category = "Task Processing")
+    void ProcessGatheringTask(int32 TeamIndex);
+
     // 中断不可能アクション監視
     UFUNCTION(BlueprintCallable, Category = "Task Processing")
     void MonitorLockedAction(int32 TeamIndex);
@@ -181,6 +190,10 @@ public:
     // チームコンポーネント登録
     UFUNCTION(BlueprintCallable, Category = "Component Setup")
     void RegisterTeamComponent(UTeamComponent* InTeamComponent);
+
+    // 採集コンポーネント登録
+    UFUNCTION(BlueprintCallable, Category = "Component Setup")
+    void RegisterGatheringComponent(UGatheringComponent* InGatheringComponent);
 
     // 登録済みコンポーネントクリア
     UFUNCTION(BlueprintCallable, Category = "Component Setup")

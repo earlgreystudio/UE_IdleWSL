@@ -13,7 +13,9 @@ class UTeamComponent;
 class UEventLogManager;
 class UTaskManagerComponent;
 class UTimeManagerComponent;
+class UGatheringComponent;
 class UCraftingComponent;
+class UBaseComponent;
 class AC_IdleCharacter;
 class UC__InventoryList;
 class UC_TaskList;
@@ -52,7 +54,14 @@ public:
 	TObjectPtr<UTimeManagerComponent> TimeManager;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Task Management")
+	TObjectPtr<UGatheringComponent> GatheringComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Task Management")
 	TObjectPtr<UCraftingComponent> CraftingComponent;
+
+	// Base Management System
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Base Management")
+	TObjectPtr<UBaseComponent> BaseComponent;
 
 	// IPlayerControllerInterface Implementation
 	virtual void AddItemToStorage_Implementation(const FString& ItemId, int32 Quantity) override;
@@ -67,6 +76,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Task Management")
 	UTimeManagerComponent* GetTimeManager() const { return TimeManager; }
+
+	UFUNCTION(BlueprintCallable, Category = "Base Management")
+	UBaseComponent* GetBaseComponent() const { return BaseComponent; }
 
 	// System Control
 	UFUNCTION(BlueprintCallable, Category = "Task Management")

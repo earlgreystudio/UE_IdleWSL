@@ -143,6 +143,20 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Setup")
     void SetTeamComponentReference(UTeamComponent* TeamComponent);
 
+    // === 採集継続判定機能 ===
+
+    // 採集継続判定（特定チームが特定アイテムの採集を継続すべきか）
+    UFUNCTION(BlueprintCallable, Category = "Gathering")
+    bool ShouldContinueGathering(int32 TeamIndex, const FString& ItemId) const;
+
+    // 現在のアイテム利用可能数取得（拠点倉庫 + チームメンバー所持）
+    UFUNCTION(BlueprintCallable, Category = "Gathering")
+    int32 GetCurrentItemAvailability(int32 TeamIndex, const FString& ItemId) const;
+
+    // 採集関連のアクティブタスク検索
+    UFUNCTION(BlueprintCallable, Category = "Gathering")
+    FGlobalTask FindActiveGatheringTask(const FString& ItemId) const;
+
     // === ユーティリティ ===
 
     // タスクの有効性チェック

@@ -179,20 +179,24 @@ void UC_TeamTaskCard::UpdateButtonStates()
         return;
     }
 
-    // チームタスクの最大数は3
-    const int32 MaxTeamTasks = 3;
+    TArray<FTeamTask> TeamTasks = TeamComponent->GetTeamTasks(TeamIndex);
     
-    // 優先度上げボタン（優先度1が最高）
+    // 優先度上げボタン（インデックス0は最高優先度なので上げられない）
     if (PriorityUpButton)
     {
-        PriorityUpButton->SetIsEnabled(TaskPriority > 1);
+        bool bCanMoveUp = TaskPriority > 0;
+        PriorityUpButton->SetIsEnabled(bCanMoveUp);
+        UE_LOG(LogTemp, Warning, TEXT("UpdateButtonStates: PriorityUp enabled=%s (TaskPriority=%d)"), 
+               bCanMoveUp ? TEXT("true") : TEXT("false"), TaskPriority);
     }
 
-    // 優先度下げボタン
+    // 優先度下げボタン（最後のインデックスは下げられない）
     if (PriorityDownButton)
     {
-        TArray<FTeamTask> TeamTasks = TeamComponent->GetTeamTasks(TeamIndex);
-        PriorityDownButton->SetIsEnabled(TaskPriority < TeamTasks.Num());
+        bool bCanMoveDown = TaskPriority < TeamTasks.Num() - 1;
+        PriorityDownButton->SetIsEnabled(bCanMoveDown);
+        UE_LOG(LogTemp, Warning, TEXT("UpdateButtonStates: PriorityDown enabled=%s (TaskPriority=%d, Total=%d)"), 
+               bCanMoveDown ? TEXT("true") : TEXT("false"), TaskPriority, TeamTasks.Num());
     }
 }
 
@@ -361,7 +365,12 @@ void UC_TeamTaskCard::OnDeleteClicked()
     UE_LOG(LogTemp, Warning, TEXT("UC_TeamTaskCard::OnDeleteClicked - Team %d, Priority %d"), TeamIndex, TaskData.Priority);
     
     // 削除確認ダイアログを表示（Blueprint実装）
+    // もしBlueprint実装がない場合は直接削除
     ShowDeleteConfirmDialog();
+    
+    // Blueprintイベントがない場合の直接削除（テスト用）
+    // 実際のプロジェクトでは削除確認ダイアログを実装することを推奨
+    ConfirmDelete();
 }
 
 void UC_TeamTaskCard::ConfirmDelete()

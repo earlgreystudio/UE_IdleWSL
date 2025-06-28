@@ -15,11 +15,7 @@ UInventoryComponent::UInventoryComponent()
     Inventory.MaxWeight = 100.0f;
     Money = 0;
     
-    // Initialize resources to 0
-    Resources.Add(EResourceType::Gold, 0);
-    Resources.Add(EResourceType::Wood, 0);
-    Resources.Add(EResourceType::Stone, 0);
-    Resources.Add(EResourceType::Water, 0);
+    // Resources初期化削除 - 新採集システムではResourceカテゴリのItemとして管理
 }
 
 void UInventoryComponent::BeginPlay()
@@ -584,48 +580,8 @@ bool UInventoryComponent::SellItem(const FString& ItemId, int32 Quantity)
     return true;
 }
 
-// ========== Resource Functions ==========
-
-bool UInventoryComponent::AddResource(EResourceType ResourceType, int32 Amount)
-{
-    if (Amount < 0)
-    {
-        return false;
-    }
-
-    if (Resources.Contains(ResourceType))
-    {
-        Resources[ResourceType] += Amount;
-    }
-    else
-    {
-        Resources.Add(ResourceType, Amount);
-    }
-
-    OnResourceChanged.Broadcast(ResourceType, Resources[ResourceType]);
-    return true;
-}
-
-bool UInventoryComponent::SpendResource(EResourceType ResourceType, int32 Amount)
-{
-    if (Amount < 0 || !Resources.Contains(ResourceType) || Resources[ResourceType] < Amount)
-    {
-        return false;
-    }
-
-    Resources[ResourceType] -= Amount;
-    OnResourceChanged.Broadcast(ResourceType, Resources[ResourceType]);
-    return true;
-}
-
-int32 UInventoryComponent::GetResource(EResourceType ResourceType) const
-{
-    if (Resources.Contains(ResourceType))
-    {
-        return Resources[ResourceType];
-    }
-    return 0;
-}
+// ========== Resource Functions 削除 ==========
+// 新採集システムではResourceカテゴリのItemとして管理
 
 // ========== Carrying Capacity Functions ==========
 
@@ -637,29 +593,7 @@ float UInventoryComponent::GetMaxCarryingCapacity() const
         return 0.0f;
     }
 
-    // TeamInventoryの場合は、OwnerIdから判別してチーム積載量を返す
-    if (OwnerId.StartsWith(TEXT("TeamInventory_")))
-    {
-        UE_LOG(LogTemp, Log, TEXT("InventoryComponent::GetMaxCarryingCapacity - Detected TeamInventory: %s"), *OwnerId);
-        
-        // Extract team index from OwnerId
-        FString TeamIndexStr = OwnerId.Replace(TEXT("TeamInventory_"), TEXT(""));
-        int32 TeamIndex = FCString::Atoi(*TeamIndexStr);
-        
-        // Get team carrying capacity from TeamComponent
-        if (UTeamComponent* TeamComp = Owner->FindComponentByClass<UTeamComponent>())
-        {
-            TArray<FTeam> AllTeams = TeamComp->GetAllTeams();
-            if (AllTeams.IsValidIndex(TeamIndex))
-            {
-                float TeamCapacity = AllTeams[TeamIndex].GetTotalCarryingCapacity();
-                UE_LOG(LogTemp, Log, TEXT("InventoryComponent::GetMaxCarryingCapacity - Team %d capacity: %.1fkg"), TeamIndex, TeamCapacity);
-                return TeamCapacity;
-            }
-        }
-        UE_LOG(LogTemp, Warning, TEXT("InventoryComponent::GetMaxCarryingCapacity - Failed to get team capacity for %s"), *OwnerId);
-        return 20.0f; // デフォルト（袋1人分）
-    }
+    // TeamInventory削除 - 新採集システムでは使用しない
 
     // PlayerController = 無限積載量（拠点の倉庫）
     if (Owner->IsA<APlayerController>())

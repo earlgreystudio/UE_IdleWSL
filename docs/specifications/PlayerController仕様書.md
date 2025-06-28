@@ -17,8 +17,13 @@ APlayerController                 IPlayerControllerInterface
 - **BlueprintImplementableEvent** - 自動的にC++実装を呼び出し
 
 ### 主要コンポーネント
-- **UGlobalInventoryComponent** - アイテム管理システム
-- **UTeamComponent** - キャラクター管理システム
+- **UInventoryComponent** - グローバルストレージ（ストレージ設定）
+- **UTeamComponent** - チーム編成・キャラクター管理システム
+- **UBaseComponent** - 拠点設備・リソース・人口管理システム
+- **UTaskManagerComponent** - グローバルタスク管理システム
+- **UTimeManagerComponent** - 時間進行・タスク実行管理システム
+- **UCraftingComponent** - 製作システム管理
+- **UEventLogManager** - イベントログ統一管理システム
 
 ## 主要機能
 
@@ -142,21 +147,88 @@ public:
 };
 ```
 
+### 3. 拠点管理
+
+#### GetBaseComponent
+```cpp
+UFUNCTION(BlueprintCallable, Category = "Base Management")
+UBaseComponent* GetBaseComponent() const { return BaseComponent; }
+```
+**機能**: 拠点管理コンポーネントの参照を取得  
+**戻り値**: UBaseComponent*
+
+**使用例**:
+```cpp
+// C++
+auto* BaseComp = PlayerController->GetBaseComponent();
+if (BaseComp) {
+    BaseComp->PlanFacility("hut", FVector(100, 0, 0));
+}
+
+// Blueprint
+Get Base Component -> Plan Facility("hut", Location)
+```
+
+**BaseComponent主要機能**:
+- **設備建設**: 拠点施設の計画・建設・アップグレード
+- **リソース管理**: 木材・石材・食料等の自動生産・消費
+- **人口管理**: 住居による人口上限・ワーカー配置管理
+- **効果計算**: 施設による生産速度・貯蔵容量等のボーナス
+- **自動処理**: 建設進捗・生産・メンテナンスの自動実行
+- **テスト設備**: 自動で5つのテスト設備を追加（表示確認用）
+
+### 4. タスク管理システム
+
+#### GetTaskManager・GetTimeManager
+```cpp
+UFUNCTION(BlueprintCallable, Category = "Task Management")
+UTaskManagerComponent* GetTaskManager() const { return TaskManager; }
+
+UFUNCTION(BlueprintCallable, Category = "Task Management")
+UTimeManagerComponent* GetTimeManager() const { return TimeManager; }
+```
+
+**機能**: タスク管理・時間管理コンポーネントへのアクセス  
+**使用例**:
+```cpp
+// グローバルタスクの追加
+auto* TaskMgr = PlayerController->GetTaskManager();
+TaskMgr->AddGlobalTask(NewTask);
+
+// 時間進行の制御
+auto* TimeMgr = PlayerController->GetTimeManager();
+TimeMgr->StartTimeProgression();
+```
+
 ## セットアップ
 
 ### コンストラクタ
 ```cpp
 AC_PlayerController::AC_PlayerController() {
-    // コンポーネント自動作成
-    GlobalInventory = CreateDefaultSubobject<UGlobalInventoryComponent>(TEXT("GlobalInventory"));
+    // 基本コンポーネント自動作成
+    GlobalInventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("GlobalInventory"));
     TeamComponent = CreateDefaultSubobject<UTeamComponent>(TEXT("TeamComponent"));
+    EventLogManager = CreateDefaultSubobject<UEventLogManager>(TEXT("EventLogManager"));
+    
+    // タスク管理システムコンポーネント
+    TaskManager = CreateDefaultSubobject<UTaskManagerComponent>(TEXT("TaskManager"));
+    TimeManager = CreateDefaultSubobject<UTimeManagerComponent>(TEXT("TimeManager"));
+    CraftingComponent = CreateDefaultSubobject<UCraftingComponent>(TEXT("CraftingComponent"));
+    
+    // 拠点管理システムコンポーネント
+    BaseComponent = CreateDefaultSubobject<UBaseComponent>(TEXT("BaseComponent"));
 }
 ```
 
 ### 必要な依存関係
 ```cpp
-#include "Components/GlobalInventoryComponent.h"
+#include "Components/InventoryComponent.h"
 #include "Components/TeamComponent.h"
+#include "Components/BaseComponent.h"
+#include "Components/EventLogManager.h"
+#include "Components/TaskManagerComponent.h"
+#include "Components/TimeManagerComponent.h"
+#include "Components/CraftingComponent.h"
 #include "Actor/C_IdleCharacter.h"
 ```
 

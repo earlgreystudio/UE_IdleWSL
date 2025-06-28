@@ -12,6 +12,7 @@ enum class EItemTypeTable : uint8
     Armor       UMETA(DisplayName = "防具"),
     Consumable  UMETA(DisplayName = "消耗品"),
     Material    UMETA(DisplayName = "素材"),
+    Resource    UMETA(DisplayName = "資源"),
     Quest       UMETA(DisplayName = "クエストアイテム"),
     Misc        UMETA(DisplayName = "その他")
 };
@@ -67,14 +68,8 @@ enum class EInventoryOwnerType : uint8
     Location    UMETA(DisplayName = "場所")
 };
 
-UENUM(BlueprintType)
-enum class EResourceType : uint8
-{
-    Gold        UMETA(DisplayName = "金"),
-    Wood        UMETA(DisplayName = "木材"),
-    Stone       UMETA(DisplayName = "石"),
-    Water       UMETA(DisplayName = "水")
-};
+// EResourceType削除 - Resource概念の廃止により不要
+// 代わりにEItemTypeTable::Resourceを使用
 
 
 USTRUCT(BlueprintType)

@@ -563,20 +563,10 @@ UInventoryComponent* UC_PanelInventory::GetCurrentTeamInventory() const
             return BaseInventoryComponent;
 
         case EInventoryPanelMode::Team:
-            // チームの場合はチームのInventoryComponent
-            if (CachedTeamComponent && CurrentTeamIndex >= 0)
-            {
-                UInventoryComponent* TeamInventory = CachedTeamComponent->GetTeamInventoryComponent(CurrentTeamIndex);
-                UE_LOG(LogTemp, Log, TEXT("UC_PanelInventory::GetCurrentTeamInventory - Returning TeamInventory[%d]: %s"), 
-                       CurrentTeamIndex, TeamInventory ? TEXT("Valid") : TEXT("NULL"));
-                return TeamInventory;
-            }
-            else
-            {
-                UE_LOG(LogTemp, Warning, TEXT("UC_PanelInventory::GetCurrentTeamInventory - Invalid team data: TeamComponent=%s, TeamIndex=%d"),
-                       CachedTeamComponent ? TEXT("Valid") : TEXT("NULL"), CurrentTeamIndex);
-            }
-            break;
+            // 新採集システムではチームインベントリは削除されました
+            // 個人キャラクターのインベントリを使用してください
+            UE_LOG(LogTemp, Warning, TEXT("UC_PanelInventory::GetCurrentTeamInventory - Team inventory removed in new gathering system"));
+            return nullptr;
     }
 
     UE_LOG(LogTemp, Warning, TEXT("UC_PanelInventory::GetCurrentTeamInventory - Returning NULL"));
@@ -594,17 +584,15 @@ FString UC_PanelInventory::GetCurrentDisplayName() const
             if (CachedTeamComponent && CurrentTeamIndex >= 0)
             {
                 FTeam Team = CachedTeamComponent->GetTeam(CurrentTeamIndex);
-                FString CarrierName = Team.GetCarrierDisplayName();
-                
                 if (!Team.TeamName.IsEmpty())
                 {
-                    return FString::Printf(TEXT("%s の%s"), *Team.TeamName, *CarrierName);
+                    return FString::Printf(TEXT("%s のインベントリ"), *Team.TeamName);
                 }
                 else
                 {
                     // A, B, C, D, E... 形式でデフォルト名を生成
                     FString TeamLetter = FString::Printf(TEXT("%c"), 'A' + CurrentTeamIndex);
-                    return FString::Printf(TEXT("チーム%s の%s"), *TeamLetter, *CarrierName);
+                    return FString::Printf(TEXT("チーム%s のインベントリ"), *TeamLetter);
                 }
             }
             break;

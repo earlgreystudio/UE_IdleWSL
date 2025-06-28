@@ -132,6 +132,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Save System")
     bool DeserializeBaseData(const FString& SerializedData);
 
+    // Debug/Test functions
+    UFUNCTION(BlueprintCallable, Category = "Debug")
+    void AddTestFacilities();
+
+    // Manual initialization for PlayerController
+    UFUNCTION(BlueprintCallable, Category = "Base Management")
+    void InitializeBaseComponent();
+
+    // Force setup for testing (can be called from Blueprint)
+    UFUNCTION(BlueprintCallable, Category = "Debug")
+    void ForceSetupTestFacilities();
+
 protected:
     // Helper functions
     bool ConsumeResourcesForCost(const TMap<FString, int32>& Costs);
@@ -158,4 +170,5 @@ private:
     // Constants
     const float PRODUCTION_INTERVAL = 5.0f;  // 5秒ごと
     const float MAINTENANCE_INTERVAL = 60.0f;  // 1分ごと
+
 };

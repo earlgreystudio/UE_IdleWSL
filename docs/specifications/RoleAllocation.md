@@ -17,9 +17,11 @@
 
 ### C_PlayerController
 ・プレイヤーコントローラーのメインクラス
-・InventoryComponent（ストレージ設定）、TeamComponentを持つ
+・InventoryComponent（ストレージ設定）、TeamComponent、BaseComponentを持つ
 ・IPlayerControllerInterfaceを実装
-・プレイヤー固有の機能（チーム管理、インベントリ）に特化
+・プレイヤー固有の機能（チーム管理、インベントリ、拠点管理）に特化
+・タスク管理システム（TaskManager、TimeManager、CraftingComponent）統合
+・拠点管理システム（BaseComponent）統合
 
 ### C_GameInstance
 ・カスタムGameInstanceクラス
@@ -66,22 +68,30 @@
 ### TimeManagerComponent
 ・アイドルゲームにおける時間進行とタスク管理の統括
 ・タイマーベースでの自動時間更新処理（デフォルト1秒間隔）
-・チームタスク進行監視とリソース条件変化の検出
-・戦闘終了後の安全なタスク切り替え処理
+・全体タスク進行とチームタスク進行の監視・制御
+・リソース条件変化の検出と動的タスク切り替え
+・戦闘状態の監視と戦闘終了後の安全なタスク復帰
 ・遅延キューによる安全なタスク切り替え機能
 ・「全て」モードでの動的タスク選択と実行
+・TaskManagerとTeamComponentsの統合管理
 ・デバッグ用高速処理モードと詳細ログ出力
 
 ### CombatComponent
 ・戦闘システムの中核管理
-・戦闘状態の管理と戦闘開始・終了処理
-・ActionSystemComponentと連携して戦闘実行
+・戦闘状態（Inactive/Preparing/InProgress/Ending）の管理
+・戦闘開始条件の検証と戦闘セットアップ
+・ActionSystemComponentの制御（開始・停止）
+・戦闘終了処理とイベント通知
+・LocationEventManagerとの連携による敵チーム管理
 ・BattleSystemManagerによって管理される
 
 ### ActionSystemComponent
 ・戦闘中のキャラクター行動処理
 ・AI行動決定とターン管理
 ・攻撃・防御・回避の実行処理
+・独自タイマーによる行動実行（即座実行モード対応）
+・アクションキューの管理（味方・敵別）
+・戦闘ログの記録とEventLogManagerへの通知
 
 ### EventLogManager
 ・全ゲームイベントの統一ログ管理システム
@@ -90,12 +100,24 @@
 ・既存CombatLogManagerとの後方互換性維持
 ・UI表示用フォーマット済みテキスト提供
 
+### GatheringComponent
+・採集システムの中核管理
+・移動と採集の状態管理（MovingToSite/Gathering/MovingToBase/Unloading）
+・GatheringPowerベースの採取量計算と確率判定
+・運搬キャラ優先のアイテム配分ロジック
+・Resourceカテゴリアイテムの自動荷下ろし
+・距離ベースの移動システム
+・TimeManagerComponentとの連携による自動進行
+
 ### LocationEventManager
 ・場所でのイベント発生管理
 ・戦闘イベントや採取イベントのトリガー
-・場所別の敵チーム生成機能
-・CharacterPresetManagerとCombatComponentとの連携
+・場所別の敵チーム生成機能（DataTableベース）
+・CharacterPresetManagerとの連携による敵キャラクター生成
+・CombatComponentへの戦闘開始依頼
 ・敵チームのライフサイクル管理（生成・削除）
+・場所データの取得と検証機能（採集データ含む）
+・BattleSystemManagerによって保持・管理される
 
 ## Managers
 
@@ -118,9 +140,12 @@
 
 ### BattleSystemManager (GameInstanceSubsystem)
 ・戦闘システム全体の統括管理
-・LocationEventManagerとCombatComponentを保持
-・チームの冒険開始処理
+・LocationEventManagerとCombatComponentを保持・管理
+・チームの冒険開始処理（TeamComponentから委譲）
+・戦闘イベントのトリガーと場所データ管理
+・敵チーム生成と戦闘開始の仲介
 ・PlayerControllerから戦闘関連の責任を分離
+・戦闘終了時のクリーンアップ処理
 
 ### CombatCalculator
 ・戦闘計算の専門クラス
@@ -191,6 +216,20 @@
 ・冒険時のみ目的地選択が追加表示
 ・FTeamTask構造体ベースのタスク作成
 ・C_TeamCard内のボタンから起動
+
+### C_BaseFacilityList
+・拠点設備一覧表示ウィジェット
+・PlayerControllerのBaseComponentを自動検出して初期化
+・設備タイプ・状態別フィルタリング機能
+・設備総数・稼働中数のサマリー表示
+・FacilityManager/BaseComponentイベント連携による自動更新
+
+### C_FacilityCard
+・個別設備詳細情報カード（表示専用設計）
+・設備名、レベル、タイプ、状態、耐久度、ワーカー情報表示
+・継続効果、アンロック効果、自動生産、コスト情報の動的表示
+・状態別色分け表示（計画中/建設中/稼働中/損傷/破壊/アップグレード中）
+・アップグレード・建設は全体タスクシステムで実行（UI上はアクションボタンなし）
 
 ## Types
 
