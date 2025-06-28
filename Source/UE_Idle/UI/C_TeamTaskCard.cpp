@@ -70,7 +70,8 @@ void UC_TeamTaskCard::UpdatePriorityDisplay()
 {
     if (PriorityText)
     {
-        FString PriorityStr = FString::Printf(TEXT("優先度: %d"), TaskPriority);
+        // 表示は1から始めるため、インデックスに1を加える
+        FString PriorityStr = FString::Printf(TEXT("優先度: %d"), TaskPriority + 1);
         PriorityText->SetText(FText::FromString(PriorityStr));
     }
 }
@@ -281,87 +282,101 @@ TArray<AC_IdleCharacter*> UC_TeamTaskCard::GetTeamMembers() const
 
 void UC_TeamTaskCard::OnPriorityUpClicked()
 {
+    UE_LOG(LogTemp, Warning, TEXT("UC_TeamTaskCard::OnPriorityUpClicked - Team %d, Task Priority %d, Index %d"), TeamIndex, TaskData.Priority, TaskPriority);
+    
     if (!TeamComponent)
     {
+        UE_LOG(LogTemp, Error, TEXT("UC_TeamTaskCard::OnPriorityUpClicked - TeamComponent is null"));
         return;
     }
 
-    // 優先度を上げる処理
-    TArray<FTeamTask> TeamTasks = TeamComponent->GetTeamTasks(TeamIndex);
-    
-    // 現在のタスクと1つ上の優先度のタスクを探して交換
-    for (int32 i = 0; i < TeamTasks.Num(); i++)
+    // 優先度を上げる = インデックスを下げる（0が最高優先度）
+    if (TaskPriority > 0)
     {
-        if (TeamTasks[i].Priority == TaskPriority && TaskPriority > 1)
+        // 現在位置の1つ上（インデックスが小さい）のタスクと交換
+        TArray<FTeamTask> TeamTasks = TeamComponent->GetTeamTasks(TeamIndex);
+        
+        if (TeamTasks.IsValidIndex(TaskPriority) && TeamTasks.IsValidIndex(TaskPriority - 1))
         {
-            // 上の優先度のタスクを探す
-            for (int32 j = 0; j < TeamTasks.Num(); j++)
-            {
-                if (TeamTasks[j].Priority == TaskPriority - 1)
-                {
-                    // 優先度を交換
-                    TeamTasks[i].Priority = TaskPriority - 1;
-                    TeamTasks[j].Priority = TaskPriority;
-                    
-                    UE_LOG(LogTemp, Log, TEXT("UC_TeamTaskCard: Swapped priorities %d and %d"), TaskPriority, TaskPriority - 1);
-                    
-                    // ここで実際の更新処理を呼ぶ必要がある
-                    // TeamComponentに優先度交換機能を追加する必要がある
-                    break;
-                }
-            }
-            break;
+            // 両方のタスクを削除
+            FTeamTask CurrentTask = TeamTasks[TaskPriority];
+            FTeamTask OtherTask = TeamTasks[TaskPriority - 1];
+            
+            // 優先度値を交換
+            int32 TempPriority = CurrentTask.Priority;
+            CurrentTask.Priority = OtherTask.Priority;
+            OtherTask.Priority = TempPriority;
+            
+            // 両方削除してから追加し直す
+            TeamComponent->RemoveTeamTask(TeamIndex, CurrentTask.Priority);
+            TeamComponent->RemoveTeamTask(TeamIndex, OtherTask.Priority);
+            TeamComponent->AddTeamTask(TeamIndex, OtherTask);
+            TeamComponent->AddTeamTask(TeamIndex, CurrentTask);
+            
+            UE_LOG(LogTemp, Warning, TEXT("UC_TeamTaskCard: Swapped task priorities"));
         }
     }
 }
 
 void UC_TeamTaskCard::OnPriorityDownClicked()
 {
+    UE_LOG(LogTemp, Warning, TEXT("UC_TeamTaskCard::OnPriorityDownClicked - Team %d, Task Priority %d, Index %d"), TeamIndex, TaskData.Priority, TaskPriority);
+    
     if (!TeamComponent)
     {
+        UE_LOG(LogTemp, Error, TEXT("UC_TeamTaskCard::OnPriorityDownClicked - TeamComponent is null"));
         return;
     }
 
-    // 優先度を下げる処理（上記と同様の実装）
+    // 優先度を下げる = インデックスを上げる
     TArray<FTeamTask> TeamTasks = TeamComponent->GetTeamTasks(TeamIndex);
     
-    for (int32 i = 0; i < TeamTasks.Num(); i++)
+    if (TaskPriority < TeamTasks.Num() - 1)
     {
-        if (TeamTasks[i].Priority == TaskPriority && TaskPriority < TeamTasks.Num())
+        // 現在位置の1つ下（インデックスが大きい）のタスクと交換
+        if (TeamTasks.IsValidIndex(TaskPriority) && TeamTasks.IsValidIndex(TaskPriority + 1))
         {
-            // 下の優先度のタスクを探す
-            for (int32 j = 0; j < TeamTasks.Num(); j++)
-            {
-                if (TeamTasks[j].Priority == TaskPriority + 1)
-                {
-                    // 優先度を交換
-                    TeamTasks[i].Priority = TaskPriority + 1;
-                    TeamTasks[j].Priority = TaskPriority;
-                    
-                    UE_LOG(LogTemp, Log, TEXT("UC_TeamTaskCard: Swapped priorities %d and %d"), TaskPriority, TaskPriority + 1);
-                    break;
-                }
-            }
-            break;
+            // 両方のタスクを削除
+            FTeamTask CurrentTask = TeamTasks[TaskPriority];
+            FTeamTask OtherTask = TeamTasks[TaskPriority + 1];
+            
+            // 優先度値を交換
+            int32 TempPriority = CurrentTask.Priority;
+            CurrentTask.Priority = OtherTask.Priority;
+            OtherTask.Priority = TempPriority;
+            
+            // 両方削除してから追加し直す
+            TeamComponent->RemoveTeamTask(TeamIndex, CurrentTask.Priority);
+            TeamComponent->RemoveTeamTask(TeamIndex, OtherTask.Priority);
+            TeamComponent->AddTeamTask(TeamIndex, OtherTask);
+            TeamComponent->AddTeamTask(TeamIndex, CurrentTask);
+            
+            UE_LOG(LogTemp, Warning, TEXT("UC_TeamTaskCard: Swapped task priorities"));
         }
     }
 }
 
 void UC_TeamTaskCard::OnDeleteClicked()
 {
+    UE_LOG(LogTemp, Warning, TEXT("UC_TeamTaskCard::OnDeleteClicked - Team %d, Priority %d"), TeamIndex, TaskData.Priority);
+    
     // 削除確認ダイアログを表示（Blueprint実装）
     ShowDeleteConfirmDialog();
 }
 
 void UC_TeamTaskCard::ConfirmDelete()
 {
+    UE_LOG(LogTemp, Warning, TEXT("UC_TeamTaskCard::ConfirmDelete - Team %d, Priority %d"), TeamIndex, TaskData.Priority);
+    
     if (!TeamComponent)
     {
+        UE_LOG(LogTemp, Error, TEXT("UC_TeamTaskCard::ConfirmDelete - TeamComponent is null"));
         return;
     }
 
-    if (TeamComponent->RemoveTeamTask(TeamIndex, TaskPriority))
+    // TaskData.Priorityを使用（実際の優先度値）
+    if (TeamComponent->RemoveTeamTask(TeamIndex, TaskData.Priority))
     {
-        UE_LOG(LogTemp, Log, TEXT("UC_TeamTaskCard: Deleted team task with priority %d from team %d"), TaskPriority, TeamIndex);
+        UE_LOG(LogTemp, Log, TEXT("UC_TeamTaskCard: Deleted team task with priority %d from team %d"), TaskData.Priority, TeamIndex);
     }
 }

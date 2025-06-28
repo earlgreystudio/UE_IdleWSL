@@ -10,12 +10,34 @@ UC_CharacterCard::UC_CharacterCard(const FObjectInitializer& ObjectInitializer)
     , Character(nullptr)
     , bIsInitialized(false)
 {
+    UE_LOG(LogTemp, Warning, TEXT("===== UC_CharacterCard CREATED ====="));
 }
 
 void UC_CharacterCard::NativeConstruct()
 {
     Super::NativeConstruct();
     bIsInitialized = true;
+    
+    UE_LOG(LogTemp, Error, TEXT("===== UC_CharacterCard::NativeConstruct - CHARACTER CARD CONSTRUCTED ====="));
+    
+    // Check widget bindings
+    if (CharacterNameText)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UC_CharacterCard::NativeConstruct - CharacterNameText found"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("UC_CharacterCard::NativeConstruct - CharacterNameText is NULL! Check Blueprint binding"));
+    }
+    
+    if (SpecialtyText)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UC_CharacterCard::NativeConstruct - SpecialtyText found"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("UC_CharacterCard::NativeConstruct - SpecialtyText is NULL! Check Blueprint binding"));
+    }
     
     // If character was set via ExposeOnSpawn, initialize automatically
     if (Character)
@@ -24,6 +46,10 @@ void UC_CharacterCard::NativeConstruct()
         UpdateDisplay();
         UE_LOG(LogTemp, Warning, TEXT("UC_CharacterCard: Auto-initialized with character: %s"), 
                *IIdleCharacterInterface::Execute_GetCharacterName(Character));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UC_CharacterCard::NativeConstruct - No character set yet, waiting for InitializeWithCharacter"));
     }
 }
 

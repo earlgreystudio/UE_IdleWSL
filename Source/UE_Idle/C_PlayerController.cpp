@@ -92,13 +92,6 @@ void AC_PlayerController::BeginPlay()
 	// Add default tasks for testing
 	AddDefaultTasks();
 	
-	// デバッグ：TaskListUIを手動表示してテスト
-	FTimerHandle TimerHandle;
-	GetWorldTimerManager().SetTimer(TimerHandle, [this]()
-	{
-		UE_LOG(LogTemp, Warning, TEXT("=== Manual TaskList Test ==="));
-		ShowTaskListUI();
-	}, 1.0f, false); // 1秒後に実行
 }
 
 void AC_PlayerController::AddItemToStorage_Implementation(const FString& ItemId, int32 Quantity)
