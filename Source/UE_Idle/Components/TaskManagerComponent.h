@@ -61,6 +61,14 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Task")
     bool UpdateTaskPriority(int32 TaskIndex, int32 NewPriority);
 
+    // タスク目標量更新
+    UFUNCTION(BlueprintCallable, Category = "Task")
+    bool UpdateTaskTargetQuantity(int32 TaskIndex, int32 NewTargetQuantity);
+
+    // タスク完了
+    UFUNCTION(BlueprintCallable, Category = "Task")
+    bool CompleteTask(int32 TaskIndex);
+
     // 優先度順タスク取得
     UFUNCTION(BlueprintCallable, Category = "Task")
     TArray<FGlobalTask> GetGlobalTasksByPriority() const;
@@ -156,6 +164,18 @@ public:
     // 採集関連のアクティブタスク検索
     UFUNCTION(BlueprintCallable, Category = "Gathering")
     FGlobalTask FindActiveGatheringTask(const FString& ItemId) const;
+    
+    // 指定チームが採集すべき対象アイテムを決定（TimeManagerからの委譲）
+    UFUNCTION(BlueprintCallable, Category = "Task Execution")
+    FString GetTargetItemForTeam(int32 TeamIndex, const FString& LocationId) const;
+    
+    // タスクが目標数量に達したかチェック
+    UFUNCTION(BlueprintCallable, Category = "Task Execution")
+    bool IsTaskCompleted(const FString& TaskId) const;
+    
+    // 指定チームが実行可能な採集タスクリストを取得
+    UFUNCTION(BlueprintCallable, Category = "Task Execution")
+    TArray<FGlobalTask> GetExecutableGatheringTasksAtLocation(int32 TeamIndex, const FString& LocationId) const;
 
     // === ユーティリティ ===
 
@@ -199,6 +219,9 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "Task Events")
     FOnGlobalTaskRemoved OnGlobalTaskRemoved;
+    
+    UPROPERTY(BlueprintAssignable, Category = "Task Events")
+    FOnTaskQuantityUpdated OnTaskQuantityUpdated;
 
 private:
     // === 内部ヘルパー関数 ===
@@ -217,4 +240,9 @@ private:
 
     // エラーログ出力
     void LogError(const FString& ErrorMessage) const;
+
+    // === 内部状態管理 ===
+    
+    // タスク処理中フラグ（再入防止）
+    bool bIsProcessingTasks = false;
 };

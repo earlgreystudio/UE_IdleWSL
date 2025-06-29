@@ -46,7 +46,7 @@ void UC__InventoryList::InitializeWithInventory(UInventoryComponent* InInventory
 {
     if (!InInventoryComponent)
     {
-        UE_LOG(LogTemp, Warning, TEXT("UC__InventoryList: InitializeWithInventory called with null inventory"));
+        UE_LOG(LogTemp, VeryVerbose, TEXT("UC__InventoryList: InitializeWithInventory called with null inventory"));
         // Clear the display when no inventory is provided
         ClearItemCards();
         if (WeightDisplayText)
@@ -82,17 +82,17 @@ void UC__InventoryList::InitializeWithInventory(UInventoryComponent* InInventory
 
 void UC__InventoryList::RefreshInventoryList()
 {
-    UE_LOG(LogTemp, Log, TEXT("InventoryList::RefreshInventoryList - Starting refresh"));
+    UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::RefreshInventoryList - Starting refresh"));
     
     if (!CachedInventoryComponent)
     {
-        UE_LOG(LogTemp, Warning, TEXT("UC__InventoryList: No cached inventory component"));
+        UE_LOG(LogTemp, VeryVerbose, TEXT("UC__InventoryList: No cached inventory component"));
         return;
     }
 
     // Get all inventory slots
     CachedInventorySlots = CachedInventoryComponent->GetAllSlots();
-    UE_LOG(LogTemp, Log, TEXT("InventoryList::RefreshInventoryList - Retrieved %d slots from inventory"), CachedInventorySlots.Num());
+    UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::RefreshInventoryList - Retrieved %d slots from inventory"), CachedInventorySlots.Num());
 
     // Apply filter if active
     if (bIsFiltered)
@@ -105,7 +105,7 @@ void UC__InventoryList::RefreshInventoryList()
             }
             return false;
         });
-        UE_LOG(LogTemp, Log, TEXT("InventoryList::RefreshInventoryList - After filtering: %d slots"), CachedInventorySlots.Num());
+        UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::RefreshInventoryList - After filtering: %d slots"), CachedInventorySlots.Num());
     }
 
     // Sort inventory
@@ -120,25 +120,25 @@ void UC__InventoryList::RefreshInventoryList()
     // Update inventory name
     UpdateInventoryName();
     
-    UE_LOG(LogTemp, Log, TEXT("InventoryList::RefreshInventoryList - Refresh complete"));
+    UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::RefreshInventoryList - Refresh complete"));
 }
 
 void UC__InventoryList::UpdateItemCards()
 {
-    UE_LOG(LogTemp, Log, TEXT("InventoryList::UpdateItemCards - Starting update, CachedSlots: %d"), CachedInventorySlots.Num());
+    UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::UpdateItemCards - Starting update, CachedSlots: %d"), CachedInventorySlots.Num());
     
     if (!ItemCardPanel)
     {
-        UE_LOG(LogTemp, Warning, TEXT("UC__InventoryList: ItemCardPanel is null"));
+        UE_LOG(LogTemp, VeryVerbose, TEXT("UC__InventoryList: ItemCardPanel is null"));
         return;
     }
 
     // Clear existing cards
-    UE_LOG(LogTemp, Log, TEXT("InventoryList::UpdateItemCards - Clearing existing cards..."));
+    UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::UpdateItemCards - Clearing existing cards..."));
     ClearItemCards();
 
     // Create new cards for each slot
-    UE_LOG(LogTemp, Log, TEXT("InventoryList::UpdateItemCards - Creating %d new cards..."), CachedInventorySlots.Num());
+    UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::UpdateItemCards - Creating %d new cards..."), CachedInventorySlots.Num());
     for (const FInventorySlot& InventorySlot : CachedInventorySlots)
     {
         CreateItemCard(InventorySlot);
@@ -150,7 +150,7 @@ void UC__InventoryList::UpdateItemCards()
     // Update inventory name
     UpdateInventoryName();
     
-    UE_LOG(LogTemp, Log, TEXT("InventoryList::UpdateItemCards - Update complete"));
+    UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::UpdateItemCards - Update complete"));
 }
 
 void UC__InventoryList::SetSortType(EInventorySortType NewSortType)
@@ -189,7 +189,7 @@ void UC__InventoryList::UpdateInventoryName()
 {
     if (!InventoryNameText || !CachedInventoryComponent)
     {
-        UE_LOG(LogTemp, Warning, TEXT("InventoryList::UpdateInventoryName - Missing requirements: NameText=%s, Component=%s"),
+        UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::UpdateInventoryName - Missing requirements: NameText=%s, Component=%s"),
                InventoryNameText ? TEXT("Valid") : TEXT("Null"),
                CachedInventoryComponent ? TEXT("Valid") : TEXT("Null"));
         return;
@@ -199,7 +199,7 @@ void UC__InventoryList::UpdateInventoryName()
     
     // Get the owner of the inventory component
     AActor* Owner = CachedInventoryComponent->GetOwner();
-    UE_LOG(LogTemp, Log, TEXT("InventoryList::UpdateInventoryName - Owner: %s"), 
+    UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::UpdateInventoryName - Owner: %s"), 
            Owner ? *Owner->GetClass()->GetName() : TEXT("Null"));
            
     if (Owner)
@@ -226,7 +226,7 @@ void UC__InventoryList::UpdateInventoryName()
                         FString TeamLetter = FString::Printf(TEXT("%c"), 'A' + TeamIndex);
                         InventoryName = FString::Printf(TEXT("チーム%s のインベントリ"), *TeamLetter);
                     }
-                    UE_LOG(LogTemp, Log, TEXT("InventoryList::UpdateInventoryName - Identified as Team %d inventory: %s"), TeamIndex, *InventoryName);
+                    UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::UpdateInventoryName - Identified as Team %d inventory: %s"), TeamIndex, *InventoryName);
                 }
             }
         }
@@ -234,25 +234,25 @@ void UC__InventoryList::UpdateInventoryName()
         else if (Owner->IsA<APlayerController>())
         {
             InventoryName = TEXT("拠点の倉庫");
-            UE_LOG(LogTemp, Log, TEXT("InventoryList::UpdateInventoryName - Identified as PlayerController (Base)"));
+            UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::UpdateInventoryName - Identified as PlayerController (Base)"));
         }
         // Check if owner is IdleCharacter
         else if (AC_IdleCharacter* Character = Cast<AC_IdleCharacter>(Owner))
         {
             InventoryName = Character->GetCharacterName_Implementation();
-            UE_LOG(LogTemp, Log, TEXT("InventoryList::UpdateInventoryName - Identified as Character: %s (Object: %s)"), *InventoryName, *Character->GetName());
+            UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::UpdateInventoryName - Identified as Character: %s (Object: %s)"), *InventoryName, *Character->GetName());
         }
         else
         {
-            UE_LOG(LogTemp, Warning, TEXT("InventoryList::UpdateInventoryName - Owner type not recognized: %s"), *Owner->GetClass()->GetName());
+            UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::UpdateInventoryName - Owner type not recognized: %s"), *Owner->GetClass()->GetName());
         }
     }
     else
     {
-        UE_LOG(LogTemp, Warning, TEXT("InventoryList::UpdateInventoryName - Owner is null"));
+        UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::UpdateInventoryName - Owner is null"));
     }
 
-    UE_LOG(LogTemp, Log, TEXT("InventoryList::UpdateInventoryName - Setting name to: %s"), *InventoryName);
+    UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::UpdateInventoryName - Setting name to: %s"), *InventoryName);
     InventoryNameText->SetText(FText::FromString(InventoryName));
 }
 
@@ -313,12 +313,12 @@ void UC__InventoryList::ClearFilter()
 
 void UC__InventoryList::CreateItemCard(const FInventorySlot& InventorySlot)
 {
-    UE_LOG(LogTemp, Log, TEXT("InventoryList::CreateItemCard - Creating card for ItemId=%s, Quantity=%d"), 
+    UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::CreateItemCard - Creating card for ItemId=%s, Quantity=%d"), 
            *InventorySlot.ItemId, InventorySlot.Quantity);
            
     if (!ItemCardPanel || !ItemCardWidgetClass)
     {
-        UE_LOG(LogTemp, Warning, TEXT("InventoryList::CreateItemCard - Missing requirements: Panel=%s, WidgetClass=%s"),
+        UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::CreateItemCard - Missing requirements: Panel=%s, WidgetClass=%s"),
                ItemCardPanel ? TEXT("Valid") : TEXT("Null"),
                ItemCardWidgetClass ? TEXT("Valid") : TEXT("Null"));
         return;
@@ -332,7 +332,7 @@ void UC__InventoryList::CreateItemCard(const FInventorySlot& InventorySlot)
         return;
     }
 
-    UE_LOG(LogTemp, Log, TEXT("InventoryList::CreateItemCard - Successfully created widget, initializing..."));
+    UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::CreateItemCard - Successfully created widget, initializing..."));
 
     // Initialize card with slot data
     NewCard->InitializeWithSlot(InventorySlot, CachedInventoryComponent);
@@ -341,16 +341,16 @@ void UC__InventoryList::CreateItemCard(const FInventorySlot& InventorySlot)
     ItemCardPanel->AddChild(NewCard);
     ItemCardWidgets.Add(NewCard);
     
-    UE_LOG(LogTemp, Log, TEXT("InventoryList::CreateItemCard - Card added to panel. Total cards: %d"), ItemCardWidgets.Num());
+    UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::CreateItemCard - Card added to panel. Total cards: %d"), ItemCardWidgets.Num());
 }
 
 void UC__InventoryList::ClearItemCards()
 {
-    UE_LOG(LogTemp, Log, TEXT("InventoryList::ClearItemCards - Clearing %d existing cards"), ItemCardWidgets.Num());
+    UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::ClearItemCards - Clearing %d existing cards"), ItemCardWidgets.Num());
     
     if (!ItemCardPanel)
     {
-        UE_LOG(LogTemp, Warning, TEXT("InventoryList::ClearItemCards - ItemCardPanel is null"));
+        UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::ClearItemCards - ItemCardPanel is null"));
         return;
     }
 
@@ -360,7 +360,7 @@ void UC__InventoryList::ClearItemCards()
     // Clear array
     ItemCardWidgets.Empty();
     
-    UE_LOG(LogTemp, Log, TEXT("InventoryList::ClearItemCards - Clear complete"));
+    UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryList::ClearItemCards - Clear complete"));
 }
 
 void UC__InventoryList::OnInventoryItemChanged(const FString& ItemId, int32 NewQuantity)

@@ -12,6 +12,11 @@
 class UTaskManagerComponent;
 class UTeamComponent;
 class UGatheringComponent;
+class ULocationMovementComponent;
+class AC_IdleCharacter;
+class AC_PlayerController;
+class UInventoryComponent;
+class UCharacterStatusComponent;
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class UE_IDLE_API UTimeManagerComponent : public UActorComponent
@@ -77,6 +82,9 @@ protected:
     // 採集コンポーネントへの参照
     UPROPERTY()
     UGatheringComponent* GatheringComponent = nullptr;
+
+    UPROPERTY()
+    ULocationMovementComponent* MovementComponent = nullptr;
 
     // 現在時刻（ゲーム内時間）
     UPROPERTY(BlueprintReadOnly, Category = "Time")
@@ -157,6 +165,48 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Task Processing")
     void ProcessPostCombatTask(int32 TeamIndex);
 
+    // === シンプルなターンベースロジック ===
+    
+    // 現在地を取得
+    UFUNCTION(BlueprintCallable, Category = "Simple Logic")
+    FString GetCurrentLocation(int32 TeamIndex) const;
+    
+    // 現在地でアイテム採集が可能かチェック
+    UFUNCTION(BlueprintCallable, Category = "Simple Logic")
+    bool CanExecuteGatheringAt(const FString& ItemId, const FString& Location) const;
+    
+    // アイテムが採集可能な場所を検索
+    UFUNCTION(BlueprintCallable, Category = "Simple Logic")
+    FString FindLocationForItem(const FString& ItemId) const;
+    
+    // 採集実行
+    UFUNCTION(BlueprintCallable, Category = "Simple Logic")
+    void ExecuteGathering(int32 TeamIndex, const FString& ItemId);
+    
+    // 指定場所への1ターン分移動実行
+    UFUNCTION(BlueprintCallable, Category = "Simple Logic")
+    void ExecuteMovementStep(int32 TeamIndex, const FString& TargetLocation);
+    
+    // 拠点への帰還処理
+    UFUNCTION(BlueprintCallable, Category = "Simple Logic")
+    void ProcessReturnToBase(int32 TeamIndex);
+    
+    // 場所の拠点からの距離取得
+    UFUNCTION(BlueprintCallable, Category = "Simple Logic")
+    int32 GetLocationDistance(const FString& LocationId) const;
+    
+    // チーム移動速度取得
+    UFUNCTION(BlueprintCallable, Category = "Simple Logic")
+    int32 GetTeamMovementSpeed(int32 TeamIndex) const;
+    
+    // チームが次の採集でアイテムを運べるかチェック
+    UFUNCTION(BlueprintCallable, Category = "Simple Logic")
+    bool CanTeamCarryNextGather(int32 TeamIndex, const FString& ItemId);
+    
+    // 自動荷下ろし処理
+    UFUNCTION(BlueprintCallable, Category = "Simple Logic")
+    void AutoUnloadResourceItems(int32 TeamIndex);
+
     // === タスク切り替えロジック ===
 
     // タスク中断・切り替え
@@ -195,9 +245,16 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Component Setup")
     void RegisterGatheringComponent(UGatheringComponent* InGatheringComponent);
 
+    UFUNCTION(BlueprintCallable, Category = "Component Setup")
+    void RegisterMovementComponent(ULocationMovementComponent* InMovementComponent);
+
     // 登録済みコンポーネントクリア
     UFUNCTION(BlueprintCallable, Category = "Component Setup")
     void ClearRegisteredComponents();
+    
+    // 移動完了イベントハンドラー
+    UFUNCTION()
+    void OnMovementCompletedHandler(int32 TeamIndex, const FString& ArrivedLocation);
 
     // === 時間関連ユーティリティ ===
 

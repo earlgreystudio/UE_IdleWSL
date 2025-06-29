@@ -2,6 +2,31 @@
 
 各コンポーネントやアクターの役割を一目で把握できるよう簡潔にまとめています。
 
+## 設計原則
+
+### 時間管理の統一原則
+・**TimeManagerComponent が唯一の時間管理者**（単一タイマー原則）
+・**全ての時間ベース処理は TimeManager からのトリガーで実行**
+・**他のコンポーネントは独立タイマーを持たない**
+・将来の更新頻度変更時は TimeManager のみ修正
+
+### 責任分担の明確化
+```
+TimeManagerComponent（時間統括）
+↓ 毎秒トリガー
+TaskManagerComponent（チームタスク判定・対象決定）
+↓ 判定結果に応じて処理委譲
+├─ 採集タスク → GatheringComponent::ProcessGathering()
+├─ 戦闘タスク → CombatComponent::ProcessCombat()
+├─ 製作タスク → CraftingComponent::ProcessCrafting()
+└─ 建築タスク → ConstructionComponent::ProcessConstruction()
+```
+
+### カプセル化原則
+・**TaskManager**: 「何をすべきか」の判定
+・**各専門Component**: 「どのように実行するか」の実装
+・**目的外処理の禁止**: 指定されたタスクのみ実行（例：木タスクなら木のみ採集）
+
 ## Actor
 
 ### C_BP_GenerateCharacter
@@ -62,18 +87,23 @@
 ・タスクの追加・削除・優先度管理・進行状況追跡
 ・「全て」モード用のタスク自動選択機能
 ・リソース要件チェックとタスク実行可能性判定
+・**チーム毎のタスク判定と対象アイテム決定（TimeManagerからの委譲）**
+・**個別チームの実行すべきタスクとターゲットの特定**
 ・安全性確保のための排他制御とエラーハンドリング
 ・イベントディスパッチャーによるUI連携
 
 ### TimeManagerComponent
-・アイドルゲームにおける時間進行とタスク管理の統括
-・タイマーベースでの自動時間更新処理（デフォルト1秒間隔）
+・**全ての時間管理の統括者（唯一のタイマー管理者）**
+・タイマーベースでの自動時間更新処理（デフォルト1秒間隔、将来変更可能）
+・**全コンポーネントへの処理トリガー発行（単一起点原則）**
+・**ProcessTimeUpdate() → TaskManager判定 → 各コンポーネント実行の統制**
 ・全体タスク進行とチームタスク進行の監視・制御
 ・リソース条件変化の検出と動的タスク切り替え
 ・戦闘状態の監視と戦闘終了後の安全なタスク復帰
 ・遅延キューによる安全なタスク切り替え機能
 ・「全て」モードでの動的タスク選択と実行
 ・TaskManagerとTeamComponentsの統合管理
+・**各専門コンポーネントの協調制御（Gathering/Combat/Crafting等）**
 ・デバッグ用高速処理モードと詳細ログ出力
 
 ### CombatComponent
@@ -101,13 +131,36 @@
 ・UI表示用フォーマット済みテキスト提供
 
 ### GatheringComponent
-・採集システムの中核管理
+・**採集処理の実装専門コンポーネント（タイマー機能なし）**
+・**TimeManagerからのトリガーによる指定アイテムのみ採集処理**
 ・移動と採集の状態管理（MovingToSite/Gathering/MovingToBase/Unloading）
 ・GatheringPowerベースの採取量計算と確率判定
 ・運搬キャラ優先のアイテム配分ロジック
 ・Resourceカテゴリアイテムの自動荷下ろし
 ・距離ベースの移動システム
-・TimeManagerComponentとの連携による自動進行
+・**TaskManagerが決定した対象アイテムのみを採集（目的外アイテム無視）**
+・**タスク完了時の自動拠点帰還機能**
+・**独立タイマーなし - 全てTimeManagerComponent統制下で動作**
+
+### CraftingComponent
+・**製作処理の実装専門コンポーネント（タイマー機能なし）**
+・**TimeManagerからのトリガーによる指定レシピのみ製作処理**
+・製作状態管理とレシピ実行処理
+・素材消費と完成品生成のロジック
+・製作時間とスキル要件の計算
+・**TaskManagerが決定した対象レシピのみを製作**
+・**独立タイマーなし - 全てTimeManagerComponent統制下で動作**
+
+### LocationMovementComponent
+・**場所間移動の専門コンポーネント（汎用移動システム）**
+・**TimeManagerからのトリガーによる移動処理**
+・距離ベースの移動計算と進捗管理（0.0-1.0）
+・チーム移動速度の計算（メンバー能力・装備・運搬状況考慮）
+・移動完了時のイベント発行（各専門コンポーネントに通知）
+・**採集・冒険・調教・交易等の全タスクで共通利用**
+・移動状態管理（MovingToDestination/MovingToBase/Stationary）
+・**残り時間表示機能（分：秒形式）でUI連携**
+・**独立タイマーなし - TimeManagerComponent統制下で動作**
 
 ### LocationEventManager
 ・場所でのイベント発生管理

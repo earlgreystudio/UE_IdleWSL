@@ -8,6 +8,7 @@
 #include "Components/TimeManagerComponent.h"
 #include "Components/GatheringComponent.h"
 #include "Components/CraftingComponent.h"
+#include "Components/LocationMovementComponent.h"
 #include "Components/BaseComponent.h"
 #include "Actor/C_IdleCharacter.h"
 #include "UI/C__InventoryList.h"
@@ -32,6 +33,7 @@ AC_PlayerController::AC_PlayerController()
 	TimeManager = CreateDefaultSubobject<UTimeManagerComponent>(TEXT("TimeManager"));
 	GatheringComponent = CreateDefaultSubobject<UGatheringComponent>(TEXT("GatheringComponent"));
 	CraftingComponent = CreateDefaultSubobject<UCraftingComponent>(TEXT("CraftingComponent"));
+	MovementComponent = CreateDefaultSubobject<ULocationMovementComponent>(TEXT("MovementComponent"));
 
 	// Create Base Management System component
 	BaseComponent = CreateDefaultSubobject<UBaseComponent>(TEXT("BaseComponent"));
@@ -415,27 +417,28 @@ void AC_PlayerController::AddDefaultTasks()
 	AdventureTask.CreatedTime = FDateTime::Now();
 	AdventureTask.RelatedSkills = UTaskTypeUtils::GetTaskRelatedSkills(ETaskType::Adventure);
 
-	// デフォルトタスク4: 採集
+	// デフォルトタスク4: 採集（個数指定タイプに変更）
 	FGlobalTask GatheringTask;
 	GatheringTask.TaskId = TEXT("default_gathering_001");
 	GatheringTask.DisplayName = TEXT("採集: 木材 x10");
 	GatheringTask.TaskType = ETaskType::Gathering;
 	GatheringTask.TargetItemId = TEXT("wood");
-	GatheringTask.TargetQuantity = 10;
+	GatheringTask.TargetQuantity = 5;
 	GatheringTask.Priority = 4;
 	GatheringTask.CurrentProgress = 0;
 	GatheringTask.bIsCompleted = false;
 	GatheringTask.bIsKeepQuantity = false;
+	GatheringTask.GatheringQuantityType = EGatheringQuantityType::Specified; // 個数指定タイプ
 	GatheringTask.CreatedTime = FDateTime::Now();
 	GatheringTask.RelatedSkills = UTaskTypeUtils::GetTaskRelatedSkills(ETaskType::Gathering);
 
-	// タスクを追加
-	TaskManager->AddGlobalTask(CookingTask);
-	TaskManager->AddGlobalTask(ConstructionTask);
-	TaskManager->AddGlobalTask(AdventureTask);
+	// タスクを追加（採集のみ）
+	// TaskManager->AddGlobalTask(CookingTask);
+	// TaskManager->AddGlobalTask(ConstructionTask);
+	// TaskManager->AddGlobalTask(AdventureTask);
 	TaskManager->AddGlobalTask(GatheringTask);
 
-	UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: Added 4 default tasks (including gathering)"));
+	UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: Added 1 default gathering task (wood x10, Specified type)"));
 }
 
 void AC_PlayerController::StopTaskSystemCpp()
@@ -478,21 +481,23 @@ void AC_PlayerController::InitializeTaskManagementSystem()
 		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController: Missing components for TaskManager setup"));
 	}
 	
-	if (TimeManager && TaskManager && TeamComponent && GatheringComponent)
+	if (TimeManager && TaskManager && TeamComponent && GatheringComponent && MovementComponent)
 	{
 		// TimeManager references
 		TimeManager->RegisterTaskManager(TaskManager);
 		TimeManager->RegisterTeamComponent(TeamComponent);
 		TimeManager->RegisterGatheringComponent(GatheringComponent);
+		TimeManager->RegisterMovementComponent(MovementComponent);
 		
 		UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: TimeManager references set"));
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController: Missing components for TimeManager setup (TaskManager: %s, TeamComponent: %s, GatheringComponent: %s)"), 
+		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController: Missing components for TimeManager setup (TaskManager: %s, TeamComponent: %s, GatheringComponent: %s, MovementComponent: %s)"), 
 			TaskManager ? TEXT("OK") : TEXT("NULL"),
 			TeamComponent ? TEXT("OK") : TEXT("NULL"),
-			GatheringComponent ? TEXT("OK") : TEXT("NULL"));
+			GatheringComponent ? TEXT("OK") : TEXT("NULL"),
+			MovementComponent ? TEXT("OK") : TEXT("NULL"));
 	}
 	
 	// GatheringComponent initialization
@@ -509,6 +514,20 @@ void AC_PlayerController::InitializeTaskManagementSystem()
 		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController: Missing components for GatheringComponent setup (TeamComponent: %s, TaskManager: %s)"),
 			TeamComponent ? TEXT("OK") : TEXT("NULL"),
 			TaskManager ? TEXT("OK") : TEXT("NULL"));
+	}
+	
+	// MovementComponent initialization
+	if (MovementComponent && TeamComponent)
+	{
+		// Set component references for MovementComponent
+		MovementComponent->RegisterTeamComponent(TeamComponent);
+		
+		UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: MovementComponent references set"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController: Missing components for MovementComponent setup (TeamComponent: %s)"),
+			TeamComponent ? TEXT("OK") : TEXT("NULL"));
 	}
 	
 	// Bind combat end event

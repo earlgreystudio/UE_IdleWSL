@@ -608,7 +608,7 @@ float UInventoryComponent::GetMaxCarryingCapacity() const
         if (UCharacterStatusComponent* StatusComp = Character->FindComponentByClass<UCharacterStatusComponent>())
         {
             float CharacterCapacity = StatusComp->GetCarryingCapacity();
-            UE_LOG(LogTemp, Log, TEXT("InventoryComponent::GetMaxCarryingCapacity - Character capacity: %.1fkg"), CharacterCapacity);
+            UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryComponent::GetMaxCarryingCapacity - Character capacity: %.1fkg"), CharacterCapacity);
             return CharacterCapacity;
         }
         return 20.0f; // デフォルト値

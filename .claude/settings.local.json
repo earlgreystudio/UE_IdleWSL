@@ -22,7 +22,11 @@
       "Bash(git checkout:*)",
       "Bash(cat:*)",
       "Bash(./build.sh)",
-      "Bash(/home/yo314/UnrealEngine/Engine/Build/BatchFiles/Linux/Build.sh UE_IdleEditor Linux Development -Project=/home/yo314/UE_IdleWSL/UE_Idle.uproject -WaitMutex -FromMsBuild)"
+      "Bash(/home/yo314/UnrealEngine/Engine/Build/BatchFiles/Linux/Build.sh UE_IdleEditor Linux Development -Project=/home/yo314/UE_IdleWSL/UE_Idle.uproject -WaitMutex -FromMsBuild)",
+      "Bash(/home/yo314/UnrealEngine/Engine/Build/BatchFiles/Linux/Build.sh UE_IdleLinux Development -Project=/home/yo314/UE_IdleWSL/UE_Idle.uproject -WaitMutex -FromMsBuild)",
+      "Bash(dotnet --version)",
+      "Bash(/home/yo314/UnrealEngine/Engine/Build/BatchFiles/Linux/Build.sh UE_IdleEditor Linux Development -Project=/home/yo314/UE_IdleWSL/UE_Idle.uproject -WaitMutex -FromMSBuild)",
+      "Bash(/home/yo314/UnrealEngine/Engine/Build/BatchFiles/Linux/Build.sh UE_IdleEditor Linux Development -Project=/home/yo314/UE_IdleWSL/UE_Idle.uproject)"
     ],
     "deny": []
   }

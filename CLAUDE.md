@@ -85,6 +85,23 @@ UE_IdleWSL/
 
 ## Design Philosophy
 
+### Turn-Based Recalculation Architecture
+**CRITICAL DESIGN PRINCIPLE**: Every turn, TimeManagerComponent completely recalculates what each team should do based on current state only.
+
+- **Complete Recalculation**: Each turn is independent - no dependency on past states or future plans
+- **No State Memory**: Never assume "we're moving for 10 turns so skip thinking" - ALWAYS recalculate
+- **Simple Logic**: Each turn asks only "What should this team do RIGHT NOW?"
+- **Current Situation Only**: Decisions based solely on: current location, current tasks, current inventory
+- **No Complex State Machines**: Avoid storing movement states, action sequences, or multi-turn plans
+
+**Example Flow**:
+1. Turn 1: "Team at base, task needs wood at plains" → Start movement to plains
+2. Turn 2: "Team moving to plains" → Continue movement  
+3. Turn 3: "Team at plains, task needs wood" → Execute gathering
+4. Turn 4: "Team at plains, task complete" → Start return to base
+
+Each turn decision is made independently without reference to previous turns.
+
 ### Interface-Driven Architecture
 - Use `UINTERFACE` for actor communication contracts
 - Avoid expensive Cast<> operations - use interface checks instead

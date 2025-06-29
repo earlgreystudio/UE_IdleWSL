@@ -9,6 +9,7 @@
 #include "../Types/TeamTypes.h"
 #include "../Types/TaskTypes.h"
 #include "../Components/TeamComponent.h"
+#include "../Components/LocationMovementComponent.h"
 #include "../Actor/C_IdleCharacter.h"
 #include "C_CharacterCard.h"
 #include "C_TeamTaskCard.h"
@@ -16,6 +17,7 @@
 #include "C_TeamCard.generated.h"
 
 class UTeamComponent;
+class UTimeManagerComponent;
 
 /**
  * チームカードウィジェット
@@ -42,6 +44,9 @@ protected:
 
     UPROPERTY(BlueprintReadWrite, meta = (BindWidget), Category = "UI|Text")
     UTextBlock* TeamStatusText;
+
+    UPROPERTY(BlueprintReadWrite, meta = (BindWidget), Category = "UI|Text")
+    UTextBlock* DistanceFromBaseText;
 
     UPROPERTY(BlueprintReadWrite, meta = (BindWidget), Category = "UI|Text")
     UTextBlock* MemberCountText;
@@ -144,6 +149,10 @@ private:
     UFUNCTION()
     void OnCharacterDataChanged(AC_IdleCharacter* Character);
 
+    // MovementComponentイベントハンドラー
+    UFUNCTION()
+    void OnMovementProgressUpdated(int32 InTeamIndex, const FMovementInfo& MovementInfo);
+
     // 内部ヘルパー関数
     void ClearCharacterCards();
     void ClearTaskCards();
@@ -151,12 +160,15 @@ private:
     UC_TeamTaskCard* CreateTaskCard(const FTeamTask& TaskData, int32 TaskPriority);
     FString GetCurrentTaskDisplayText() const;
     FString GetTeamStatusDisplayText() const;
+    FString GetDistanceFromBaseDisplayText() const;
+    int32 GetCurrentResourceCount() const;
     
     // 表示更新ヘルパー
     void UpdateTeamNameDisplay();
     void UpdateCurrentTaskDisplay();
     void UpdateTeamStatusDisplay();
     void UpdateMemberCountDisplay();
+    void UpdateDistanceFromBaseDisplay();
 
     // ボタンクリックハンドラー
     UFUNCTION()

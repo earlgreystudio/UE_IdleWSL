@@ -10,7 +10,7 @@ UC_CharacterCard::UC_CharacterCard(const FObjectInitializer& ObjectInitializer)
     , Character(nullptr)
     , bIsInitialized(false)
 {
-    UE_LOG(LogTemp, Warning, TEXT("===== UC_CharacterCard CREATED ====="));
+    // Character card created
 }
 
 void UC_CharacterCard::NativeConstruct()
@@ -18,12 +18,12 @@ void UC_CharacterCard::NativeConstruct()
     Super::NativeConstruct();
     bIsInitialized = true;
     
-    UE_LOG(LogTemp, Error, TEXT("===== UC_CharacterCard::NativeConstruct - CHARACTER CARD CONSTRUCTED ====="));
+    // Character card constructed
     
     // Check widget bindings
     if (CharacterNameText)
     {
-        UE_LOG(LogTemp, Warning, TEXT("UC_CharacterCard::NativeConstruct - CharacterNameText found"));
+        UE_LOG(LogTemp, VeryVerbose, TEXT("UC_CharacterCard::NativeConstruct - CharacterNameText found"));
     }
     else
     {
@@ -32,7 +32,7 @@ void UC_CharacterCard::NativeConstruct()
     
     if (SpecialtyText)
     {
-        UE_LOG(LogTemp, Warning, TEXT("UC_CharacterCard::NativeConstruct - SpecialtyText found"));
+        UE_LOG(LogTemp, VeryVerbose, TEXT("UC_CharacterCard::NativeConstruct - SpecialtyText found"));
     }
     else
     {
@@ -44,12 +44,12 @@ void UC_CharacterCard::NativeConstruct()
     {
         BindCharacterEvents();
         UpdateDisplay();
-        UE_LOG(LogTemp, Warning, TEXT("UC_CharacterCard: Auto-initialized with character: %s"), 
+        UE_LOG(LogTemp, VeryVerbose, TEXT("UC_CharacterCard: Auto-initialized with character: %s"), 
                *IIdleCharacterInterface::Execute_GetCharacterName(Character));
     }
     else
     {
-        UE_LOG(LogTemp, Warning, TEXT("UC_CharacterCard::NativeConstruct - No character set yet, waiting for InitializeWithCharacter"));
+        UE_LOG(LogTemp, VeryVerbose, TEXT("UC_CharacterCard::NativeConstruct - No character set yet, waiting for InitializeWithCharacter"));
     }
 }
 
@@ -70,12 +70,12 @@ void UC_CharacterCard::InitializeWithCharacter(AC_IdleCharacter* InCharacter)
 
     if (Character)
     {
-        UE_LOG(LogTemp, Warning, TEXT("UC_CharacterCard::InitializeWithCharacter - Card already has character! This should only be called once."));
+        UE_LOG(LogTemp, VeryVerbose, TEXT("UC_CharacterCard::InitializeWithCharacter - Card already has character! This should only be called once."));
         return;
     }
 
     Character = InCharacter;
-    UE_LOG(LogTemp, Warning, TEXT("UC_CharacterCard::InitializeWithCharacter - Initialized card for character: %s"), 
+    UE_LOG(LogTemp, VeryVerbose, TEXT("UC_CharacterCard::InitializeWithCharacter - Initialized card for character: %s"), 
            *IIdleCharacterInterface::Execute_GetCharacterName(Character));
 
     // Bind to character events
@@ -96,7 +96,7 @@ void UC_CharacterCard::UpdateDisplay()
         return;
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("UC_CharacterCard::UpdateDisplay - Updating display for character: %s"), 
+    UE_LOG(LogTemp, VeryVerbose, TEXT("UC_CharacterCard::UpdateDisplay - Updating display for character: %s"), 
            *IIdleCharacterInterface::Execute_GetCharacterName(Character));
 
     UpdateCharacterName();
@@ -115,12 +115,12 @@ void UC_CharacterCard::UpdateCharacterName()
     }
     
     FString CharacterName = IIdleCharacterInterface::Execute_GetCharacterName(Character);
-    UE_LOG(LogTemp, Warning, TEXT("UpdateCharacterName: Character name is '%s'"), *CharacterName);
+    UE_LOG(LogTemp, VeryVerbose, TEXT("UpdateCharacterName: Character name is '%s'"), *CharacterName);
     
     if (CharacterNameText)
     {
         CharacterNameText->SetText(FText::FromString(CharacterName));
-        UE_LOG(LogTemp, Warning, TEXT("UpdateCharacterName: Successfully set text to CharacterNameText"));
+        UE_LOG(LogTemp, VeryVerbose, TEXT("UpdateCharacterName: Successfully set text to CharacterNameText"));
     }
     else
     {
@@ -145,12 +145,12 @@ void UC_CharacterCard::UpdateSpecialty()
     
     ESpecialtyType Specialty = StatusComponent->GetSpecialtyType();
     FString SpecialtyDisplayName = GetSpecialtyDisplayName(Specialty);
-    UE_LOG(LogTemp, Warning, TEXT("UpdateSpecialty: Specialty is '%s'"), *SpecialtyDisplayName);
+    UE_LOG(LogTemp, VeryVerbose, TEXT("UpdateSpecialty: Specialty is '%s'"), *SpecialtyDisplayName);
     
     if (SpecialtyText)
     {
         SpecialtyText->SetText(FText::FromString(SpecialtyDisplayName));
-        UE_LOG(LogTemp, Warning, TEXT("UpdateSpecialty: Successfully set text to SpecialtyText"));
+        UE_LOG(LogTemp, VeryVerbose, TEXT("UpdateSpecialty: Successfully set text to SpecialtyText"));
     }
     else
     {
@@ -268,7 +268,7 @@ void UC_CharacterCard::OnCharacterDataChanged(AC_IdleCharacter* ChangedCharacter
     // Update display only if this is our character
     if (bIsInitialized && ChangedCharacter == Character)
     {
-        UE_LOG(LogTemp, Warning, TEXT("UC_CharacterCard::OnCharacterDataChanged - Updating card for: %s"), 
+        UE_LOG(LogTemp, VeryVerbose, TEXT("UC_CharacterCard::OnCharacterDataChanged - Updating card for: %s"), 
                *IIdleCharacterInterface::Execute_GetCharacterName(Character));
         UpdateDisplay();
     }
@@ -289,7 +289,7 @@ void UC_CharacterCard::BindCharacterEvents()
         if (!StatusComponent->OnStatusChanged.IsAlreadyBound(this, &UC_CharacterCard::OnCharacterStatusChanged))
         {
             StatusComponent->OnStatusChanged.AddDynamic(this, &UC_CharacterCard::OnCharacterStatusChanged);
-            UE_LOG(LogTemp, Warning, TEXT("UC_CharacterCard::BindCharacterEvents - Bound to character status events"));
+            UE_LOG(LogTemp, VeryVerbose, TEXT("UC_CharacterCard::BindCharacterEvents - Bound to character status events"));
         }
     }
 
@@ -304,7 +304,7 @@ void UC_CharacterCard::BindCharacterEvents()
                 if (!TeamComp->OnCharacterDataChanged.IsAlreadyBound(this, &UC_CharacterCard::OnCharacterDataChanged))
                 {
                     TeamComp->OnCharacterDataChanged.AddDynamic(this, &UC_CharacterCard::OnCharacterDataChanged);
-                    UE_LOG(LogTemp, Warning, TEXT("UC_CharacterCard::BindCharacterEvents - Bound to team data events"));
+                    UE_LOG(LogTemp, VeryVerbose, TEXT("UC_CharacterCard::BindCharacterEvents - Bound to team data events"));
                 }
             }
         }
@@ -323,7 +323,7 @@ void UC_CharacterCard::UnbindCharacterEvents()
     if (StatusComponent)
     {
         StatusComponent->OnStatusChanged.RemoveDynamic(this, &UC_CharacterCard::OnCharacterStatusChanged);
-        UE_LOG(LogTemp, Warning, TEXT("UC_CharacterCard::UnbindCharacterEvents - Unbound from character status events"));
+        UE_LOG(LogTemp, VeryVerbose, TEXT("UC_CharacterCard::UnbindCharacterEvents - Unbound from character status events"));
     }
 
     // Unbind team data events
@@ -334,7 +334,7 @@ void UC_CharacterCard::UnbindCharacterEvents()
             if (UTeamComponent* TeamComp = PC->FindComponentByClass<UTeamComponent>())
             {
                 TeamComp->OnCharacterDataChanged.RemoveDynamic(this, &UC_CharacterCard::OnCharacterDataChanged);
-                UE_LOG(LogTemp, Warning, TEXT("UC_CharacterCard::UnbindCharacterEvents - Unbound from team data events"));
+                UE_LOG(LogTemp, VeryVerbose, TEXT("UC_CharacterCard::UnbindCharacterEvents - Unbound from team data events"));
             }
         }
     }

@@ -27,14 +27,11 @@ AC_IdleCharacter::AC_IdleCharacter()
 	{
 		// Set owner ID for character inventory
 		InventoryComponent->OwnerId = TEXT("Character");
-	}
-	if (!InventoryComponent)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to create InventoryComponent"));
+		UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryComponent created successfully"));
 	}
 	else
 	{
-		UE_LOG(LogTemp, VeryVerbose, TEXT("InventoryComponent created successfully"));
+		UE_LOG(LogTemp, Error, TEXT("Failed to create InventoryComponent"));
 	}
 }
 
@@ -42,6 +39,10 @@ AC_IdleCharacter::AC_IdleCharacter()
 void AC_IdleCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	// デバッグログ追加
+	UE_LOG(LogTemp, Warning, TEXT("C_IdleCharacter::BeginPlay - %s, InventoryComponent: %s"), 
+		*GetName(), InventoryComponent ? TEXT("Valid") : TEXT("NULL"));
 	
 	// インベントリの装備変更イベントをステータスコンポーネントの再計算に接続
 	if (InventoryComponent && StatusComponent)
@@ -116,6 +117,26 @@ UCharacterStatusComponent* AC_IdleCharacter::GetStatusComponent() const
 UCharacterStatusComponent* AC_IdleCharacter::GetCharacterStatusComponent_Implementation()
 {
 	return GetStatusComponent();  // 安全なGetStatusComponent()を使用
+}
+
+UInventoryComponent* AC_IdleCharacter::GetInventoryComponent() const
+{
+	// 詳細なデバッグログ
+	if (!InventoryComponent)
+	{
+		UE_LOG(LogTemp, VeryVerbose, TEXT("AC_IdleCharacter::GetInventoryComponent - InventoryComponent is NULL for %s"), *GetName());
+		
+		// const_castを使って、FindComponentByClassを試す（デバッグ用）
+		AC_IdleCharacter* MutableThis = const_cast<AC_IdleCharacter*>(this);
+		UInventoryComponent* FoundComp = MutableThis->FindComponentByClass<UInventoryComponent>();
+		if (FoundComp)
+		{
+			UE_LOG(LogTemp, VeryVerbose, TEXT("AC_IdleCharacter::GetInventoryComponent - Found via FindComponentByClass"));
+			return FoundComp;
+		}
+	}
+	
+	return InventoryComponent;
 }
 
 UInventoryComponent* AC_IdleCharacter::GetCharacterInventoryComponent_Implementation()

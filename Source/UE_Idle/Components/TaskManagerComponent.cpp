@@ -2,6 +2,8 @@
 #include "../Components/InventoryComponent.h"
 #include "../Components/TeamComponent.h"
 #include "../Actor/C_IdleCharacter.h"
+#include "../Managers/LocationDataTableManager.h"
+#include "../Types/LocationTypes.h"
 #include "Engine/World.h"
 
 UTaskManagerComponent::UTaskManagerComponent()
@@ -145,6 +147,54 @@ bool UTaskManagerComponent::UpdateTaskPriority(int32 TaskIndex, int32 NewPriorit
            *GlobalTasks[TaskIndex].TaskId, OldPriority, NewPriority);
     
     OnTaskPriorityChanged.Broadcast(TaskIndex, NewPriority);
+    
+    return true;
+}
+
+bool UTaskManagerComponent::UpdateTaskTargetQuantity(int32 TaskIndex, int32 NewTargetQuantity)
+{
+    if (bIsProcessingTasks)
+    {
+        LogError(TEXT("UpdateTaskTargetQuantity: Cannot update quantity while processing"));
+        return false;
+    }
+    
+    if (!GlobalTasks.IsValidIndex(TaskIndex))
+    {
+        LogError(FString::Printf(TEXT("UpdateTaskTargetQuantity: Invalid task index %d"), TaskIndex));
+        return false;
+    }
+    
+    int32 OldQuantity = GlobalTasks[TaskIndex].TargetQuantity;
+    GlobalTasks[TaskIndex].TargetQuantity = NewTargetQuantity;
+    
+    UE_LOG(LogTemp, Warning, TEXT("UpdateTaskTargetQuantity: Task %s quantity changed from %d to %d"),
+           *GlobalTasks[TaskIndex].TaskId, OldQuantity, NewTargetQuantity);
+    
+    // UI更新のためイベントを発行
+    OnTaskQuantityUpdated.Broadcast(TaskIndex, OldQuantity, NewTargetQuantity);
+    
+    return true;
+}
+
+bool UTaskManagerComponent::CompleteTask(int32 TaskIndex)
+{
+    if (bIsProcessingTasks)
+    {
+        LogError(TEXT("CompleteTask: Cannot complete task while processing"));
+        return false;
+    }
+    
+    if (!GlobalTasks.IsValidIndex(TaskIndex))
+    {
+        LogError(FString::Printf(TEXT("CompleteTask: Invalid task index %d"), TaskIndex));
+        return false;
+    }
+    
+    GlobalTasks[TaskIndex].bIsCompleted = true;
+    
+    UE_LOG(LogTemp, Warning, TEXT("CompleteTask: Task %s marked as completed"),
+           *GlobalTasks[TaskIndex].TaskId);
     
     return true;
 }
@@ -497,12 +547,31 @@ bool UTaskManagerComponent::UpdateTaskProgress(const FString& TaskId, int32 Prog
         return false;
     }
 
+    int32 OldProgress = Task.CurrentProgress;
     Task.CurrentProgress = FMath::Max(0, Task.CurrentProgress + ProgressAmount);
+    
+    // 進捗ログは重要な場合のみ
+    if (Task.CurrentProgress >= Task.TargetQuantity)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("PROGRESS: %s completed %d/%d"), 
+            *TaskId, Task.CurrentProgress, Task.TargetQuantity);
+    }
     
     if (Task.CurrentProgress >= Task.TargetQuantity)
     {
         Task.bIsCompleted = true;
+        UE_LOG(LogTemp, Warning, TEXT("TASK COMPLETED: %s reached %d/%d - removing from list"), 
+            *TaskId, Task.CurrentProgress, Task.TargetQuantity);
         OnGlobalTaskCompleted.Broadcast(Task);
+        
+        // 完了タスクを即座に削除
+        GlobalTasks.RemoveAt(TaskIndex);
+        RecalculatePriorities();
+        
+        // UI更新通知
+        OnGlobalTaskRemoved.Broadcast(TaskIndex);
+        
+        UE_LOG(LogTemp, Warning, TEXT("✅ Task %s auto-removed. Remaining: %d"), *TaskId, GlobalTasks.Num());
     }
 
     return true;
@@ -571,23 +640,53 @@ bool UTaskManagerComponent::ShouldContinueGathering(int32 TeamIndex, const FStri
     // 2. 現在の利用可能アイテム数を取得
     int32 CurrentAvailable = GetCurrentItemAvailability(TeamIndex, ItemId);
     
-    // 3. タスクタイプに応じた継続判定
-    if (GatheringTask.bIsKeepQuantity)
+    UE_LOG(LogTemp, Warning, TEXT("ShouldContinueGathering: Item %s - GatheringQuantityType: %d, Current: %d, Target: %d"), 
+           *ItemId, (int32)GatheringTask.GatheringQuantityType, CurrentAvailable, GatheringTask.TargetQuantity);
+    
+    // 3. 新しいGatheringQuantityTypeに基づく判定
+    switch (GatheringTask.GatheringQuantityType)
     {
-        // キープ型：目標数量を下回っている場合は継続
-        bool bShouldContinue = CurrentAvailable < GatheringTask.TargetQuantity;
-        UE_LOG(LogTemp, Warning, TEXT("ShouldContinueGathering: Keep task for %s - Current: %d, Target: %d, Continue: %s"), 
-               *ItemId, CurrentAvailable, GatheringTask.TargetQuantity, bShouldContinue ? TEXT("Yes") : TEXT("No"));
-        return bShouldContinue;
-    }
-    else
-    {
-        // 通常タスク：目標数量に達していない場合は継続
-        bool bShouldContinue = CurrentAvailable < GatheringTask.TargetQuantity && !GatheringTask.bIsCompleted;
-        UE_LOG(LogTemp, Warning, TEXT("ShouldContinueGathering: Normal task for %s - Current: %d, Target: %d, Completed: %s, Continue: %s"), 
-               *ItemId, CurrentAvailable, GatheringTask.TargetQuantity, 
-               GatheringTask.bIsCompleted ? TEXT("Yes") : TEXT("No"), bShouldContinue ? TEXT("Yes") : TEXT("No"));
-        return bShouldContinue;
+        case EGatheringQuantityType::Unlimited:
+            // 無制限：常に継続
+            UE_LOG(LogTemp, Warning, TEXT("ShouldContinueGathering: Unlimited gathering for %s - Continue: Yes"), *ItemId);
+            return true;
+            
+        case EGatheringQuantityType::Keep:
+            // キープ型：目標数量を下回っている場合は継続
+            {
+                bool bShouldContinue = CurrentAvailable < GatheringTask.TargetQuantity;
+                UE_LOG(LogTemp, Warning, TEXT("ShouldContinueGathering: Keep task for %s - Current: %d, Target: %d, Continue: %s"), 
+                       *ItemId, CurrentAvailable, GatheringTask.TargetQuantity, bShouldContinue ? TEXT("Yes") : TEXT("No"));
+                return bShouldContinue;
+            }
+            
+        case EGatheringQuantityType::Specified:
+            // 個数指定型：目標数量に達していない場合は継続
+            {
+                bool bShouldContinue = CurrentAvailable < GatheringTask.TargetQuantity && !GatheringTask.bIsCompleted;
+                UE_LOG(LogTemp, Warning, TEXT("ShouldContinueGathering: Specified task for %s - Current: %d, Target: %d, Completed: %s, Continue: %s"), 
+                       *ItemId, CurrentAvailable, GatheringTask.TargetQuantity, 
+                       GatheringTask.bIsCompleted ? TEXT("Yes") : TEXT("No"), bShouldContinue ? TEXT("Yes") : TEXT("No"));
+                return bShouldContinue;
+            }
+            
+        default:
+            // フォールバック（従来のbIsKeepQuantityロジック）
+            if (GatheringTask.bIsKeepQuantity)
+            {
+                bool bShouldContinue = CurrentAvailable < GatheringTask.TargetQuantity;
+                UE_LOG(LogTemp, Warning, TEXT("ShouldContinueGathering: Fallback Keep task for %s - Current: %d, Target: %d, Continue: %s"), 
+                       *ItemId, CurrentAvailable, GatheringTask.TargetQuantity, bShouldContinue ? TEXT("Yes") : TEXT("No"));
+                return bShouldContinue;
+            }
+            else
+            {
+                bool bShouldContinue = CurrentAvailable < GatheringTask.TargetQuantity && !GatheringTask.bIsCompleted;
+                UE_LOG(LogTemp, Warning, TEXT("ShouldContinueGathering: Fallback Normal task for %s - Current: %d, Target: %d, Completed: %s, Continue: %s"), 
+                       *ItemId, CurrentAvailable, GatheringTask.TargetQuantity, 
+                       GatheringTask.bIsCompleted ? TEXT("Yes") : TEXT("No"), bShouldContinue ? TEXT("Yes") : TEXT("No"));
+                return bShouldContinue;
+            }
     }
 }
 
@@ -642,6 +741,153 @@ FGlobalTask UTaskManagerComponent::FindActiveGatheringTask(const FString& ItemId
     
     // 見つからない場合は空のタスクを返す
     return FGlobalTask();
+}
+
+FString UTaskManagerComponent::GetTargetItemForTeam(int32 TeamIndex, const FString& LocationId) const
+{
+    UE_LOG(LogTemp, VeryVerbose, TEXT("GetTargetItemForTeam: Called for team %d at location %s"), TeamIndex, *LocationId);
+    
+    // 指定場所での実行可能な採集タスクを取得
+    TArray<FGlobalTask> ExecutableTasks = GetExecutableGatheringTasksAtLocation(TeamIndex, LocationId);
+    
+    if (ExecutableTasks.Num() > 0)
+    {
+        // 最優先タスク（配列は優先度順）の対象アイテムを返す
+        FString TargetItem = ExecutableTasks[0].TargetItemId;
+        UE_LOG(LogTemp, VeryVerbose, TEXT("GetTargetItemForTeam: Team %d should gather %s"), TeamIndex, *TargetItem);
+        return TargetItem;
+    }
+    
+    // 完了タスクを検出してログ出力（const関数なので削除は別途実行）
+    int32 CompletedCount = 0;
+    for (const FGlobalTask& Task : GlobalTasks)
+    {
+        if (Task.bIsCompleted && Task.TaskType == ETaskType::Gathering)
+        {
+            CompletedCount++;
+            UE_LOG(LogTemp, Warning, TEXT("COMPLETED TASK DETECTED: %s (%d/%d) - UI should remove this"), 
+                *Task.TaskId, Task.CurrentProgress, Task.TargetQuantity);
+        }
+    }
+    
+    if (CompletedCount > 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Found %d completed gathering tasks - manual cleanup needed"), CompletedCount);
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("GetTargetItemForTeam: No executable gathering tasks for team %d"), TeamIndex);
+    return FString(); // 実行可能なタスクなし
+}
+
+bool UTaskManagerComponent::IsTaskCompleted(const FString& TaskId) const
+{
+    if (TaskId.IsEmpty())
+    {
+        return true; // 空のタスクIDは完了とみなす
+    }
+    
+    for (const FGlobalTask& Task : GlobalTasks)
+    {
+        if (Task.TaskId == TaskId)
+        {
+            // 完了フラグまたは目標数量達成をチェック
+            if (Task.bIsCompleted)
+            {
+                return true;
+            }
+            
+            // 現在の進捗が目標に達しているかチェック
+            if (Task.TargetQuantity > 0 && Task.CurrentProgress >= Task.TargetQuantity)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("TASK COMPLETED: %s reached target (%d/%d)"), 
+                    *TaskId, Task.CurrentProgress, Task.TargetQuantity);
+                return true;
+            }
+            
+            // 重要：進捗状況（目標に達していない場合のみ表示）
+            UE_LOG(LogTemp, Warning, TEXT("TASK PROGRESS: %s (%d/%d)"), 
+                *TaskId, Task.CurrentProgress, Task.TargetQuantity);
+            
+            return false;
+        }
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("IsTaskCompleted: Task %s not found"), *TaskId);
+    return true; // 見つからないタスクは完了とみなす
+}
+
+TArray<FGlobalTask> UTaskManagerComponent::GetExecutableGatheringTasksAtLocation(int32 TeamIndex, const FString& LocationId) const
+{
+    TArray<FGlobalTask> ExecutableTasks;
+    
+    // LocationDataTableManager を取得して場所の採集可能アイテムリストを確認
+    UGameInstance* GameInstance = GetWorld()->GetGameInstance();
+    if (!GameInstance)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("GetExecutableGatheringTasksAtLocation: GameInstance not found"));
+        return ExecutableTasks;
+    }
+    
+    ULocationDataTableManager* LocationManager = GameInstance->GetSubsystem<ULocationDataTableManager>();
+    if (!LocationManager)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("GetExecutableGatheringTasksAtLocation: LocationManager not found"));
+        return ExecutableTasks;
+    }
+    
+    // 場所データを取得
+    FLocationDataRow LocationData;
+    if (!LocationManager->GetLocationData(LocationId, LocationData))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("GetExecutableGatheringTasksAtLocation: Location %s not found"), *LocationId);
+        return ExecutableTasks;
+    }
+    
+    // その場所の採集可能アイテムリストを取得
+    TArray<FGatherableItemInfo> GatherableItems = LocationData.ParseGatherableItemsList();
+    
+    // 優先度順にソートされた全体タスクを取得
+    TArray<FGlobalTask> SortedTasks = GlobalTasks;
+    SortedTasks.Sort([](const FGlobalTask& A, const FGlobalTask& B) {
+        return A.Priority < B.Priority; // 優先度が高い（数値が小さい）順
+    });
+    
+    // 採集タスクの中で、その場所で実行可能なものを抽出
+    for (const FGlobalTask& Task : SortedTasks)
+    {
+        // 未完了の採集タスクのみ対象
+        if (Task.bIsCompleted || Task.TaskType != ETaskType::Gathering)
+        {
+            continue;
+        }
+        
+        // その場所で採集可能なアイテムかチェック
+        bool bCanGatherAtLocation = false;
+        for (const FGatherableItemInfo& ItemInfo : GatherableItems)
+        {
+            if (ItemInfo.ItemId == Task.TargetItemId)
+            {
+                bCanGatherAtLocation = true;
+                break;
+            }
+        }
+        
+        if (bCanGatherAtLocation)
+        {
+            // チームがこのタスクを実行可能かチェック
+            if (CanTeamExecuteTask(TeamIndex, Task))
+            {
+                ExecutableTasks.Add(Task);
+                UE_LOG(LogTemp, VeryVerbose, TEXT("GetExecutableGatheringTasksAtLocation: Found executable task %s for %s"), 
+                    *Task.TaskId, *Task.TargetItemId);
+            }
+        }
+    }
+    
+    UE_LOG(LogTemp, VeryVerbose, TEXT("GetExecutableGatheringTasksAtLocation: Found %d executable tasks at %s"), 
+        ExecutableTasks.Num(), *LocationId);
+    
+    return ExecutableTasks;
 }
 
 // === ユーティリティ ===

@@ -73,6 +73,9 @@ protected:
     USpinBox* PrioritySpinBox;
 
     UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
+    UCheckBox* QuantitySpecificationCheckBox;
+
+    UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
     UCheckBox* KeepQuantityCheckBox;
 
     UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
@@ -104,6 +107,10 @@ private:
     UFUNCTION()
     void OnCancelClicked();
 
+    // チェックボックス変更ハンドラー
+    UFUNCTION()
+    void OnQuantitySpecificationChanged(bool bIsChecked);
+
     // UI初期化
     void InitializeTaskTypeComboBox();
     void InitializeDefaultValues();
@@ -116,6 +123,9 @@ private:
 
     // タスクタイプに応じたUI制御
     void UpdateUIVisibilityForTaskType(ETaskType TaskType);
+
+    // 個数制御UIの表示切り替え
+    void UpdateQuantityControlsVisibility();
 
     // Widget閉じる処理
     void CloseTaskMakeSheet();

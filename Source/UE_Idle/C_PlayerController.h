@@ -16,6 +16,7 @@ class UTimeManagerComponent;
 class UGatheringComponent;
 class UCraftingComponent;
 class UBaseComponent;
+class ULocationMovementComponent;
 class AC_IdleCharacter;
 class UC__InventoryList;
 class UC_TaskList;
@@ -58,6 +59,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Task Management")
 	TObjectPtr<UCraftingComponent> CraftingComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Task Management")
+	TObjectPtr<ULocationMovementComponent> MovementComponent;
 
 	// Base Management System
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Base Management")

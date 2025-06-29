@@ -2,6 +2,7 @@
 #include "TeamComponent.h"
 #include "InventoryComponent.h"
 #include "TaskManagerComponent.h"
+#include "LocationMovementComponent.h"
 #include "../Actor/C_IdleCharacter.h"
 #include "../Components/CharacterStatusComponent.h"
 #include "../Managers/ItemDataTableManager.h"
@@ -46,11 +47,7 @@ void UGatheringComponent::BeginPlay()
 
 void UGatheringComponent::BeginDestroy()
 {
-    // タイマークリア
-    if (UWorld* World = GetWorld())
-    {
-        World->GetTimerManager().ClearTimer(GatheringUpdateTimerHandle);
-    }
+    // 独立タイマー削除 - TimeManagerComponent統制下で動作
     
     // 状態クリア
     TeamGatheringStates.Empty();
@@ -89,29 +86,24 @@ bool UGatheringComponent::StartGathering(int32 TeamIndex, const FString& Locatio
 
     // 状態初期化
     TeamTargetLocations.Add(TeamIndex, LocationId);
-    SetMovementProgress(TeamIndex, 0.0f);
     
     // 拠点の場合は即座に採集開始、そうでなければ移動開始
     if (LocationData.Distance <= 0.0f)
     {
         SetGatheringState(TeamIndex, EGatheringState::Gathering);
+        UE_LOG(LogTemp, Warning, TEXT("GatheringComponent: Team %d starting immediate gathering at %s"), TeamIndex, *LocationId);
     }
     else
     {
         SetGatheringState(TeamIndex, EGatheringState::MovingToSite);
+        UE_LOG(LogTemp, Warning, TEXT("GatheringComponent: Team %d starting movement to %s"), TeamIndex, *LocationId);
+        
+        // MovementComponentに移動を委譲
+        // 注意: MovementComponentの参照は持っていないため、TimeManagerを通じて移動が管理される
+        SetMovementProgress(TeamIndex, 0.0f);
     }
 
-    // タイマー開始（まだ動いていない場合）
-    if (!GetWorld()->GetTimerManager().IsTimerActive(GatheringUpdateTimerHandle))
-    {
-        GetWorld()->GetTimerManager().SetTimer(
-            GatheringUpdateTimerHandle,
-            this,
-            &UGatheringComponent::UpdateGathering,
-            GatheringUpdateInterval,
-            true
-        );
-    }
+    // 独立タイマー削除 - TimeManagerComponent統制下で動作
 
     UE_LOG(LogTemp, Log, TEXT("GatheringComponent: Started gathering for team %d at location %s"), TeamIndex, *LocationId);
     return true;
@@ -119,12 +111,124 @@ bool UGatheringComponent::StartGathering(int32 TeamIndex, const FString& Locatio
 
 bool UGatheringComponent::StopGathering(int32 TeamIndex)
 {
+    UE_LOG(LogTemp, Warning, TEXT("StopGathering: Called for team %d"), TeamIndex);
+    
     if (!TeamGatheringStates.Contains(TeamIndex))
     {
+        UE_LOG(LogTemp, Warning, TEXT("StopGathering: Team %d not in gathering states, checking if return needed"), TeamIndex);
+        
+        // 採集状態にないが、チームが拠点以外にいる可能性があるので距離をチェック
+        if (UWorld* World = GetWorld())
+        {
+            if (APlayerController* PC = World->GetFirstPlayerController())
+            {
+                if (ULocationMovementComponent* MovementComp = PC->FindComponentByClass<ULocationMovementComponent>())
+                {
+                    float CurrentDistance = MovementComp->GetCurrentDistanceFromBase(TeamIndex);
+                    UE_LOG(LogTemp, Warning, TEXT("StopGathering: Team %d distance from base: %.1fm"), TeamIndex, CurrentDistance);
+                    
+                    if (CurrentDistance > 0.1f) // 拠点にいない場合
+                    {
+                        // 帰還移動を開始
+                        SetGatheringState(TeamIndex, EGatheringState::MovingToBase);
+                        bool bMovementStarted = MovementComp->StartReturnToBase(TeamIndex, TEXT("unknown_location"));
+                        if (bMovementStarted)
+                        {
+                            UE_LOG(LogTemp, Warning, TEXT("StopGathering: Team %d starting return from distance %.1fm"), TeamIndex, CurrentDistance);
+                            if (TeamComponent)
+                            {
+                                TeamComponent->SetTeamActionState(TeamIndex, ETeamActionState::Moving);
+                            }
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        
         return false;
     }
 
-    // 状態クリア
+    // チームが拠点以外にいる場合は拠点に戻る処理を開始
+    EGatheringState CurrentState = GetGatheringState(TeamIndex);
+    bool bShouldReturnToBase = false;
+    
+    UE_LOG(LogTemp, Warning, TEXT("StopGathering: Team %d current state: %d (%s)"), TeamIndex, (int32)CurrentState,
+        CurrentState == EGatheringState::Gathering ? TEXT("Gathering") :
+        CurrentState == EGatheringState::MovingToSite ? TEXT("MovingToSite") :
+        CurrentState == EGatheringState::MovingToBase ? TEXT("MovingToBase") :
+        CurrentState == EGatheringState::Unloading ? TEXT("Unloading") :
+        CurrentState == EGatheringState::Inactive ? TEXT("Inactive") : TEXT("Unknown"));
+    
+    if (CurrentState == EGatheringState::Gathering || CurrentState == EGatheringState::MovingToSite)
+    {
+        // 採集中または採集地への移動中の場合、拠点に戻る
+        bShouldReturnToBase = true;
+        UE_LOG(LogTemp, Warning, TEXT("StopGathering: Team %d needs to return to base (current state: %s)"), 
+            TeamIndex, 
+            CurrentState == EGatheringState::Gathering ? TEXT("Gathering") : TEXT("MovingToSite"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("StopGathering: Team %d does not need to return to base (current state: %s)"), TeamIndex,
+            CurrentState == EGatheringState::MovingToBase ? TEXT("MovingToBase") :
+            CurrentState == EGatheringState::Unloading ? TEXT("Unloading") :
+            CurrentState == EGatheringState::Inactive ? TEXT("Inactive") : TEXT("Unknown"));
+    }
+
+    if (bShouldReturnToBase)
+    {
+        // 拠点への帰還を開始
+        SetGatheringState(TeamIndex, EGatheringState::MovingToBase);
+        
+        // MovementComponentを通じて拠点への移動を開始
+        // PlayerControllerのMovementComponentにアクセス
+        if (UWorld* World = GetWorld())
+        {
+            if (APlayerController* PC = World->GetFirstPlayerController())
+            {
+                if (ULocationMovementComponent* MovementComp = PC->FindComponentByClass<ULocationMovementComponent>())
+                {
+                    // 現在地を取得
+                    FString CurrentLocation = TeamTargetLocations.Contains(TeamIndex) ? TeamTargetLocations[TeamIndex] : TEXT("base");
+                    float CurrentDistance = MovementComp->GetCurrentDistanceFromBase(TeamIndex);
+                    
+                    // 現在地が拠点以外の場合のみ移動を開始
+                    if (CurrentLocation != TEXT("base"))
+                    {
+                        bool bMovementStarted = MovementComp->StartReturnToBase(TeamIndex, CurrentLocation);
+                        if (bMovementStarted)
+                        {
+                            UE_LOG(LogTemp, Warning, TEXT("StopGathering: Team %d started returning to base from %s (distance: %.1fm)"), TeamIndex, *CurrentLocation, CurrentDistance);
+                            
+                            // チーム状態を移動中に設定
+                            if (TeamComponent)
+                            {
+                                TeamComponent->SetTeamActionState(TeamIndex, ETeamActionState::Moving);
+                            }
+                            
+                            // ターゲット場所は保持（移動完了まで）
+                            return true;
+                        }
+                        else
+                        {
+                            UE_LOG(LogTemp, Warning, TEXT("StopGathering: Failed to start return movement for team %d"), TeamIndex);
+                        }
+                    }
+                    else
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("StopGathering: Team %d is already at base (distance: %.1fm), no movement needed"), TeamIndex, CurrentDistance);
+                    }
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Error, TEXT("StopGathering: MovementComponent not found on PlayerController"));
+                }
+            }
+        }
+    }
+
+    // 状態クリア（拠点への移動が不要な場合、または移動開始に失敗した場合）
     TeamGatheringStates.Remove(TeamIndex);
     TeamMovementProgress.Remove(TeamIndex);
     TeamTargetLocations.Remove(TeamIndex);
@@ -133,12 +237,6 @@ bool UGatheringComponent::StopGathering(int32 TeamIndex)
     if (TeamComponent)
     {
         TeamComponent->SetTeamActionState(TeamIndex, ETeamActionState::Idle);
-    }
-
-    // 他にアクティブなチームがない場合はタイマー停止
-    if (TeamGatheringStates.Num() == 0)
-    {
-        GetWorld()->GetTimerManager().ClearTimer(GatheringUpdateTimerHandle);
     }
 
     UE_LOG(LogTemp, Log, TEXT("GatheringComponent: Stopped gathering for team %d"), TeamIndex);
@@ -193,6 +291,46 @@ void UGatheringComponent::UpdateGathering()
     }
     
     bProcessingUpdate = false;
+}
+
+void UGatheringComponent::ProcessTeamGatheringWithTarget(int32 TeamIndex, const FString& TargetItemId)
+{
+    UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessTeamGatheringWithTarget: Team %d targeting %s"), TeamIndex, *TargetItemId);
+    
+    if (!IsValidTeam(TeamIndex))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ProcessTeamGatheringWithTarget: Invalid team %d"), TeamIndex);
+        return;
+    }
+    
+    // ターゲットアイテムが指定されていない場合は処理しない
+    if (TargetItemId.IsEmpty())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ProcessTeamGatheringWithTarget: No target item for team %d"), TeamIndex);
+        return;
+    }
+    
+    EGatheringState CurrentState = GetGatheringState(TeamIndex);
+    
+    switch (CurrentState)
+    {
+        case EGatheringState::MovingToSite:
+        case EGatheringState::MovingToBase:
+            ProcessMovement(TeamIndex);
+            break;
+            
+        case EGatheringState::Gathering:
+            ProcessGatheringExecutionWithTarget(TeamIndex, TargetItemId);
+            break;
+            
+        case EGatheringState::Unloading:
+            AutoUnloadResourceItems(TeamIndex);
+            break;
+            
+        default:
+            // Inactive状態の場合は何もしない
+            break;
+    }
 }
 
 void UGatheringComponent::ProcessTeamGathering(int32 TeamIndex)
@@ -381,6 +519,11 @@ void UGatheringComponent::ProcessGatheringExecution(int32 TeamIndex)
                 OnItemGathered.Broadcast(TeamIndex, Result);
                 
                 UE_LOG(LogTemp, Log, TEXT("Team %d gathered %d %s"), TeamIndex, GatheredAmount, *ItemInfo.ItemId);
+                
+                // 個数指定タイプのタスクの目標量を減らす
+                UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecution: Calling ReduceSpecifiedTaskQuantity for %s x%d"), 
+                    *ItemInfo.ItemId, GatheredAmount);
+                ReduceSpecifiedTaskQuantity(ItemInfo.ItemId, GatheredAmount);
             }
             else
             {
@@ -392,6 +535,124 @@ void UGatheringComponent::ProcessGatheringExecution(int32 TeamIndex)
                 break;
             }
         }
+    }
+}
+
+void UGatheringComponent::ProcessGatheringExecutionWithTarget(int32 TeamIndex, const FString& TargetItemId)
+{
+    UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringExecutionWithTarget: Team %d targeting %s"), TeamIndex, *TargetItemId);
+    
+    if (!TeamTargetLocations.Contains(TeamIndex))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecutionWithTarget: Team %d not in target locations"), TeamIndex);
+        return;
+    }
+
+    FString LocationId = TeamTargetLocations[TeamIndex];
+    FLocationDataRow LocationData = GetLocationData(LocationId);
+    TArray<FGatherableItemInfo> GatherableItems = LocationData.ParseGatherableItemsList();
+    
+    UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringExecutionWithTarget: Team %d at %s, found %d gatherable items"), 
+        TeamIndex, *LocationId, GatherableItems.Num());
+    
+    if (GatherableItems.Num() == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecutionWithTarget: No gatherable items at %s"), *LocationId);
+        return;
+    }
+
+    float TeamGatheringPower = CalculateTeamGatheringPower(TeamIndex);
+    UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringExecutionWithTarget: Team %d has gathering power %.2f"), 
+        TeamIndex, TeamGatheringPower);
+    
+    // チームの積載状況をチェック
+    if (!TeamComponent || !IsValidTeam(TeamIndex))
+    {
+        UE_LOG(LogTemp, Error, TEXT("ProcessGatheringExecutionWithTarget: Invalid team component"));
+        return;
+    }
+    
+    // 指定されたアイテムのみを採集（目的外アイテムは無視）
+    bool bFoundTargetItem = false;
+    for (const FGatherableItemInfo& ItemInfo : GatherableItems)
+    {
+        if (ItemInfo.ItemId != TargetItemId)
+        {
+            continue; // 目的アイテム以外は無視
+        }
+        
+        bFoundTargetItem = true;
+        UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringExecutionWithTarget: Processing target item %s"), *TargetItemId);
+        
+        // 採取量計算
+        float BaseGatherRate = (TeamGatheringPower * ItemInfo.GatheringCoefficient) / GatheringEfficiencyMultiplier;
+        
+        UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringExecutionWithTarget: Item %s - coefficient %.2f, base rate %.4f"), 
+            *ItemInfo.ItemId, ItemInfo.GatheringCoefficient, BaseGatherRate);
+        
+        int32 GatheredAmount = 0;
+        
+        if (BaseGatherRate >= 1.0f)
+        {
+            // 1以上なら整数部分を確定獲得
+            GatheredAmount = FMath::FloorToInt(BaseGatherRate);
+            
+            // 小数部分は確率で追加1個
+            float ChanceForExtra = BaseGatherRate - GatheredAmount;
+            if (FMath::FRand() < ChanceForExtra)
+            {
+                GatheredAmount++;
+            }
+        }
+        else
+        {
+            // 1未満なら確率判定
+            if (FMath::FRand() < BaseGatherRate)
+            {
+                GatheredAmount = 1;
+            }
+        }
+
+        UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringExecutionWithTarget: Item %s - calculated amount: %d"), 
+            *ItemInfo.ItemId, GatheredAmount);
+
+        // アイテム獲得処理
+        if (GatheredAmount > 0)
+        {
+            if (DistributeItemToTeam(TeamIndex, ItemInfo.ItemId, GatheredAmount))
+            {
+                // 成功時のイベント通知
+                FGatheringResult Result;
+                Result.ItemId = ItemInfo.ItemId;
+                Result.Quantity = GatheredAmount;
+                Result.CharacterName = TEXT("Team"); // TODO: 実際に受け取ったキャラ名
+                
+                OnItemGathered.Broadcast(TeamIndex, Result);
+                
+                UE_LOG(LogTemp, Log, TEXT("Team %d gathered %d %s (target)"), TeamIndex, GatheredAmount, *ItemInfo.ItemId);
+                
+                // 個数指定タイプのタスクの目標量を減らす
+                UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecutionWithTarget: Calling ReduceSpecifiedTaskQuantity for %s x%d"), 
+                    *ItemInfo.ItemId, GatheredAmount);
+                ReduceSpecifiedTaskQuantity(ItemInfo.ItemId, GatheredAmount);
+            }
+            else
+            {
+                // 積載量満杯で拠点へ帰還
+                UE_LOG(LogTemp, Warning, TEXT("Team %d inventory full, returning to base"), TeamIndex);
+                SetMovementProgress(TeamIndex, 0.0f);
+                SetGatheringState(TeamIndex, EGatheringState::MovingToBase);
+                OnInventoryFull.Broadcast(TeamIndex);
+            }
+        }
+        
+        break; // 目的アイテムを処理したら終了
+    }
+    
+    if (!bFoundTargetItem)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecutionWithTarget: Target item %s not available at %s"), 
+            *TargetItemId, *LocationId);
     }
 }
 
@@ -641,12 +902,18 @@ void UGatheringComponent::AutoUnloadResourceItems(int32 TeamIndex)
         TArray<FGatherableItemInfo> GatherableItems = LocationData.ParseGatherableItemsList();
         
         // 各採集可能アイテムについて継続判定
+        UE_LOG(LogTemp, Warning, TEXT("AutoUnloadResourceItems: Checking %d gatherable items for continuation"), GatherableItems.Num());
         for (const FGatherableItemInfo& ItemInfo : GatherableItems)
         {
-            if (TaskManager->ShouldContinueGathering(TeamIndex, ItemInfo.ItemId))
+            UE_LOG(LogTemp, Warning, TEXT("AutoUnloadResourceItems: Checking if should continue gathering %s"), *ItemInfo.ItemId);
+            bool bItemShouldContinue = TaskManager->ShouldContinueGathering(TeamIndex, ItemInfo.ItemId);
+            UE_LOG(LogTemp, Warning, TEXT("AutoUnloadResourceItems: ShouldContinueGathering for %s returned: %s"), 
+                *ItemInfo.ItemId, bItemShouldContinue ? TEXT("Yes") : TEXT("No"));
+                
+            if (bItemShouldContinue)
             {
                 bShouldContinue = true;
-                UE_LOG(LogTemp, Log, TEXT("Team %d should continue gathering %s"), TeamIndex, *ItemInfo.ItemId);
+                UE_LOG(LogTemp, Warning, TEXT("AutoUnloadResourceItems: Team %d should continue gathering %s"), TeamIndex, *ItemInfo.ItemId);
                 break;
             }
         }
@@ -799,6 +1066,66 @@ void UGatheringComponent::SetMovementProgress(int32 TeamIndex, float Progress)
     OnMovementProgress.Broadcast(TeamIndex, Progress);
 }
 
+void UGatheringComponent::OnMovementCompleted(int32 TeamIndex, const FString& ArrivedLocation)
+{
+    UE_LOG(LogTemp, Warning, TEXT("GatheringComponent: Team %d completed movement to %s"), TeamIndex, *ArrivedLocation);
+    
+    EGatheringState CurrentState = GetGatheringState(TeamIndex);
+    
+    if (CurrentState == EGatheringState::MovingToSite)
+    {
+        // 採集地に到着 → 採集開始
+        SetGatheringState(TeamIndex, EGatheringState::Gathering);
+        UE_LOG(LogTemp, Warning, TEXT("GatheringComponent: Team %d started gathering at %s"), TeamIndex, *ArrivedLocation);
+    }
+    else if (CurrentState == EGatheringState::MovingToBase)
+    {
+        // 拠点に到着 - タスクがまだ有効かチェック
+        bool bHasValidTask = false;
+        if (TeamTargetLocations.Contains(TeamIndex) && IsValid(TaskManager))
+        {
+            FString LocationId = TeamTargetLocations[TeamIndex];
+            FLocationDataRow LocationData = GetLocationData(LocationId);
+            TArray<FGatherableItemInfo> GatherableItems = LocationData.ParseGatherableItemsList();
+            
+            // 採集可能なアイテムでアクティブなタスクがあるかチェック
+            for (const FGatherableItemInfo& ItemInfo : GatherableItems)
+            {
+                if (TaskManager->ShouldContinueGathering(TeamIndex, ItemInfo.ItemId))
+                {
+                    bHasValidTask = true;
+                    break;
+                }
+            }
+        }
+        
+        if (bHasValidTask)
+        {
+            // 通常の拠点帰還（荷下ろし）
+            SetGatheringState(TeamIndex, EGatheringState::Unloading);
+            UE_LOG(LogTemp, Warning, TEXT("GatheringComponent: Team %d started unloading at base"), TeamIndex);
+        }
+        else
+        {
+            // タスク削除による強制帰還 - 即座にIdle状態にする
+            UE_LOG(LogTemp, Warning, TEXT("GatheringComponent: Team %d returned to base due to task cancellation, setting to idle"), TeamIndex);
+            
+            // 状態クリア
+            TeamGatheringStates.Remove(TeamIndex);
+            TeamMovementProgress.Remove(TeamIndex);
+            TeamTargetLocations.Remove(TeamIndex);
+            
+            // チーム状態をIdleに戻す
+            if (TeamComponent)
+            {
+                TeamComponent->SetTeamActionState(TeamIndex, ETeamActionState::Idle);
+                TeamComponent->SetTeamTask(TeamIndex, ETaskType::Idle);
+                UE_LOG(LogTemp, Warning, TEXT("GatheringComponent: Team %d task and action state set to Idle after return"), TeamIndex);
+            }
+        }
+    }
+}
+
 void UGatheringComponent::LogGatheringError(const FString& ErrorMessage) const
 {
     UE_LOG(LogTemp, Error, TEXT("GatheringComponent: %s"), *ErrorMessage);
@@ -820,4 +1147,156 @@ UInventoryComponent* UGatheringComponent::GetBaseStorage() const
         }
     }
     return nullptr;
+}
+
+void UGatheringComponent::ReduceSpecifiedTaskQuantity(const FString& ItemId, int32 ReduceAmount)
+{
+    UE_LOG(LogTemp, Warning, TEXT("ReduceSpecifiedTaskQuantity: Called for %s x%d"), *ItemId, ReduceAmount);
+    
+    if (!IsValid(TaskManager))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ReduceSpecifiedTaskQuantity: TaskManager is null"));
+        return;
+    }
+    
+    // 該当アイテムの「個数指定」タイプのタスクを検索
+    TArray<FGlobalTask> AllTasks = TaskManager->GetGlobalTasks();
+    UE_LOG(LogTemp, Warning, TEXT("ReduceSpecifiedTaskQuantity: Found %d total tasks"), AllTasks.Num());
+    
+    for (int32 TaskIndex = 0; TaskIndex < AllTasks.Num(); TaskIndex++)
+    {
+        const FGlobalTask& Task = AllTasks[TaskIndex];
+        
+        UE_LOG(LogTemp, Warning, TEXT("ReduceSpecifiedTaskQuantity: Task %d - Type: %d, ItemId: %s, GatheringType: %d, Completed: %s"), 
+            TaskIndex, (int32)Task.TaskType, *Task.TargetItemId, (int32)Task.GatheringQuantityType, 
+            Task.bIsCompleted ? TEXT("Yes") : TEXT("No"));
+        
+        // 個数指定タイプの採集タスクのみ対象
+        if (Task.TaskType == ETaskType::Gathering && 
+            Task.TargetItemId == ItemId && 
+            Task.GatheringQuantityType == EGatheringQuantityType::Specified &&
+            !Task.bIsCompleted)
+        {
+            int32 NewTargetQuantity = FMath::Max(0, Task.TargetQuantity - ReduceAmount);
+            
+            UE_LOG(LogTemp, Warning, TEXT("ReduceSpecifiedTaskQuantity: Item %s - Task %s reduced from %d to %d"), 
+                *ItemId, *Task.TaskId, Task.TargetQuantity, NewTargetQuantity);
+            
+            // TaskManagerを通じてタスクの目標量を更新
+            TaskManager->UpdateTaskTargetQuantity(TaskIndex, NewTargetQuantity);
+            
+            // 目標量が0になったらタスクを完了・削除
+            if (NewTargetQuantity <= 0)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("ReduceSpecifiedTaskQuantity: Task %s reached 0 quantity, completing and removing"), *Task.TaskId);
+                
+                // 先にチームを停止（タスク削除前に）
+                UE_LOG(LogTemp, Warning, TEXT("ReduceSpecifiedTaskQuantity: Stopping teams gathering %s before task removal"), *ItemId);
+                StopGatheringForItem(ItemId);
+                
+                // その後タスクを完了・削除
+                TaskManager->CompleteTask(TaskIndex);
+                TaskManager->RemoveGlobalTask(TaskIndex);
+                UE_LOG(LogTemp, Warning, TEXT("ReduceSpecifiedTaskQuantity: Task %s successfully removed"), *Task.TaskId);
+            }
+            
+            // 複数のタスクがある場合は最初の1つだけ処理
+            break;
+        }
+    }
+}
+
+void UGatheringComponent::StopGatheringForItem(const FString& ItemId)
+{
+    UE_LOG(LogTemp, Warning, TEXT("StopGatheringForItem: Called for item %s"), *ItemId);
+    
+    if (!IsValid(TeamComponent) || !IsValid(LocationManager))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("StopGatheringForItem: Missing components"));
+        return;
+    }
+    
+    // 全てのアクティブなチームをチェック
+    TArray<int32> TeamsToStop;
+    for (const auto& TeamStatePair : TeamGatheringStates)
+    {
+        int32 TeamIndex = TeamStatePair.Key;
+        
+        // そのチームが対象アイテムを採集中かチェック
+        if (TeamTargetLocations.Contains(TeamIndex))
+        {
+            FString LocationId = TeamTargetLocations[TeamIndex];
+            FLocationDataRow LocationData = GetLocationData(LocationId);
+            TArray<FGatherableItemInfo> GatherableItems = LocationData.ParseGatherableItemsList();
+            
+            // この場所で対象アイテムが採集可能かチェック
+            for (const FGatherableItemInfo& ItemInfo : GatherableItems)
+            {
+                if (ItemInfo.ItemId == ItemId)
+                {
+                    TeamsToStop.Add(TeamIndex);
+                    UE_LOG(LogTemp, Warning, TEXT("StopGatheringForItem: Team %d will be stopped (gathering %s at %s)"), 
+                        TeamIndex, *ItemId, *LocationId);
+                    break;
+                }
+            }
+        }
+    }
+    
+    // 対象チームの採集を停止
+    for (int32 TeamIndex : TeamsToStop)
+    {
+        StopGathering(TeamIndex);
+        
+        // そのチームが他の採集可能アイテムのアクティブタスクを持っているかチェック
+        bool bHasOtherGatheringTasks = false;
+        if (TeamTargetLocations.Contains(TeamIndex))
+        {
+            FString LocationId = TeamTargetLocations[TeamIndex];
+            FLocationDataRow LocationData = GetLocationData(LocationId);
+            TArray<FGatherableItemInfo> GatherableItems = LocationData.ParseGatherableItemsList();
+            
+            for (const FGatherableItemInfo& ItemInfo : GatherableItems)
+            {
+                if (ItemInfo.ItemId != ItemId && IsValid(TaskManager))
+                {
+                    FGlobalTask ActiveTask = TaskManager->FindActiveGatheringTask(ItemInfo.ItemId);
+                    if (!ActiveTask.TaskId.IsEmpty())
+                    {
+                        bHasOtherGatheringTasks = true;
+                        UE_LOG(LogTemp, Warning, TEXT("StopGatheringForItem: Team %d has other gathering task for %s"), TeamIndex, *ItemInfo.ItemId);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // 他に採集タスクがない場合でも、帰還中なら Gathering を維持
+        if (!bHasOtherGatheringTasks && IsValid(TeamComponent))
+        {
+            EGatheringState CurrentGatheringState = GetGatheringState(TeamIndex);
+            if (CurrentGatheringState == EGatheringState::MovingToBase)
+            {
+                // 帰還中は Gathering タスクを維持（帰還完了後に Idle に設定）
+                UE_LOG(LogTemp, Warning, TEXT("StopGatheringForItem: Team %d returning to base, keeping Gathering task until return completes"), TeamIndex);
+            }
+            else
+            {
+                // 既に拠点にいる場合のみ Idle に設定
+                TeamComponent->SetTeamTask(TeamIndex, ETaskType::Idle);
+                UE_LOG(LogTemp, Warning, TEXT("StopGatheringForItem: Cleared team %d task assignment (no more gathering tasks)"), TeamIndex);
+            }
+        }
+        
+        UE_LOG(LogTemp, Warning, TEXT("StopGatheringForItem: Stopped team %d from gathering %s"), TeamIndex, *ItemId);
+    }
+    
+    if (TeamsToStop.Num() > 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("StopGatheringForItem: Stopped %d teams from gathering %s"), TeamsToStop.Num(), *ItemId);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("StopGatheringForItem: No teams were gathering %s"), *ItemId);
+    }
 }

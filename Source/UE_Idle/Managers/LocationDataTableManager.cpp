@@ -32,12 +32,12 @@ bool ULocationDataTableManager::GetLocationData(const FString& LocationId, FLoca
         return false;
     }
     
-    UE_LOG(LogTemp, Log, TEXT("LocationDataTableManager::GetLocationData - Looking for LocationId: %s"), *LocationId);
+    UE_LOG(LogTemp, VeryVerbose, TEXT("LocationDataTableManager::GetLocationData - Looking for LocationId: %s"), *LocationId);
     const FLocationDataRow* LocationData = FindLocationByLocationId(LocationId);
     if (LocationData)
     {
         OutLocationData = *LocationData;
-        UE_LOG(LogTemp, Log, TEXT("LocationDataTableManager::GetLocationData - Found location data for: %s"), *LocationId);
+        UE_LOG(LogTemp, VeryVerbose, TEXT("LocationDataTableManager::GetLocationData - Found location data for: %s"), *LocationId);
         return true;
     }
     

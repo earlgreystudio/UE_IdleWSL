@@ -20,6 +20,15 @@ enum class ETaskSwitchType : uint8
     Forced          UMETA(DisplayName = "強制")
 };
 
+// 採集数量タイプ
+UENUM(BlueprintType)
+enum class EGatheringQuantityType : uint8
+{
+    Unlimited   UMETA(DisplayName = "無制限"),     // 従来の無制限採集
+    Specified   UMETA(DisplayName = "個数指定"),   // 採集するたびに減る
+    Keep        UMETA(DisplayName = "個数キープ")  // 常に指定数をキープ
+};
+
 // チームアクション状態とECombatStateはTeamTypes.hで定義
 
 // ======== タスクとスキルの関連定義 ========
@@ -110,9 +119,13 @@ struct FGlobalTask
     UPROPERTY(BlueprintReadWrite, Category = "Task")
     bool bIsCompleted;
     
-    // 数量キープ型（例：木1000をキープ）
+    // 数量キープ型（例：木1000をキープ）【廃止予定】
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Task")
     bool bIsKeepQuantity;
+    
+    // 採集数量タイプ（新仕様）
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Task")
+    EGatheringQuantityType GatheringQuantityType;
     
     // 作成日時（デバッグ用）
     UPROPERTY(BlueprintReadOnly, Category = "Task")
@@ -129,6 +142,7 @@ struct FGlobalTask
         CurrentProgress = 0;
         bIsCompleted = false;
         bIsKeepQuantity = false;
+        GatheringQuantityType = EGatheringQuantityType::Unlimited;
         CreatedTime = FDateTime::Now();
     }
 
@@ -327,6 +341,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGlobalTaskAdded, const FGlobalTas
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGlobalTaskCompleted, const FGlobalTask&, CompletedTask);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnTaskPriorityChanged, int32, TaskIndex, int32, NewPriority);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGlobalTaskRemoved, int32, TaskIndex);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnTaskQuantityUpdated, int32, TaskIndex, int32, OldQuantity, int32, NewQuantity);
 
 // 時間管理関連
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTimeSystemStarted);

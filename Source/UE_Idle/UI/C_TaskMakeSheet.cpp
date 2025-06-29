@@ -20,6 +20,7 @@ void UC_TaskMakeSheet::NativeConstruct()
     UE_LOG(LogTemp, Warning, TEXT("TargetItemComboBox: %s"), TargetItemComboBox ? TEXT("OK") : TEXT("NULL"));
     UE_LOG(LogTemp, Warning, TEXT("LocationComboBox: %s"), LocationComboBox ? TEXT("OK") : TEXT("NULL"));
     UE_LOG(LogTemp, Warning, TEXT("TargetQuantitySpinBox: %s"), TargetQuantitySpinBox ? TEXT("OK") : TEXT("NULL"));
+    UE_LOG(LogTemp, Warning, TEXT("QuantitySpecificationCheckBox: %s"), QuantitySpecificationCheckBox ? TEXT("OK") : TEXT("NULL"));
     UE_LOG(LogTemp, Warning, TEXT("KeepQuantityCheckBox: %s"), KeepQuantityCheckBox ? TEXT("OK") : TEXT("NULL"));
 
     // PlayerControllerから必要なコンポーネントを自動取得
@@ -197,6 +198,17 @@ void UC_TaskMakeSheet::OnTaskTypeSelectionChanged()
     UE_LOG(LogTemp, Warning, TEXT("=== OnTaskTypeSelectionChanged COMPLETED ==="));
 }
 
+void UC_TaskMakeSheet::OnQuantitySpecificationChanged(bool bIsChecked)
+{
+    UE_LOG(LogTemp, Warning, TEXT("OnQuantitySpecificationChanged: %s"), bIsChecked ? TEXT("Checked") : TEXT("Unchecked"));
+    
+    // 数量制御UIの表示を更新
+    UpdateQuantityControlsVisibility();
+    
+    // ボタン状態を更新
+    UpdateCreateButtonState();
+}
+
 void UC_TaskMakeSheet::OnTaskTypeComboBoxChanged(FString SelectedItem, ESelectInfo::Type SelectionType)
 {
     UE_LOG(LogTemp, Warning, TEXT("ComboBox Selection Changed: %s (Type: %d)"), *SelectedItem, (int32)SelectionType);
@@ -327,6 +339,11 @@ void UC_TaskMakeSheet::InitializeDefaultValues()
         PrioritySpinBox->SetDelta(1.0f);
     }
 
+    if (QuantitySpecificationCheckBox)
+    {
+        QuantitySpecificationCheckBox->SetIsChecked(false);
+    }
+
     if (KeepQuantityCheckBox)
     {
         KeepQuantityCheckBox->SetIsChecked(false);
@@ -428,22 +445,24 @@ void UC_TaskMakeSheet::UpdateUIVisibilityForTaskType(ETaskType TaskType)
     UE_LOG(LogTemp, Warning, TEXT("=== UpdateUIVisibilityForTaskType START ==="));
     UE_LOG(LogTemp, Warning, TEXT("TaskType: %d"), (int32)TaskType);
     UE_LOG(LogTemp, Warning, TEXT("TargetQuantitySpinBox: %s"), TargetQuantitySpinBox ? TEXT("OK") : TEXT("NULL"));
+    UE_LOG(LogTemp, Warning, TEXT("QuantitySpecificationCheckBox: %s"), QuantitySpecificationCheckBox ? TEXT("OK") : TEXT("NULL"));
     UE_LOG(LogTemp, Warning, TEXT("KeepQuantityCheckBox: %s"), KeepQuantityCheckBox ? TEXT("OK") : TEXT("NULL"));
     UE_LOG(LogTemp, Warning, TEXT("TargetItemComboBox: %s"), TargetItemComboBox ? TEXT("OK") : TEXT("NULL"));
     UE_LOG(LogTemp, Warning, TEXT("LocationComboBox: %s"), LocationComboBox ? TEXT("OK") : TEXT("NULL"));
 
-    if (!TargetQuantitySpinBox || !KeepQuantityCheckBox || !TargetItemComboBox || !LocationComboBox)
+    if (!TargetQuantitySpinBox || !QuantitySpecificationCheckBox || !KeepQuantityCheckBox || !TargetItemComboBox || !LocationComboBox)
     {
         UE_LOG(LogTemp, Error, TEXT("Required UI elements are NULL - Cannot update visibility"));
         return;
     }
 
-    // デフォルトは全て表示
-    TargetQuantitySpinBox->SetVisibility(ESlateVisibility::Visible);
-    KeepQuantityCheckBox->SetVisibility(ESlateVisibility::Visible);
+    // デフォルトは全て非表示（タスクタイプ別に制御）
+    QuantitySpecificationCheckBox->SetVisibility(ESlateVisibility::Collapsed);
+    TargetQuantitySpinBox->SetVisibility(ESlateVisibility::Collapsed);
+    KeepQuantityCheckBox->SetVisibility(ESlateVisibility::Collapsed);
     TargetItemComboBox->SetVisibility(ESlateVisibility::Visible);
     LocationComboBox->SetVisibility(ESlateVisibility::Collapsed);
-    UE_LOG(LogTemp, Warning, TEXT("Set default visibility: All visible except LocationComboBox"));
+    UE_LOG(LogTemp, Warning, TEXT("Set default visibility: Item visible, others collapsed"));
 
     switch (TaskType)
     {
@@ -464,10 +483,11 @@ void UC_TaskMakeSheet::UpdateUIVisibilityForTaskType(ETaskType TaskType)
             break;
 
         case ETaskType::Gathering:
-            // 採集：数量とKeepは表示（採集目標数を指定可能）
-            TargetQuantitySpinBox->SetVisibility(ESlateVisibility::Visible);
-            KeepQuantityCheckBox->SetVisibility(ESlateVisibility::Visible);
-            UE_LOG(LogTemp, Warning, TEXT("Gathering mode: All elements visible"));
+            // 採集：個数指定チェックボックスを表示
+            QuantitySpecificationCheckBox->SetVisibility(ESlateVisibility::Visible);
+            // 個数指定チェック状態に応じて数量・キープUIを制御
+            UpdateQuantityControlsVisibility();
+            UE_LOG(LogTemp, Warning, TEXT("Gathering mode: Quantity specification checkbox visible"));
             break;
 
         case ETaskType::Cooking:
@@ -485,6 +505,31 @@ void UC_TaskMakeSheet::UpdateUIVisibilityForTaskType(ETaskType TaskType)
     }
 
     UE_LOG(LogTemp, Warning, TEXT("=== UpdateUIVisibilityForTaskType COMPLETED ==="));
+}
+
+void UC_TaskMakeSheet::UpdateQuantityControlsVisibility()
+{
+    if (!QuantitySpecificationCheckBox || !TargetQuantitySpinBox || !KeepQuantityCheckBox)
+    {
+        return;
+    }
+
+    bool bQuantitySpecified = QuantitySpecificationCheckBox->IsChecked();
+    
+    if (bQuantitySpecified)
+    {
+        // 個数指定時：数量SpinBoxとキープCheckBoxを表示
+        TargetQuantitySpinBox->SetVisibility(ESlateVisibility::Visible);
+        KeepQuantityCheckBox->SetVisibility(ESlateVisibility::Visible);
+        UE_LOG(LogTemp, Warning, TEXT("UpdateQuantityControlsVisibility: Quantity controls visible"));
+    }
+    else
+    {
+        // 無制限時：数量関連UIを非表示
+        TargetQuantitySpinBox->SetVisibility(ESlateVisibility::Collapsed);
+        KeepQuantityCheckBox->SetVisibility(ESlateVisibility::Collapsed);
+        UE_LOG(LogTemp, Warning, TEXT("UpdateQuantityControlsVisibility: Quantity controls hidden"));
+    }
 }
 
 bool UC_TaskMakeSheet::ValidateInput(FString& OutErrorMessage) const
@@ -619,7 +664,7 @@ FGlobalTask UC_TaskMakeSheet::CreateTaskFromInput() const
             break;
 
         case ETaskType::Gathering:
-            // 採集：アイテムID設定、数量はユーザー指定
+            // 採集：アイテムID設定、数量とタイプはユーザー指定
             {
                 FString SelectedDisplayName = TargetItemComboBox->GetSelectedOption();
                 if (CraftingComponent)
@@ -630,7 +675,33 @@ FGlobalTask UC_TaskMakeSheet::CreateTaskFromInput() const
                 {
                     NewTask.TargetItemId = SelectedDisplayName;
                 }
-                NewTask.TargetQuantity = static_cast<int32>(TargetQuantitySpinBox->GetValue());
+                
+                // GatheringQuantityTypeの設定
+                if (!QuantitySpecificationCheckBox || !QuantitySpecificationCheckBox->IsChecked())
+                {
+                    // 個数指定チェックなし = 無制限
+                    NewTask.GatheringQuantityType = EGatheringQuantityType::Unlimited;
+                    NewTask.TargetQuantity = 0; // 無制限なので0
+                }
+                else
+                {
+                    // 個数指定チェックあり
+                    NewTask.TargetQuantity = static_cast<int32>(TargetQuantitySpinBox->GetValue());
+                    
+                    if (KeepQuantityCheckBox && KeepQuantityCheckBox->IsChecked())
+                    {
+                        // キープタイプ
+                        NewTask.GatheringQuantityType = EGatheringQuantityType::Keep;
+                    }
+                    else
+                    {
+                        // 個数指定タイプ
+                        NewTask.GatheringQuantityType = EGatheringQuantityType::Specified;
+                    }
+                }
+                
+                UE_LOG(LogTemp, Warning, TEXT("CreateTaskFromInput: Gathering task - Type: %d, Quantity: %d"), 
+                    (int32)NewTask.GatheringQuantityType, NewTask.TargetQuantity);
             }
             break;
 
@@ -802,6 +873,11 @@ void UC_TaskMakeSheet::ClearInputFields()
         PrioritySpinBox->SetValue(1.0f);
     }
 
+    if (QuantitySpecificationCheckBox)
+    {
+        QuantitySpecificationCheckBox->SetIsChecked(false);
+    }
+
     if (KeepQuantityCheckBox)
     {
         KeepQuantityCheckBox->SetIsChecked(false);
@@ -850,6 +926,13 @@ void UC_TaskMakeSheet::BindEvents()
         TaskTypeComboBox->OnSelectionChanged.AddDynamic(this, &UC_TaskMakeSheet::OnTaskTypeComboBoxChanged);
     }
 
+    // CheckBoxのStateChangedイベントをバインド
+    if (QuantitySpecificationCheckBox)
+    {
+        QuantitySpecificationCheckBox->OnCheckStateChanged.RemoveAll(this);
+        QuantitySpecificationCheckBox->OnCheckStateChanged.AddDynamic(this, &UC_TaskMakeSheet::OnQuantitySpecificationChanged);
+    }
+
     // UMGイベントは手動で呼び出すため、ここでは自動バインディングしない
     // Blueprint側でイベントを適切にバインドする
 }
@@ -875,6 +958,11 @@ void UC_TaskMakeSheet::UnbindEvents()
     if (TaskTypeComboBox)
     {
         TaskTypeComboBox->OnSelectionChanged.RemoveAll(this);
+    }
+
+    if (QuantitySpecificationCheckBox)
+    {
+        QuantitySpecificationCheckBox->OnCheckStateChanged.RemoveAll(this);
     }
 
     // UMGイベントのアンバインドは不要（手動呼び出しのため）

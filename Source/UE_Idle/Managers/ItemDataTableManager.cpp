@@ -32,12 +32,12 @@ bool UItemDataTableManager::GetItemData(const FString& ItemId, FItemDataRow& Out
         return false;
     }
     
-    UE_LOG(LogTemp, Log, TEXT("ItemDataTableManager::GetItemData - Looking for ItemId: %s"), *ItemId);
+    UE_LOG(LogTemp, VeryVerbose, TEXT("ItemDataTableManager::GetItemData - Looking for ItemId: %s"), *ItemId);
     const FItemDataRow* ItemData = FindItemByItemId(ItemId);
     if (ItemData)
     {
         OutItemData = *ItemData;
-        UE_LOG(LogTemp, Log, TEXT("ItemDataTableManager::GetItemData - Found item data for: %s"), *ItemId);
+        UE_LOG(LogTemp, VeryVerbose, TEXT("ItemDataTableManager::GetItemData - Found item data for: %s"), *ItemId);
         return true;
     }
     

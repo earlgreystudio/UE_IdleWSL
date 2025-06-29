@@ -1,7 +1,7 @@
 RowName,Name,Description,LocationType,EnemySpawnListString,Distance,GatherableItemsString
 "base","拠点","安全な活動拠点","Base","",0,""
-"plains","平野","開けた草原地帯","Plains","rat:0.8|giant_frog:0.2",300,"wood:2|stone:1"
-"forest","森林","豊かな森エリア","Plains","wolf:0.6|bear:0.3|goblin:0.1",500,"wood:4|herb:1"
+"plains","平野","開けた草原地帯","Plains","rat:0.8|giant_frog:0.2",100,"wood:2|stone:1"
+"forest","森林","豊かな森エリア","Plains","wolf:0.6|bear:0.3|goblin:0.1",200,"wood:4|herb:1"
 "mountain","山地","岩がちな山岳地帯","Cave","rock_golem:0.4|eagle:0.4|troll:0.2",800,"stone:3|iron_ore:2|coal:1"
 "river","川辺","清流の流れる川岸","Plains","water_sprite:0.5|giant_fish:0.3|crocodile:0.2",400,"water:3|fish:2|clay:1"
 "swamp","沼地","湿地帯","Swamp","giant_frog:0.7|rat:0.3",500,"herb:0.5|clay:1"

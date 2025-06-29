@@ -144,9 +144,13 @@ public:
 
     // === 採集処理 ===
 
-    // 採集更新処理（タイマーから呼び出し）
-    UFUNCTION()
+    // 採集更新処理（TimeManagerから呼び出し）
+    UFUNCTION(BlueprintCallable, Category = "Gathering")
     void UpdateGathering();
+    
+    // 指定チーム・指定アイテムの採集処理（TimeManagerから委譲）
+    UFUNCTION(BlueprintCallable, Category = "Gathering")
+    void ProcessTeamGatheringWithTarget(int32 TeamIndex, const FString& TargetItemId);
 
     // チーム別採集処理
     UFUNCTION(BlueprintCallable, Category = "Gathering")
@@ -159,6 +163,10 @@ public:
     // 実際の採集処理
     UFUNCTION(BlueprintCallable, Category = "Gathering")
     void ProcessGatheringExecution(int32 TeamIndex);
+    
+    // 指定アイテムのみの採集処理（TimeManagerからの委譲用）
+    UFUNCTION(BlueprintCallable, Category = "Gathering")
+    void ProcessGatheringExecutionWithTarget(int32 TeamIndex, const FString& TargetItemId);
 
     // === アイテム配分システム ===
 
@@ -207,6 +215,10 @@ public:
     // TaskManagerComponent登録
     UFUNCTION(BlueprintCallable, Category = "Setup")
     void RegisterTaskManagerComponent(UTaskManagerComponent* InTaskManagerComponent);
+    
+    // 移動完了時の状態変更（TimeManagerから呼び出し）
+    UFUNCTION(BlueprintCallable, Category = "Movement")
+    void OnMovementCompleted(int32 TeamIndex, const FString& ArrivedLocation);
 
     // === イベントディスパッチャー ===
 
@@ -242,6 +254,12 @@ private:
     
     // 拠点ストレージ取得
     UInventoryComponent* GetBaseStorage() const;
+    
+    // 個数指定タスクの目標量を減らす
+    void ReduceSpecifiedTaskQuantity(const FString& ItemId, int32 ReduceAmount);
+    
+    // 特定アイテムを採集中のチームを停止
+    void StopGatheringForItem(const FString& ItemId);
     
     // === 安全性確保 ===
     

@@ -186,7 +186,7 @@ void UC_TeamTaskCard::UpdateButtonStates()
     {
         bool bCanMoveUp = TaskPriority > 0;
         PriorityUpButton->SetIsEnabled(bCanMoveUp);
-        UE_LOG(LogTemp, Warning, TEXT("UpdateButtonStates: PriorityUp enabled=%s (TaskPriority=%d)"), 
+        UE_LOG(LogTemp, VeryVerbose, TEXT("UpdateButtonStates: PriorityUp enabled=%s (TaskPriority=%d)"), 
                bCanMoveUp ? TEXT("true") : TEXT("false"), TaskPriority);
     }
 
@@ -195,7 +195,7 @@ void UC_TeamTaskCard::UpdateButtonStates()
     {
         bool bCanMoveDown = TaskPriority < TeamTasks.Num() - 1;
         PriorityDownButton->SetIsEnabled(bCanMoveDown);
-        UE_LOG(LogTemp, Warning, TEXT("UpdateButtonStates: PriorityDown enabled=%s (TaskPriority=%d, Total=%d)"), 
+        UE_LOG(LogTemp, VeryVerbose, TEXT("UpdateButtonStates: PriorityDown enabled=%s (TaskPriority=%d, Total=%d)"), 
                bCanMoveDown ? TEXT("true") : TEXT("false"), TaskPriority, TeamTasks.Num());
     }
 }

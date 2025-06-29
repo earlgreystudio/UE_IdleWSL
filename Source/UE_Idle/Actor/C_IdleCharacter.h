@@ -41,7 +41,7 @@ public:
 	UCharacterStatusComponent* GetStatusComponent() const;
 
 	UFUNCTION(BlueprintCallable, Category = "Character")
-	UInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
+	UInventoryComponent* GetInventoryComponent() const;
 
 	// キャラクター名設定
 	UFUNCTION(BlueprintCallable, Category = "Character")
