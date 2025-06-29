@@ -252,6 +252,10 @@ public:
 	// 非const版（TimeManagerComponent用）
 	TArray<FTeam>& GetTeams() { return Teams; }
 
+	// チーム数を取得
+	UFUNCTION(BlueprintPure, Category = "Data Access")
+	int32 GetTeamCount() const { return Teams.Num(); }
+
 	// ======== チームInventory機能 ========
 
 	// 旧TeamInventory関連メソッド削除

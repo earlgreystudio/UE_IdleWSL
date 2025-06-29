@@ -242,4 +242,9 @@ private:
     
     // 拠点ストレージ取得
     UInventoryComponent* GetBaseStorage() const;
+    
+    // === 安全性確保 ===
+    
+    // 処理中フラグ（再入防止）
+    bool bProcessingUpdate = false;
 };

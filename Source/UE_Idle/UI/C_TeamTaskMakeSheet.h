@@ -57,6 +57,9 @@ protected:
 
     UPROPERTY()
     UTeamComponent* TeamComponent;
+    
+    UPROPERTY()
+    class ULocationDataTableManager* LocationDataTableManager;
 
     // タスクカードのクラス
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Team Task Make Sheet")
@@ -99,6 +102,9 @@ private:
     // 入力変更ハンドラー
     UFUNCTION()
     void OnInputChanged();
+    
+    // 表示名からLocationIdへの変換
+    FString ConvertDisplayNameToLocationId(const FString& DisplayName) const;
 
 protected:
     // Blueprint実装イベント

@@ -80,12 +80,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Base Management")
 	UBaseComponent* GetBaseComponent() const { return BaseComponent; }
 
-	// System Control
-	UFUNCTION(BlueprintCallable, Category = "Task Management")
-	void StartTaskManagementSystem();
-
-	UFUNCTION(BlueprintCallable, Category = "Task Management")
-	void StopTaskManagementSystem();
+	// System Control - 削除（StartTaskSystemCpp/StopTaskSystemCppに統合）
 
 	// UI Management
 	UFUNCTION(BlueprintCallable, Category = "UI")
@@ -126,6 +121,24 @@ protected:
 
 	// Add default tasks for testing
 	void AddDefaultTasks();
+
+public:
+	// Task Management System - C++ Only (Blueprint側は別途存在)
+	UFUNCTION(BlueprintCallable, Category = "Task Management Debug")
+	void StartTaskSystemCpp();
+
+	UFUNCTION(BlueprintCallable, Category = "Task Management Debug")
+	void StopTaskSystemCpp();
+
+	// Debug function for gathering system
+	UFUNCTION(BlueprintCallable, Category = "Debug")
+	void TestGatheringSetup();
+
+	// C++専用初期化（Blueprint機能とは独立）
+	UFUNCTION(BlueprintCallable, Category = "Task Management Debug")
+	void InitializeGatheringSystemCpp();
+
+protected:
 	// UI Widget Classes (set in Blueprint)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI Classes")
 	TSubclassOf<UC__InventoryList> InventoryListWidgetClass;

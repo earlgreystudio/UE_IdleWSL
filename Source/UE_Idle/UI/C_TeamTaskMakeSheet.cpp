@@ -3,6 +3,7 @@
 #include "Components/Button.h"
 #include "../Components/TeamComponent.h"
 #include "../Types/TaskTypes.h"
+#include "../Managers/LocationDataTableManager.h"
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
 #include "Blueprint/WidgetTree.h"
@@ -99,6 +100,16 @@ void UC_TeamTaskMakeSheet::InitializeWithTeam(int32 InTeamIndex, UTeamComponent*
         return;
     }
 
+    // LocationDataTableManagerを取得
+    if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
+    {
+        LocationDataTableManager = GameInstance->GetSubsystem<ULocationDataTableManager>();
+        if (!LocationDataTableManager)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("UC_TeamTaskMakeSheet: LocationDataTableManager not found"));
+        }
+    }
+
     UE_LOG(LogTemp, Log, TEXT("UC_TeamTaskMakeSheet: Initialized with Team %d"), TeamIndex);
 }
 
@@ -132,6 +143,23 @@ void UC_TeamTaskMakeSheet::OnCreateTaskClicked()
     
     if (TeamComponent)
     {
+        // 採集タスクの場合、先に採集場所を設定
+        if (NewTask.TaskType == ETaskType::Gathering && LocationComboBox)
+        {
+            FString SelectedDisplayName = LocationComboBox->GetSelectedOption();
+            UE_LOG(LogTemp, Warning, TEXT("UC_TeamTaskMakeSheet: Selected display name: '%s'"), *SelectedDisplayName);
+            
+            FString LocationId = ConvertDisplayNameToLocationId(SelectedDisplayName);
+            UE_LOG(LogTemp, Warning, TEXT("UC_TeamTaskMakeSheet: Converted to LocationId: '%s'"), *LocationId);
+            
+            if (!LocationId.IsEmpty())
+            {
+                TeamComponent->SetTeamGatheringLocation(TeamIndex, LocationId);
+                UE_LOG(LogTemp, Log, TEXT("UC_TeamTaskMakeSheet: Set gathering location to %s (ID: %s) for Team %d"), 
+                    *SelectedDisplayName, *LocationId, TeamIndex);
+            }
+        }
+        
         // TeamComponentにタスクを追加
         bool bSuccess = TeamComponent->AddTeamTask(TeamIndex, NewTask);
         
@@ -206,31 +234,38 @@ void UC_TeamTaskMakeSheet::InitializeDefaultValues()
 
 void UC_TeamTaskMakeSheet::UpdateLocationComboBox()
 {
-    if (!LocationComboBox)
+    if (!LocationComboBox || !LocationDataTableManager)
     {
         return;
     }
 
     LocationComboBox->ClearOptions();
 
-    // 場所リストの手動追加（仮の実装）
-    TArray<FString> LocationNames = {
-        TEXT("森"),
-        TEXT("山"),
-        TEXT("川"),
-        TEXT("洞窟"),
-        TEXT("平原")
-    };
+    // 採集可能な場所のIDを取得
+    TArray<FString> GatherableLocationIds = LocationDataTableManager->GetGatherableLocationIds();
     
-    for (const FString& LocationName : LocationNames)
+    UE_LOG(LogTemp, Log, TEXT("UC_TeamTaskMakeSheet: Found %d gatherable locations"), GatherableLocationIds.Num());
+    
+    // 各場所の表示名を取得してComboBoxに追加
+    for (const FString& LocationId : GatherableLocationIds)
     {
-        LocationComboBox->AddOption(LocationName);
+        FString DisplayName = LocationDataTableManager->GetLocationDisplayName(LocationId);
+        if (!DisplayName.IsEmpty())
+        {
+            LocationComboBox->AddOption(DisplayName);
+            UE_LOG(LogTemp, Log, TEXT("UC_TeamTaskMakeSheet: Added location '%s' (ID: %s)"), 
+                *DisplayName, *LocationId);
+        }
     }
 
     // デフォルト選択
     if (LocationComboBox->GetOptionCount() > 0)
     {
         LocationComboBox->SetSelectedIndex(0);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UC_TeamTaskMakeSheet: No gatherable locations found"));
     }
 }
 
@@ -241,9 +276,9 @@ void UC_TeamTaskMakeSheet::UpdateUIVisibilityForTaskType(ETaskType TaskType)
         return;
     }
 
-    if (TaskType == ETaskType::Adventure)
+    if (TaskType == ETaskType::Adventure || TaskType == ETaskType::Gathering)
     {
-        // 冒険の場合は場所選択を表示
+        // 冒険と採集の場合は場所選択を表示
         LocationComboBox->SetVisibility(ESlateVisibility::Visible);
         UpdateLocationComboBox();
     }
@@ -283,12 +318,19 @@ bool UC_TeamTaskMakeSheet::ValidateInput(FString& OutErrorMessage) const
 
     ETaskType TaskType = UTaskTypeUtils::GetTaskTypeFromString(SelectedTaskType);
     
-    // 冒険タスクの場合は場所選択が必要
-    if (TaskType == ETaskType::Adventure)
+    // 冒険または採集タスクの場合は場所選択が必要
+    if (TaskType == ETaskType::Adventure || TaskType == ETaskType::Gathering)
     {
         if (!LocationComboBox || LocationComboBox->GetSelectedOption().IsEmpty())
         {
-            OutErrorMessage = TEXT("冒険の場合は目的地を選択してください");
+            if (TaskType == ETaskType::Adventure)
+            {
+                OutErrorMessage = TEXT("冒険の場合は目的地を選択してください");
+            }
+            else
+            {
+                OutErrorMessage = TEXT("採集の場合は採集場所を選択してください");
+            }
             return false;
         }
     }
@@ -374,4 +416,32 @@ void UC_TeamTaskMakeSheet::ClearInputFields()
 void UC_TeamTaskMakeSheet::OnInputChanged()
 {
     UpdateCreateButtonState();
+}
+
+FString UC_TeamTaskMakeSheet::ConvertDisplayNameToLocationId(const FString& DisplayName) const
+{
+    if (!LocationDataTableManager)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ConvertDisplayNameToLocationId: LocationDataTableManager is null"));
+        return DisplayName;
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("ConvertDisplayNameToLocationId: Input='%s'"), *DisplayName);
+    
+    // 採集可能な場所のIDを取得して、表示名と照合
+    TArray<FString> GatherableLocationIds = LocationDataTableManager->GetGatherableLocationIds();
+    
+    for (const FString& LocationId : GatherableLocationIds)
+    {
+        FString CurrentDisplayName = LocationDataTableManager->GetLocationDisplayName(LocationId);
+        if (CurrentDisplayName == DisplayName)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("ConvertDisplayNameToLocationId: Found location, returning ID '%s'"), *LocationId);
+            return LocationId;
+        }
+    }
+    
+    // マッピングが見つからない場合は入力をそのまま返す（後方互換性）
+    UE_LOG(LogTemp, Warning, TEXT("ConvertDisplayNameToLocationId: No location found with name '%s', returning input as-is"), *DisplayName);
+    return DisplayName;
 }

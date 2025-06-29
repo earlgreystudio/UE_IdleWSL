@@ -233,6 +233,8 @@ struct FTeam
         {
             case ETeamActionState::Idle:
                 return TEXT("待機");
+            case ETeamActionState::Moving:
+                return TEXT("移動中");
             case ETeamActionState::Working:
                 return TEXT("作業中");
             case ETeamActionState::InCombat:

@@ -108,6 +108,10 @@ void AC_PlayerController::BeginPlay()
 
 	// Add default tasks for testing
 	AddDefaultTasks();
+	
+	// Start the time system for task processing
+	StartTaskSystemCpp();
+	UE_LOG(LogTemp, Warning, TEXT("AC_PlayerController::BeginPlay - Time system started"));
 
 	// Force BaseComponent initialization for testing
 	if (BaseComponent)
@@ -343,12 +347,15 @@ UC_TaskMakeSheet* AC_PlayerController::GetTaskMakeSheetUI()
 
 // === Task Management System Implementation ===
 
-void AC_PlayerController::StartTaskManagementSystem()
+void AC_PlayerController::StartTaskSystemCpp()
 {
 	if (TimeManager)
 	{
 		TimeManager->StartTimeSystem();
-		UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: Task Management System started"));
+		UE_LOG(LogTemp, Warning, TEXT("AC_PlayerController: Task Management System started successfully"));
+		
+		// システム状態をデバッグ出力
+		TimeManager->PrintDebugInfo();
 	}
 	else
 	{
@@ -408,21 +415,51 @@ void AC_PlayerController::AddDefaultTasks()
 	AdventureTask.CreatedTime = FDateTime::Now();
 	AdventureTask.RelatedSkills = UTaskTypeUtils::GetTaskRelatedSkills(ETaskType::Adventure);
 
+	// デフォルトタスク4: 採集
+	FGlobalTask GatheringTask;
+	GatheringTask.TaskId = TEXT("default_gathering_001");
+	GatheringTask.DisplayName = TEXT("採集: 木材 x10");
+	GatheringTask.TaskType = ETaskType::Gathering;
+	GatheringTask.TargetItemId = TEXT("wood");
+	GatheringTask.TargetQuantity = 10;
+	GatheringTask.Priority = 4;
+	GatheringTask.CurrentProgress = 0;
+	GatheringTask.bIsCompleted = false;
+	GatheringTask.bIsKeepQuantity = false;
+	GatheringTask.CreatedTime = FDateTime::Now();
+	GatheringTask.RelatedSkills = UTaskTypeUtils::GetTaskRelatedSkills(ETaskType::Gathering);
+
 	// タスクを追加
 	TaskManager->AddGlobalTask(CookingTask);
 	TaskManager->AddGlobalTask(ConstructionTask);
 	TaskManager->AddGlobalTask(AdventureTask);
+	TaskManager->AddGlobalTask(GatheringTask);
 
-	UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: Added 3 default tasks"));
+	UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: Added 4 default tasks (including gathering)"));
 }
 
-void AC_PlayerController::StopTaskManagementSystem()
+void AC_PlayerController::StopTaskSystemCpp()
 {
 	if (TimeManager)
 	{
 		TimeManager->StopTimeSystem();
 		UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: Task Management System stopped"));
 	}
+}
+
+// C++専用初期化システム（Blueprint機能とは独立）
+void AC_PlayerController::InitializeGatheringSystemCpp()
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== InitializeGatheringSystemCpp START ==="));
+	
+	// 強制的に初期化を実行
+	InitializeTaskManagementSystem();
+	AddDefaultTasks();
+	
+	// システムを開始
+	StartTaskSystemCpp();
+	
+	UE_LOG(LogTemp, Warning, TEXT("=== InitializeGatheringSystemCpp COMPLETED ==="));
 }
 
 void AC_PlayerController::InitializeTaskManagementSystem()
@@ -482,6 +519,41 @@ void AC_PlayerController::InitializeTaskManagementSystem()
 	}
 	
 	UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: Task Management System initialized"));
+}
+
+// === デバッグ用採集テスト関数 ===
+void AC_PlayerController::TestGatheringSetup()
+{
+	if (!TeamComponent || !TimeManager || !GatheringComponent)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestGatheringSetup: Missing required components"));
+		return;
+	}
+
+	// チーム作成とテスト
+	if (TeamComponent->GetTeamCount() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("TestGatheringSetup: No teams found, creating test team"));
+		int32 TestTeamIndex = TeamComponent->CreateTeam(TEXT("Test Gathering Team"));
+		
+		// テスト用の採集場所設定
+		TeamComponent->SetTeamGatheringLocation(TestTeamIndex, TEXT("forest_entrance"));
+		TeamComponent->SetTeamTask(TestTeamIndex, ETaskType::Gathering);
+		
+		UE_LOG(LogTemp, Warning, TEXT("TestGatheringSetup: Created test team %d with gathering task"), TestTeamIndex);
+	}
+	
+	// システム状態の確認
+	UE_LOG(LogTemp, Warning, TEXT("=== GATHERING SYSTEM DEBUG ==="));
+	UE_LOG(LogTemp, Warning, TEXT("Teams: %d"), TeamComponent->GetTeamCount());
+	UE_LOG(LogTemp, Warning, TEXT("TimeManager Active: %s"), TimeManager->IsTimeSystemActive() ? TEXT("Yes") : TEXT("No"));
+	
+	for (int32 i = 0; i < TeamComponent->GetTeamCount(); i++)
+	{
+		FTeam Team = TeamComponent->GetTeam(i);
+		UE_LOG(LogTemp, Warning, TEXT("Team %d: Task=%d, Location='%s', Members=%d"), 
+			i, (int32)Team.AssignedTask, *Team.GatheringLocationId, Team.Members.Num());
+	}
 }
 
 

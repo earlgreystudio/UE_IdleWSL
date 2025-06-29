@@ -564,7 +564,7 @@ bool UTaskManagerComponent::ShouldContinueGathering(int32 TeamIndex, const FStri
     if (GatheringTask.TaskId.IsEmpty())
     {
         // 該当アイテムのアクティブタスクがない場合は継続しない
-        UE_LOG(LogTemp, VeryVerbose, TEXT("ShouldContinueGathering: No active task found for item %s"), *ItemId);
+        UE_LOG(LogTemp, Warning, TEXT("ShouldContinueGathering: No active task found for item %s"), *ItemId);
         return false;
     }
 
@@ -576,7 +576,7 @@ bool UTaskManagerComponent::ShouldContinueGathering(int32 TeamIndex, const FStri
     {
         // キープ型：目標数量を下回っている場合は継続
         bool bShouldContinue = CurrentAvailable < GatheringTask.TargetQuantity;
-        UE_LOG(LogTemp, VeryVerbose, TEXT("ShouldContinueGathering: Keep task for %s - Current: %d, Target: %d, Continue: %s"), 
+        UE_LOG(LogTemp, Warning, TEXT("ShouldContinueGathering: Keep task for %s - Current: %d, Target: %d, Continue: %s"), 
                *ItemId, CurrentAvailable, GatheringTask.TargetQuantity, bShouldContinue ? TEXT("Yes") : TEXT("No"));
         return bShouldContinue;
     }
@@ -584,7 +584,7 @@ bool UTaskManagerComponent::ShouldContinueGathering(int32 TeamIndex, const FStri
     {
         // 通常タスク：目標数量に達していない場合は継続
         bool bShouldContinue = CurrentAvailable < GatheringTask.TargetQuantity && !GatheringTask.bIsCompleted;
-        UE_LOG(LogTemp, VeryVerbose, TEXT("ShouldContinueGathering: Normal task for %s - Current: %d, Target: %d, Completed: %s, Continue: %s"), 
+        UE_LOG(LogTemp, Warning, TEXT("ShouldContinueGathering: Normal task for %s - Current: %d, Target: %d, Completed: %s, Continue: %s"), 
                *ItemId, CurrentAvailable, GatheringTask.TargetQuantity, 
                GatheringTask.bIsCompleted ? TEXT("Yes") : TEXT("No"), bShouldContinue ? TEXT("Yes") : TEXT("No"));
         return bShouldContinue;
@@ -617,7 +617,7 @@ int32 UTaskManagerComponent::GetCurrentItemAvailability(int32 TeamIndex, const F
         }
     }
     
-    UE_LOG(LogTemp, VeryVerbose, TEXT("GetCurrentItemAvailability: Team %d has %d %s"), TeamIndex, TotalAvailable, *ItemId);
+    UE_LOG(LogTemp, Warning, TEXT("GetCurrentItemAvailability: Team %d has %d %s"), TeamIndex, TotalAvailable, *ItemId);
     return TotalAvailable;
 }
 

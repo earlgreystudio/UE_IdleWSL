@@ -613,7 +613,17 @@ bool UTeamComponent::AddTeamTask(int32 TeamIndex, const FTeamTask& NewTask)
 	TaskList.Add(NewTask);
 	
 	UE_LOG(LogTemp, Log, TEXT("AddTeamTask: Added task with priority %d to team %d"), NewTask.Priority, TeamIndex);
-	OnTeamTaskStarted.Broadcast(TeamIndex, NewTask);
+	
+	// チームがアイドル状態の場合、即座にタスクを実行
+	if (Teams[TeamIndex].ActionState == ETeamActionState::Idle)
+	{
+		UE_LOG(LogTemp, Log, TEXT("AddTeamTask: Team %d is idle, attempting to execute new task"), TeamIndex);
+		SwitchToNextAvailableTaskSafe(TeamIndex);
+	}
+	else
+	{
+		OnTeamTaskStarted.Broadcast(TeamIndex, NewTask);
+	}
 	
 	return true;
 }
@@ -770,10 +780,20 @@ void UTeamComponent::ExecuteTask(int32 TeamIndex, const FTeamTask& Task)
 	
 	// タスク実行状態に設定
 	Team.ActionState = ETeamActionState::Working;
+	Team.AssignedTask = Task.TaskType; // タスクタイプを設定
 	Team.ActionStartTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	Team.EstimatedCompletionTime = Task.EstimatedCompletionTime * 3600.0f; // 時間を秒に変換
+	
+	// 採集タスクの場合、既存のGatheringLocationIdを使用
+	if (Task.TaskType == ETaskType::Gathering)
+	{
+		// GatheringLocationIdは既にチーム作成時やUI操作で設定されているはず
+		UE_LOG(LogTemp, Log, TEXT("ExecuteTask: Gathering task for team %d with location %s"), 
+			TeamIndex, *Team.GatheringLocationId);
+	}
 
-	UE_LOG(LogTemp, Log, TEXT("ExecuteTask: Team %d started executing task with priority %d"), TeamIndex, Task.Priority);
+	UE_LOG(LogTemp, Log, TEXT("ExecuteTask: Team %d started executing %s task with priority %d"), 
+		TeamIndex, *UTaskTypeUtils::GetTaskTypeDisplayName(Task.TaskType), Task.Priority);
 	OnTeamTaskStarted.Broadcast(TeamIndex, Task);
 }
 

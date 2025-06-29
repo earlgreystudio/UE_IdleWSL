@@ -483,13 +483,13 @@ FString UC_TeamCard::GetCurrentTaskDisplayText() const
     FTeamTask CurrentTask = TeamComponent->GetCurrentTeamTask(TeamIndex);
     if (CurrentTask.TaskType != ETaskType::Idle)
     {
-        return UTeamComponent::GetTaskTypeDisplayName(CurrentTask.TaskType);
+        return UTaskTypeUtils::GetTaskTypeDisplayName(CurrentTask.TaskType);
     }
 
     // 割り当てられたタスクを表示
     if (TeamData.AssignedTask != ETaskType::Idle)
     {
-        return UTeamComponent::GetTaskTypeDisplayName(TeamData.AssignedTask);
+        return UTaskTypeUtils::GetTaskTypeDisplayName(TeamData.AssignedTask);
     }
 
     return TEXT("待機中");

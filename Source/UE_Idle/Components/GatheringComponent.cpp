@@ -167,12 +167,32 @@ float UGatheringComponent::GetMovementProgress(int32 TeamIndex) const
 
 void UGatheringComponent::UpdateGathering()
 {
-    // 全アクティブチームの処理
-    for (auto& StateEntry : TeamGatheringStates)
+    // 再入防止
+    if (bProcessingUpdate)
     {
-        int32 TeamIndex = StateEntry.Key;
-        ProcessTeamGathering(TeamIndex);
+        UE_LOG(LogTemp, Warning, TEXT("GatheringComponent: UpdateGathering skipped - already processing"));
+        return;
     }
+    
+    bProcessingUpdate = true;
+    
+    // 安全なイテレーションのためにキーのコピーを作成
+    TArray<int32> ActiveTeams;
+    TeamGatheringStates.GetKeys(ActiveTeams);
+    
+    UE_LOG(LogTemp, VeryVerbose, TEXT("GatheringComponent: UpdateGathering processing %d teams"), ActiveTeams.Num());
+    
+    // コピーしたキーを使用してイテレーション
+    for (int32 TeamIndex : ActiveTeams)
+    {
+        // チームがまだアクティブかチェック
+        if (TeamGatheringStates.Contains(TeamIndex))
+        {
+            ProcessTeamGathering(TeamIndex);
+        }
+    }
+    
+    bProcessingUpdate = false;
 }
 
 void UGatheringComponent::ProcessTeamGathering(int32 TeamIndex)
@@ -252,8 +272,11 @@ void UGatheringComponent::ProcessMovement(int32 TeamIndex)
 
 void UGatheringComponent::ProcessGatheringExecution(int32 TeamIndex)
 {
+    UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecution: Called for team %d"), TeamIndex);
+    
     if (!TeamTargetLocations.Contains(TeamIndex))
     {
+        UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecution: Team %d not in target locations"), TeamIndex);
         return;
     }
 
@@ -261,18 +284,62 @@ void UGatheringComponent::ProcessGatheringExecution(int32 TeamIndex)
     FLocationDataRow LocationData = GetLocationData(LocationId);
     TArray<FGatherableItemInfo> GatherableItems = LocationData.ParseGatherableItemsList();
     
+    UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecution: Team %d at %s, found %d gatherable items"), 
+        TeamIndex, *LocationId, GatherableItems.Num());
+    
     if (GatherableItems.Num() == 0)
     {
+        UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecution: No gatherable items at %s"), *LocationId);
         return;
     }
 
     float TeamGatheringPower = CalculateTeamGatheringPower(TeamIndex);
+    UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecution: Team %d has gathering power %.2f"), 
+        TeamIndex, TeamGatheringPower);
+    
+    // チームの積載状況をチェック
+    if (!TeamComponent || !IsValidTeam(TeamIndex))
+    {
+        UE_LOG(LogTemp, Error, TEXT("ProcessGatheringExecution: Invalid team component"));
+        return;
+    }
+    
+    FTeam Team = TeamComponent->GetTeam(TeamIndex);
+    for (int32 i = 0; i < Team.Members.Num(); i++)
+    {
+        AC_IdleCharacter* Member = Team.Members[i];
+        if (IsValid(Member) && Member->GetStatusComponent())
+        {
+            // Try GetInventoryComponent first, then FindComponentByClass as fallback
+            UInventoryComponent* MemberInv = Member->GetInventoryComponent();
+            if (!MemberInv)
+            {
+                MemberInv = Member->FindComponentByClass<UInventoryComponent>();
+            }
+            
+            if (MemberInv)
+            {
+                float MaxCapacity = Member->GetStatusComponent()->GetCarryingCapacity();
+                float CurrentWeight = MemberInv->GetTotalWeight();
+                UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecution: Member %d (%s) - Capacity: %.2f, Current: %.2f, Available: %.2f"), 
+                    i, *Member->GetName(), MaxCapacity, CurrentWeight, MaxCapacity - CurrentWeight);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecution: Member %d (%s) has no inventory component"), 
+                    i, *Member->GetName());
+            }
+        }
+    }
     
     // 各アイテムを採集
     for (const FGatherableItemInfo& ItemInfo : GatherableItems)
     {
         // 採取量計算
         float BaseGatherRate = (TeamGatheringPower * ItemInfo.GatheringCoefficient) / GatheringEfficiencyMultiplier;
+        
+        UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecution: Item %s - coefficient %.2f, base rate %.4f"), 
+            *ItemInfo.ItemId, ItemInfo.GatheringCoefficient, BaseGatherRate);
         
         int32 GatheredAmount = 0;
         
@@ -296,6 +363,9 @@ void UGatheringComponent::ProcessGatheringExecution(int32 TeamIndex)
                 GatheredAmount = 1;
             }
         }
+
+        UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecution: Item %s - calculated amount: %d"), 
+            *ItemInfo.ItemId, GatheredAmount);
 
         // アイテム獲得処理
         if (GatheredAmount > 0)
@@ -329,13 +399,20 @@ void UGatheringComponent::ProcessGatheringExecution(int32 TeamIndex)
 
 bool UGatheringComponent::DistributeItemToTeam(int32 TeamIndex, const FString& ItemId, int32 Quantity)
 {
+    UE_LOG(LogTemp, Warning, TEXT("DistributeItemToTeam: Attempting to distribute %d %s to team %d"), 
+        Quantity, *ItemId, TeamIndex);
+    
     if (!TeamComponent || !IsValidTeam(TeamIndex))
     {
+        UE_LOG(LogTemp, Error, TEXT("DistributeItemToTeam: Invalid team %d"), TeamIndex);
         return false;
     }
 
     FTeam Team = TeamComponent->GetTeam(TeamIndex);
     TArray<AC_IdleCharacter*> SortedMembers = Team.Members;
+    
+    UE_LOG(LogTemp, Warning, TEXT("DistributeItemToTeam: Team %d has %d members"), 
+        TeamIndex, SortedMembers.Num());
     
     // 運搬キャラ優先でソート
     SortedMembers.Sort([this](const AC_IdleCharacter& A, const AC_IdleCharacter& B) {
@@ -348,32 +425,77 @@ bool UGatheringComponent::DistributeItemToTeam(int32 TeamIndex, const FString& I
         }
         
         // 両方同じタイプなら積載量の空きで判定
-        float AAvailable = A.GetStatusComponent()->GetCarryingCapacity() - A.GetInventoryComponent()->GetTotalWeight();
-        float BAvailable = B.GetStatusComponent()->GetCarryingCapacity() - B.GetInventoryComponent()->GetTotalWeight();
+        float AAvailable = 0.0f;
+        float BAvailable = 0.0f;
+        
+        if (A.GetStatusComponent())
+        {
+            UInventoryComponent* AInv = A.GetInventoryComponent();
+            if (!AInv) AInv = A.FindComponentByClass<UInventoryComponent>();
+            if (AInv)
+            {
+                AAvailable = A.GetStatusComponent()->GetCarryingCapacity() - AInv->GetTotalWeight();
+            }
+        }
+        
+        if (B.GetStatusComponent())
+        {
+            UInventoryComponent* BInv = B.GetInventoryComponent();
+            if (!BInv) BInv = B.FindComponentByClass<UInventoryComponent>();
+            if (BInv)
+            {
+                BAvailable = B.GetStatusComponent()->GetCarryingCapacity() - BInv->GetTotalWeight();
+            }
+        }
+        
         return AAvailable > BAvailable;
     });
 
     // アイテム配分
     int32 RemainingQuantity = Quantity;
     
-    for (AC_IdleCharacter* Member : SortedMembers)
+    UE_LOG(LogTemp, Warning, TEXT("DistributeItemToTeam: Starting distribution of %d items"), RemainingQuantity);
+    
+    for (int32 MemberIndex = 0; MemberIndex < SortedMembers.Num(); MemberIndex++)
     {
+        AC_IdleCharacter* Member = SortedMembers[MemberIndex];
         if (!IsValid(Member) || RemainingQuantity <= 0)
         {
             break;
         }
 
         UInventoryComponent* MemberInventory = Member->GetInventoryComponent();
+        
+        // Fallback: try to find component if GetInventoryComponent returns null
         if (!MemberInventory)
         {
+            MemberInventory = Member->FindComponentByClass<UInventoryComponent>();
+        }
+        
+        if (!MemberInventory)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("DistributeItemToTeam: Member %d (%s) has no inventory component"), 
+                MemberIndex, *Member->GetName());
+            UE_LOG(LogTemp, Warning, TEXT("DistributeItemToTeam: Member class: %s"), 
+                *Member->GetClass()->GetName());
             continue;
         }
+
+        // 現在の積載状況をログ
+        float MaxCapacity = Member->GetStatusComponent()->GetCarryingCapacity();
+        float CurrentWeight = MemberInventory->GetTotalWeight();
+        UE_LOG(LogTemp, Warning, TEXT("DistributeItemToTeam: Member %d (%s) - Capacity: %.2f, Current: %.2f"), 
+            MemberIndex, *Member->GetName(), MaxCapacity, CurrentWeight);
 
         // 追加可能な数量を計算
         int32 CanAdd = 0;
         for (int32 i = 1; i <= RemainingQuantity; i++)
         {
-            if (MemberInventory->CanAddItemByWeight(ItemId, i))
+            bool CanAddResult = MemberInventory->CanAddItemByWeight(ItemId, i);
+            UE_LOG(LogTemp, VeryVerbose, TEXT("DistributeItemToTeam: CanAddItemByWeight(%s, %d) = %s"), 
+                *ItemId, i, CanAddResult ? TEXT("true") : TEXT("false"));
+            
+            if (CanAddResult)
             {
                 CanAdd = i;
             }
@@ -383,12 +505,20 @@ bool UGatheringComponent::DistributeItemToTeam(int32 TeamIndex, const FString& I
             }
         }
 
+        UE_LOG(LogTemp, Warning, TEXT("DistributeItemToTeam: Member %d (%s) can add %d items"), 
+            MemberIndex, *Member->GetName(), CanAdd);
+
         if (CanAdd > 0)
         {
             MemberInventory->AddItem(ItemId, CanAdd);
             RemainingQuantity -= CanAdd;
+            UE_LOG(LogTemp, Warning, TEXT("DistributeItemToTeam: Added %d items to member %d, remaining: %d"), 
+                CanAdd, MemberIndex, RemainingQuantity);
         }
     }
+
+    UE_LOG(LogTemp, Warning, TEXT("DistributeItemToTeam: Distribution complete, remaining: %d, success: %s"), 
+        RemainingQuantity, RemainingQuantity == 0 ? TEXT("true") : TEXT("false"));
 
     // 全て配分できたかチェック
     return RemainingQuantity == 0;
@@ -431,6 +561,12 @@ float UGatheringComponent::GetTeamAvailableCapacity(int32 TeamIndex) const
             UCharacterStatusComponent* StatusComp = Member->GetStatusComponent();
             UInventoryComponent* Inventory = Member->GetInventoryComponent();
             
+            // Fallback search if GetInventoryComponent returns null
+            if (!Inventory)
+            {
+                Inventory = Member->FindComponentByClass<UInventoryComponent>();
+            }
+            
             if (StatusComp && Inventory)
             {
                 float MaxCapacity = StatusComp->GetCarryingCapacity();
@@ -469,6 +605,10 @@ void UGatheringComponent::AutoUnloadResourceItems(int32 TeamIndex)
         }
 
         UInventoryComponent* MemberInventory = Member->GetInventoryComponent();
+        if (!MemberInventory)
+        {
+            MemberInventory = Member->FindComponentByClass<UInventoryComponent>();
+        }
         if (!MemberInventory)
         {
             continue;

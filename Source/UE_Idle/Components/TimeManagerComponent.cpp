@@ -64,6 +64,10 @@ void UTimeManagerComponent::StartTimeSystem()
     if (!AreReferencesValid())
     {
         LogTimeError(TEXT("StartTimeSystem: Cannot start - missing component references"));
+        UE_LOG(LogTemp, Error, TEXT("StartTimeSystem: TaskManager=%s, TeamComponents=%d, GatheringComponent=%s"), 
+            TaskManager ? TEXT("Valid") : TEXT("NULL"), 
+            TeamComponents.Num(), 
+            GatheringComponent ? TEXT("Valid") : TEXT("NULL"));
         return;
     }
 
@@ -114,6 +118,8 @@ void UTimeManagerComponent::ResumeTimeSystem()
 
 void UTimeManagerComponent::ProcessTimeUpdate()
 {
+    UE_LOG(LogTemp, Log, TEXT("TimeManager Update: Active=%s, Processing teams..."), bTimeSystemActive ? TEXT("Yes") : TEXT("No"));
+    
     if (!bTimeSystemActive)
     {
         return;
@@ -182,6 +188,8 @@ void UTimeManagerComponent::ProcessGlobalTasks()
 
 void UTimeManagerComponent::ProcessTeamTasks()
 {
+    UE_LOG(LogTemp, Log, TEXT("ProcessTeamTasks: Processing %d teams"), TeamComponents.Num());
+    
     for (int32 TeamIndex = 0; TeamIndex < TeamComponents.Num(); TeamIndex++)
     {
         if (bEnableDefensiveProgramming)
@@ -194,11 +202,22 @@ void UTimeManagerComponent::ProcessTeamTasks()
             {
                 FTeam Team = TeamComponents[TeamIndex]->GetTeam(TeamIndex);
                 
+                UE_LOG(LogTemp, Log, TEXT("ProcessTeamTasks: Team %d - State: %s, Task: %s, GatheringLocation: %s"), 
+                    TeamIndex, 
+                    *UEnum::GetValueAsString(Team.ActionState),
+                    *UTaskTypeUtils::GetTaskTypeDisplayName(Team.AssignedTask),
+                    *Team.GatheringLocationId);
+                
                 switch (Team.ActionState)
                 {
                     case ETeamActionState::Idle:
                     case ETeamActionState::Working:
                         ProcessNormalTaskSafe(TeamIndex);
+                        break;
+                        
+                    case ETeamActionState::Moving:
+                        // 移動中は監視のみ（GatheringComponentが処理）
+                        UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessTeamTasks: Team %d is moving"), TeamIndex);
                         break;
                         
                     case ETeamActionState::InCombat:
@@ -333,15 +352,18 @@ void UTimeManagerComponent::ProcessSpecificTask(int32 TeamIndex, ETaskType TaskT
 
 void UTimeManagerComponent::ProcessGatheringTask(int32 TeamIndex)
 {
+    UE_LOG(LogTemp, Log, TEXT("ProcessGatheringTask: Called for team %d"), TeamIndex);
+    
     if (!IsValidTeam(TeamIndex) || !GatheringComponent)
     {
-        UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringTask: Invalid team %d or missing GatheringComponent"), TeamIndex);
+        UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringTask: Invalid team %d or missing GatheringComponent (Valid: %s, GatheringComp: %s)"), 
+            TeamIndex, IsValidTeam(TeamIndex) ? TEXT("Yes") : TEXT("No"), GatheringComponent ? TEXT("Yes") : TEXT("No"));
         return;
     }
 
     if (TeamIndex >= TeamComponents.Num())
     {
-        UE_LOG(LogTemp, Error, TEXT("ProcessGatheringTask: TeamIndex %d out of range"), TeamIndex);
+        UE_LOG(LogTemp, Error, TEXT("ProcessGatheringTask: TeamIndex %d out of range (max: %d)"), TeamIndex, TeamComponents.Num() - 1);
         return;
     }
 
@@ -354,26 +376,33 @@ void UTimeManagerComponent::ProcessGatheringTask(int32 TeamIndex)
 
     FTeam Team = TeamComp->GetTeam(TeamIndex);
     
+    UE_LOG(LogTemp, Log, TEXT("ProcessGatheringTask: Team %d - Members: %d, GatheringLocationId: '%s'"), 
+        TeamIndex, Team.Members.Num(), *Team.GatheringLocationId);
+    
     // チームが採集可能な状態かチェック
     if (Team.Members.Num() == 0)
     {
-        UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringTask: Team %d has no members"), TeamIndex);
+        UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringTask: Team %d has no members"), TeamIndex);
         return;
     }
 
     // **修正**: 採集開始の判定のみを実行（実際の採集処理はGatheringComponentが独立して処理）
     EGatheringState CurrentGatheringState = GatheringComponent->GetGatheringState(TeamIndex);
+    UE_LOG(LogTemp, Log, TEXT("ProcessGatheringTask: Team %d current gathering state: %d"), TeamIndex, (int32)CurrentGatheringState);
     
     if (CurrentGatheringState == EGatheringState::Inactive)
     {
         // 採集が開始されていない場合、開始を試行
         if (!Team.GatheringLocationId.IsEmpty())
         {
+            UE_LOG(LogTemp, Log, TEXT("ProcessGatheringTask: Attempting to start gathering for team %d at location %s"), 
+                TeamIndex, *Team.GatheringLocationId);
+            
             // 採集場所が設定されている場合、採集開始指示
             bool bStarted = GatheringComponent->StartGathering(TeamIndex, Team.GatheringLocationId);
             if (bStarted)
             {
-                UE_LOG(LogTemp, Log, TEXT("ProcessGatheringTask: Started gathering for team %d at location %s"), 
+                UE_LOG(LogTemp, Log, TEXT("ProcessGatheringTask: Successfully started gathering for team %d at location %s"), 
                     TeamIndex, *Team.GatheringLocationId);
             }
             else
@@ -389,9 +418,19 @@ void UTimeManagerComponent::ProcessGatheringTask(int32 TeamIndex)
     }
     else
     {
-        // **修正**: 既に採集中の場合は状態監視のみ（実際の処理はGatheringComponentが独立実行）
+        // 採集中の場合は進捗状況を表示
         UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringTask: Team %d is actively gathering (state: %d)"), 
             TeamIndex, (int32)CurrentGatheringState);
+        
+        // 10秒に1回詳細ログを表示（デバッグ用）
+        static float LastDetailLogTime = 0.0f;
+        float CurrentTime = GetWorld()->GetTimeSeconds();
+        if (CurrentTime - LastDetailLogTime > 10.0f)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringTask: Team %d actively gathering at %s"), 
+                TeamIndex, *Team.GatheringLocationId);
+            LastDetailLogTime = CurrentTime;
+        }
     }
 }
 
@@ -692,6 +731,10 @@ void UTimeManagerComponent::ProcessTeamTaskSafe(int32 TeamIndex)
         case ETeamActionState::Idle:
             ProcessNormalTaskSafe(TeamIndex);
             break;
+        case ETeamActionState::Moving:
+            // 移動中は監視のみ（GatheringComponentが処理）
+            UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessTeamTaskSafe: Team %d is moving"), TeamIndex);
+            break;
         case ETeamActionState::Locked:
             MonitorLockedAction(TeamIndex);
             break;
@@ -729,6 +772,9 @@ void UTimeManagerComponent::ProcessNormalTaskSafe(int32 TeamIndex)
 
     UTeamComponent* TeamComp = TeamComponents[TeamIndex];
     FTeam Team = TeamComp->GetTeam(TeamIndex);
+    
+    UE_LOG(LogTemp, Log, TEXT("ProcessNormalTaskSafe: Team %d - AssignedTask: %s"), 
+        TeamIndex, *UTaskTypeUtils::GetTaskTypeDisplayName(Team.AssignedTask));
     
     if (Team.AssignedTask == ETaskType::All)
     {

@@ -464,10 +464,10 @@ void UC_TaskMakeSheet::UpdateUIVisibilityForTaskType(ETaskType TaskType)
             break;
 
         case ETaskType::Gathering:
-            // 採集：数量とKeepは非表示
-            TargetQuantitySpinBox->SetVisibility(ESlateVisibility::Collapsed);
-            KeepQuantityCheckBox->SetVisibility(ESlateVisibility::Collapsed);
-            UE_LOG(LogTemp, Warning, TEXT("Gathering mode: Item visible, quantity/keep collapsed"));
+            // 採集：数量とKeepは表示（採集目標数を指定可能）
+            TargetQuantitySpinBox->SetVisibility(ESlateVisibility::Visible);
+            KeepQuantityCheckBox->SetVisibility(ESlateVisibility::Visible);
+            UE_LOG(LogTemp, Warning, TEXT("Gathering mode: All elements visible"));
             break;
 
         case ETaskType::Cooking:
@@ -513,11 +513,24 @@ bool UC_TaskMakeSheet::ValidateInput(FString& OutErrorMessage) const
             break;
 
         case ETaskType::Construction:
-        case ETaskType::Gathering:
-            // 建築・採集：アイテム選択のみチェック
+            // 建築：アイテム選択のみチェック
             if (!TargetItemComboBox || TargetItemComboBox->GetSelectedOption().IsEmpty())
             {
                 OutErrorMessage = TEXT("対象アイテムを選択してください");
+                return false;
+            }
+            break;
+
+        case ETaskType::Gathering:
+            // 採集：アイテムと数量をチェック
+            if (!TargetItemComboBox || TargetItemComboBox->GetSelectedOption().IsEmpty())
+            {
+                OutErrorMessage = TEXT("対象アイテムを選択してください");
+                return false;
+            }
+            if (!TargetQuantitySpinBox || TargetQuantitySpinBox->GetValue() < 1.0f)
+            {
+                OutErrorMessage = TEXT("目標数量は1以上である必要があります");
                 return false;
             }
             break;
@@ -606,7 +619,7 @@ FGlobalTask UC_TaskMakeSheet::CreateTaskFromInput() const
             break;
 
         case ETaskType::Gathering:
-            // 採集：アイテムID設定、数量は1固定
+            // 採集：アイテムID設定、数量はユーザー指定
             {
                 FString SelectedDisplayName = TargetItemComboBox->GetSelectedOption();
                 if (CraftingComponent)
@@ -617,7 +630,7 @@ FGlobalTask UC_TaskMakeSheet::CreateTaskFromInput() const
                 {
                     NewTask.TargetItemId = SelectedDisplayName;
                 }
-                NewTask.TargetQuantity = 1; // 採集は1固定
+                NewTask.TargetQuantity = static_cast<int32>(TargetQuantitySpinBox->GetValue());
             }
             break;
 
@@ -744,11 +757,18 @@ void UC_TaskMakeSheet::UpdateCreateButtonState()
                 break;
 
             case ETaskType::Construction:
+                // 建築：アイテム選択チェック
+                if (!TargetItemComboBox || TargetItemComboBox->GetSelectedOption().IsEmpty())
+                {
+                    bCanCreate = false;
+                }
+                break;
+
             case ETaskType::Gathering:
             case ETaskType::Cooking:
             case ETaskType::Crafting:
             default:
-                // その他：アイテム選択チェック
+                // 採集・料理・製作：アイテム選択チェック
                 if (!TargetItemComboBox || TargetItemComboBox->GetSelectedOption().IsEmpty())
                 {
                     bCanCreate = false;
