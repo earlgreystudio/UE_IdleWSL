@@ -165,10 +165,20 @@ struct FGlobalTask
     // タスクの有効性チェック
     bool IsValid() const
     {
-        return !TaskId.IsEmpty() && 
-               !DisplayName.IsEmpty() && 
-               Priority >= 1 && Priority <= 20 &&
-               TargetQuantity > 0;
+        // 基本フィールドチェック
+        if (TaskId.IsEmpty() || DisplayName.IsEmpty() || Priority < 1 || Priority > 20)
+        {
+            return false;
+        }
+        
+        // 採集タスクで無制限の場合はTargetQuantity=0でもOK
+        if (TaskType == ETaskType::Gathering && GatheringQuantityType == EGatheringQuantityType::Unlimited)
+        {
+            return TargetQuantity >= 0;
+        }
+        
+        // その他のタスクはTargetQuantity > 0が必要
+        return TargetQuantity > 0;
     }
 };
 

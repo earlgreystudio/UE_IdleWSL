@@ -241,6 +241,18 @@ private:
     // エラーログ出力
     void LogError(const FString& ErrorMessage) const;
 
+    // === タスクマッチング用ヘルパー関数 ===
+    
+    // メインマッチング関数：チームタスクに対応するグローバルタスクを探す
+    FString FindMatchingGlobalTask(const FTeamTask& TeamTask, int32 TeamIndex, const FString& LocationId) const;
+    
+    // 各タスクタイプ専用マッチング関数
+    FString FindMatchingGatheringTask(int32 TeamIndex, const FString& LocationId) const;
+    FString FindMatchingAdventureTask(int32 TeamIndex, const FString& LocationId) const;
+    FString FindMatchingConstructionTask(int32 TeamIndex) const;
+    FString FindMatchingCookingTask(int32 TeamIndex) const;
+    FString FindMatchingCraftingTask(int32 TeamIndex) const;
+
     // === 内部状態管理 ===
     
     // タスク処理中フラグ（再入防止）

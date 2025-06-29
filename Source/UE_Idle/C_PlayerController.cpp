@@ -108,8 +108,7 @@ void AC_PlayerController::BeginPlay()
 	// Initialize Task Management System
 	InitializeTaskManagementSystem();
 
-	// Add default tasks for testing
-	AddDefaultTasks();
+	// Default tasks removed - tasks will be created through UI
 	
 	// Start the time system for task processing
 	StartTaskSystemCpp();
@@ -457,7 +456,7 @@ void AC_PlayerController::InitializeGatheringSystemCpp()
 	
 	// 強制的に初期化を実行
 	InitializeTaskManagementSystem();
-	AddDefaultTasks();
+	// AddDefaultTasks(); // Default tasks removed - tasks will be created through UI
 	
 	// システムを開始
 	StartTaskSystemCpp();

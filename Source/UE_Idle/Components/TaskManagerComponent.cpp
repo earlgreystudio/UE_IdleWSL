@@ -557,7 +557,71 @@ bool UTaskManagerComponent::UpdateTaskProgress(const FString& TaskId, int32 Prog
             *TaskId, Task.CurrentProgress, Task.TargetQuantity);
     }
     
-    if (Task.CurrentProgress >= Task.TargetQuantity)
+    // 採集タスクの数量タイプ別完了判定
+    if (Task.TaskType == ETaskType::Gathering)
+    {
+        switch (Task.GatheringQuantityType)
+        {
+            case EGatheringQuantityType::Unlimited:
+                // 無制限採集は永続的に実行される（完了しない）
+                UE_LOG(LogTemp, VeryVerbose, TEXT("Unlimited gathering task %s continues"), *TaskId);
+                return true;
+                
+            case EGatheringQuantityType::Keep:
+                // キープ型は永続的に実行される（完了しない）
+                UE_LOG(LogTemp, VeryVerbose, TEXT("Keep quantity task %s continues"), *TaskId);
+                return true;
+                
+            case EGatheringQuantityType::Specified:
+                // 個数指定型のみ完了判定を行う
+                if (Task.CurrentProgress >= Task.TargetQuantity && Task.TargetQuantity > 0)
+                {
+                    Task.bIsCompleted = true;
+                    UE_LOG(LogTemp, Warning, TEXT("TASK COMPLETED: %s reached %d/%d - removing from list"), 
+                        *TaskId, Task.CurrentProgress, Task.TargetQuantity);
+                    OnGlobalTaskCompleted.Broadcast(Task);
+                    
+                    // 完了タスクを即座に削除
+                    GlobalTasks.RemoveAt(TaskIndex);
+                    RecalculatePriorities();
+                    
+                    // UI更新通知
+                    OnGlobalTaskRemoved.Broadcast(TaskIndex);
+                    
+                    UE_LOG(LogTemp, Warning, TEXT("✅ Task %s auto-removed. Remaining: %d"), *TaskId, GlobalTasks.Num());
+                }
+                return true;
+                
+            default:
+                // フォールバック：従来のbIsKeepQuantityロジック
+                if (Task.bIsKeepQuantity)
+                {
+                    // キープ型は完了しない
+                    return true;
+                }
+                else
+                {
+                    // 通常タスクは完了判定
+                    if (Task.CurrentProgress >= Task.TargetQuantity && Task.TargetQuantity > 0)
+                    {
+                        Task.bIsCompleted = true;
+                        UE_LOG(LogTemp, Warning, TEXT("TASK COMPLETED: %s reached %d/%d - removing from list"), 
+                            *TaskId, Task.CurrentProgress, Task.TargetQuantity);
+                        OnGlobalTaskCompleted.Broadcast(Task);
+                        
+                        GlobalTasks.RemoveAt(TaskIndex);
+                        RecalculatePriorities();
+                        OnGlobalTaskRemoved.Broadcast(TaskIndex);
+                        
+                        UE_LOG(LogTemp, Warning, TEXT("✅ Task %s auto-removed. Remaining: %d"), *TaskId, GlobalTasks.Num());
+                    }
+                }
+                return true;
+        }
+    }
+    
+    // 他のタスクタイプの完了判定
+    if (Task.CurrentProgress >= Task.TargetQuantity && Task.TargetQuantity > 0)
     {
         Task.bIsCompleted = true;
         UE_LOG(LogTemp, Warning, TEXT("TASK COMPLETED: %s reached %d/%d - removing from list"), 
@@ -745,38 +809,48 @@ FGlobalTask UTaskManagerComponent::FindActiveGatheringTask(const FString& ItemId
 
 FString UTaskManagerComponent::GetTargetItemForTeam(int32 TeamIndex, const FString& LocationId) const
 {
-    UE_LOG(LogTemp, VeryVerbose, TEXT("GetTargetItemForTeam: Called for team %d at location %s"), TeamIndex, *LocationId);
+    UE_LOG(LogTemp, Warning, TEXT("🔍 TASK MATCHING: Team %d at %s"), TeamIndex, *LocationId);
     
-    // 指定場所での実行可能な採集タスクを取得
-    TArray<FGlobalTask> ExecutableTasks = GetExecutableGatheringTasksAtLocation(TeamIndex, LocationId);
-    
-    if (ExecutableTasks.Num() > 0)
+    if (!IsValid(TeamComponentRef))
     {
-        // 最優先タスク（配列は優先度順）の対象アイテムを返す
-        FString TargetItem = ExecutableTasks[0].TargetItemId;
-        UE_LOG(LogTemp, VeryVerbose, TEXT("GetTargetItemForTeam: Team %d should gather %s"), TeamIndex, *TargetItem);
-        return TargetItem;
+        UE_LOG(LogTemp, Error, TEXT("❌ TeamComponent unavailable"));
+        return FString();
     }
     
-    // 完了タスクを検出してログ出力（const関数なので削除は別途実行）
-    int32 CompletedCount = 0;
-    for (const FGlobalTask& Task : GlobalTasks)
+    // 1. チームタスクを優先度順で取得
+    TArray<FTeamTask> TeamTasks = TeamComponentRef->GetTeamTasks(TeamIndex);
+    UE_LOG(LogTemp, Warning, TEXT("📋 Team has %d tasks"), TeamTasks.Num());
+    
+    if (TeamTasks.Num() == 0)
     {
-        if (Task.bIsCompleted && Task.TaskType == ETaskType::Gathering)
+        UE_LOG(LogTemp, Warning, TEXT("❌ NO TEAM TASKS - Team %d returning to base"), TeamIndex);
+        return FString(); // チームタスクなし → 拠点帰還
+    }
+    
+    // 2. チームタスクの優先度順でマッチング検索
+    for (int32 i = 0; i < TeamTasks.Num(); i++)
+    {
+        const FTeamTask& TeamTask = TeamTasks[i];
+        FString TaskTypeName = UTaskTypeUtils::GetTaskTypeDisplayName(TeamTask.TaskType);
+        
+        UE_LOG(LogTemp, Warning, TEXT("🎯 Priority %d: %s"), i+1, *TaskTypeName);
+        
+        // 3. このチームタスクに対応するグローバルタスクを探す
+        FString MatchedTarget = FindMatchingGlobalTask(TeamTask, TeamIndex, LocationId);
+        
+        if (!MatchedTarget.IsEmpty())
         {
-            CompletedCount++;
-            UE_LOG(LogTemp, Warning, TEXT("COMPLETED TASK DETECTED: %s (%d/%d) - UI should remove this"), 
-                *Task.TaskId, Task.CurrentProgress, Task.TargetQuantity);
+            UE_LOG(LogTemp, Warning, TEXT("✅ MATCHED: %s for %s"), *MatchedTarget, *TaskTypeName);
+            return MatchedTarget; // 最初にマッチしたものを返す
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("❌ NO MATCH for %s"), *TaskTypeName);
         }
     }
     
-    if (CompletedCount > 0)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Found %d completed gathering tasks - manual cleanup needed"), CompletedCount);
-    }
-    
-    UE_LOG(LogTemp, Log, TEXT("GetTargetItemForTeam: No executable gathering tasks for team %d"), TeamIndex);
-    return FString(); // 実行可能なタスクなし
+    UE_LOG(LogTemp, Warning, TEXT("❌ NO MATCHES FOUND - Team %d returning to base"), TeamIndex);
+    return FString(); // 全てのチームタスクでマッチしない → 拠点帰還
 }
 
 bool UTaskManagerComponent::IsTaskCompleted(const FString& TaskId) const
@@ -859,6 +933,25 @@ TArray<FGlobalTask> UTaskManagerComponent::GetExecutableGatheringTasksAtLocation
         if (Task.bIsCompleted || Task.TaskType != ETaskType::Gathering)
         {
             continue;
+        }
+        
+        // Keepタスクの満足度チェック：拠点全体の在庫量で判定
+        if (Task.GatheringQuantityType == EGatheringQuantityType::Keep && Task.TargetQuantity > 0)
+        {
+            // 拠点全体の現在在庫量を取得（拠点倉庫 + 全チーム所持）
+            int32 TotalCurrentAmount = GetTotalResourceAmount(Task.TargetItemId);
+            
+            if (TotalCurrentAmount >= Task.TargetQuantity)
+            {
+                UE_LOG(LogTemp, VeryVerbose, TEXT("Keep task %s is satisfied (total: %d >= target: %d), skipping"), 
+                    *Task.TaskId, TotalCurrentAmount, Task.TargetQuantity);
+                continue;
+            }
+            else
+            {
+                UE_LOG(LogTemp, VeryVerbose, TEXT("Keep task %s needs more (total: %d < target: %d)"), 
+                    *Task.TaskId, TotalCurrentAmount, Task.TargetQuantity);
+            }
         }
         
         // その場所で採集可能なアイテムかチェック
@@ -969,4 +1062,79 @@ void UTaskManagerComponent::LogTaskOperation(const FString& Operation, const FGl
 void UTaskManagerComponent::LogError(const FString& ErrorMessage) const
 {
     UE_LOG(LogTemp, Error, TEXT("TaskManagerComponent Error: %s"), *ErrorMessage);
+}
+
+// === タスクマッチング関数群 ===
+
+FString UTaskManagerComponent::FindMatchingGlobalTask(const FTeamTask& TeamTask, int32 TeamIndex, const FString& LocationId) const
+{
+    switch (TeamTask.TaskType)
+    {
+        case ETaskType::Gathering:
+            return FindMatchingGatheringTask(TeamIndex, LocationId);
+            
+        case ETaskType::Adventure:
+            return FindMatchingAdventureTask(TeamIndex, LocationId);
+            
+        case ETaskType::Construction:
+            return FindMatchingConstructionTask(TeamIndex);
+            
+        case ETaskType::Cooking:
+            return FindMatchingCookingTask(TeamIndex);
+            
+        case ETaskType::Crafting:
+            return FindMatchingCraftingTask(TeamIndex);
+            
+        default:
+            UE_LOG(LogTemp, Warning, TEXT("⚠️ Unhandled team task type: %d"), (int32)TeamTask.TaskType);
+            return FString();
+    }
+}
+
+FString UTaskManagerComponent::FindMatchingGatheringTask(int32 TeamIndex, const FString& LocationId) const
+{
+    UE_LOG(LogTemp, VeryVerbose, TEXT("  🔍 Searching gathering tasks at %s"), *LocationId);
+    
+    // その場所で採集可能なグローバルタスクを優先度順で取得
+    TArray<FGlobalTask> ExecutableTasks = GetExecutableGatheringTasksAtLocation(TeamIndex, LocationId);
+    
+    UE_LOG(LogTemp, VeryVerbose, TEXT("  📊 Found %d executable gathering tasks"), ExecutableTasks.Num());
+    
+    if (ExecutableTasks.Num() > 0)
+    {
+        const FGlobalTask& SelectedTask = ExecutableTasks[0]; // 最優先
+        UE_LOG(LogTemp, VeryVerbose, TEXT("  ✅ Selected: %s"), *SelectedTask.TargetItemId);
+        return SelectedTask.TargetItemId;
+    }
+    
+    UE_LOG(LogTemp, VeryVerbose, TEXT("  ❌ No gathering tasks available at %s"), *LocationId);
+    return FString();
+}
+
+FString UTaskManagerComponent::FindMatchingAdventureTask(int32 TeamIndex, const FString& LocationId) const
+{
+    UE_LOG(LogTemp, VeryVerbose, TEXT("  🏔️ Adventure task matching (not implemented)"));
+    // TODO: 冒険システム実装時に追加
+    return FString();
+}
+
+FString UTaskManagerComponent::FindMatchingConstructionTask(int32 TeamIndex) const
+{
+    UE_LOG(LogTemp, VeryVerbose, TEXT("  🏗️ Construction task matching (not implemented)"));
+    // TODO: 建築システム実装時に追加
+    return FString();
+}
+
+FString UTaskManagerComponent::FindMatchingCookingTask(int32 TeamIndex) const
+{
+    UE_LOG(LogTemp, VeryVerbose, TEXT("  🍳 Cooking task matching (not implemented)"));
+    // TODO: 料理システム実装時に追加
+    return FString();
+}
+
+FString UTaskManagerComponent::FindMatchingCraftingTask(int32 TeamIndex) const
+{
+    UE_LOG(LogTemp, VeryVerbose, TEXT("  ⚒️ Crafting task matching (not implemented)"));
+    // TODO: 製作システム実装時に追加
+    return FString();
 }

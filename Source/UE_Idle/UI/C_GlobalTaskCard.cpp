@@ -97,12 +97,37 @@ void UC_GlobalTaskCard::UpdateQuantityDisplay()
 {
     if (QuantityText)
     {
-        FString QuantityStr = FString::Printf(TEXT("%d"), TaskData.TargetQuantity);
+        FString QuantityStr;
         
-        // キープフラグがtrueなら「をキープ」を追加
-        if (TaskData.bIsKeepQuantity)
+        // 採集タスクの数量タイプ別表示
+        if (TaskData.TaskType == ETaskType::Gathering)
         {
-            QuantityStr += TEXT(" をキープ");
+            switch (TaskData.GatheringQuantityType)
+            {
+                case EGatheringQuantityType::Unlimited:
+                    QuantityStr = TEXT("無制限");
+                    break;
+                case EGatheringQuantityType::Keep:
+                    QuantityStr = FString::Printf(TEXT("%d をキープ"), TaskData.TargetQuantity);
+                    break;
+                case EGatheringQuantityType::Specified:
+                    QuantityStr = FString::Printf(TEXT("%d 個"), TaskData.TargetQuantity);
+                    break;
+                default:
+                    QuantityStr = FString::Printf(TEXT("%d"), TaskData.TargetQuantity);
+                    break;
+            }
+        }
+        else
+        {
+            // 他のタスクタイプは通常表示
+            QuantityStr = FString::Printf(TEXT("%d"), TaskData.TargetQuantity);
+            
+            // キープフラグがtrueなら「をキープ」を追加（廃止予定フラグ）
+            if (TaskData.bIsKeepQuantity)
+            {
+                QuantityStr += TEXT(" をキープ");
+            }
         }
         
         QuantityText->SetText(FText::FromString(QuantityStr));
@@ -147,10 +172,20 @@ void UC_GlobalTaskCard::UpdateProgressDisplay()
         
         if (ProgressText)
         {
-            FString ProgressStr = FString::Printf(TEXT("進行: %d / %d (%.1f%%)"),
-                TaskData.CurrentProgress,
-                TaskData.TargetQuantity,
-                TaskData.GetProgressRatio() * 100.0f);
+            FString ProgressStr;
+            
+            // 無制限採集タスクの場合は特別な表示
+            if (TaskData.TaskType == ETaskType::Gathering && TaskData.GatheringQuantityType == EGatheringQuantityType::Unlimited)
+            {
+                ProgressStr = FString::Printf(TEXT("進行: %d (無制限)"), TaskData.CurrentProgress);
+            }
+            else
+            {
+                ProgressStr = FString::Printf(TEXT("進行: %d / %d (%.1f%%)"),
+                    TaskData.CurrentProgress,
+                    TaskData.TargetQuantity,
+                    TaskData.GetProgressRatio() * 100.0f);
+            }
             
             ProgressText->SetText(FText::FromString(ProgressStr));
         }
@@ -159,22 +194,37 @@ void UC_GlobalTaskCard::UpdateProgressDisplay()
 
 FString UC_GlobalTaskCard::GetItemDisplayName(const FString& ItemId) const
 {
+    UE_LOG(LogTemp, Warning, TEXT("=== GetItemDisplayName START: ItemId = '%s' ==="), *ItemId);
+    
     if (ItemId.IsEmpty())
     {
+        UE_LOG(LogTemp, Warning, TEXT("GetItemDisplayName: ItemId is empty"));
         return TEXT("アイテム未設定");
     }
 
     // ItemDataTableManagerからアイテム名を取得
     if (ItemDataManager)
     {
+        UE_LOG(LogTemp, Warning, TEXT("GetItemDisplayName: ItemDataManager exists, calling GetItemData"));
         FItemDataRow ItemData;
         if (ItemDataManager->GetItemData(ItemId, ItemData))
         {
-            return ItemData.Name.ToString();
+            FString DisplayName = ItemData.Name.ToString();
+            UE_LOG(LogTemp, Warning, TEXT("GetItemDisplayName: SUCCESS - %s -> '%s'"), *ItemId, *DisplayName);
+            return DisplayName;
         }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("GetItemDisplayName: FAILED to get item data for '%s'"), *ItemId);
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("GetItemDisplayName: ItemDataManager is NULL"));
     }
 
     // 取得できない場合はIDをそのまま返す
+    UE_LOG(LogTemp, Error, TEXT("GetItemDisplayName: FALLBACK - returning ItemId '%s'"), *ItemId);
     return ItemId;
 }
 
@@ -229,8 +279,14 @@ void UC_GlobalTaskCard::OnPriorityDownClicked()
 
 void UC_GlobalTaskCard::OnDeleteClicked()
 {
+    UE_LOG(LogTemp, Warning, TEXT("UC_GlobalTaskCard::OnDeleteClicked - Task %s (Index: %d)"), *TaskData.TaskId, TaskIndex);
+    
     // 削除確認ダイアログを表示（Blueprint実装）
     ShowDeleteConfirmDialog();
+    
+    // Blueprint実装がない場合の直接削除（テスト用）
+    // 実際のプロジェクトでは削除確認ダイアログを実装することを推奨
+    ConfirmDelete();
 }
 
 void UC_GlobalTaskCard::ConfirmDelete()

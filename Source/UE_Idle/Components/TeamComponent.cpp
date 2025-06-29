@@ -645,6 +645,15 @@ bool UTeamComponent::RemoveTeamTask(int32 TeamIndex, int32 TaskPriority)
 			TaskList.RemoveAt(i);
 			
 			UE_LOG(LogTemp, Log, TEXT("RemoveTeamTask: Removed task with priority %d from team %d"), TaskPriority, TeamIndex);
+			
+			// タスクリストが空になった場合、チームをアイドル状態にリセット
+			if (TaskList.Num() == 0)
+			{
+				Teams[TeamIndex].AssignedTask = ETaskType::Idle;
+				UE_LOG(LogTemp, Log, TEXT("RemoveTeamTask: Team %d has no tasks, set to Idle"), TeamIndex);
+				OnTaskChanged.Broadcast(TeamIndex, ETaskType::Idle);
+			}
+			
 			OnTeamTaskCompleted.Broadcast(TeamIndex, RemovedTask);
 			
 			return true;
