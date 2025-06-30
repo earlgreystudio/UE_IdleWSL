@@ -9,6 +9,7 @@
 #include "Components/GatheringComponent.h"
 #include "Components/CraftingComponent.h"
 #include "Components/LocationMovementComponent.h"
+#include "Components/CombatComponent.h"
 #include "Components/BaseComponent.h"
 #include "Actor/C_IdleCharacter.h"
 #include "UI/C__InventoryList.h"
@@ -34,6 +35,7 @@ AC_PlayerController::AC_PlayerController()
 	GatheringComponent = CreateDefaultSubobject<UGatheringComponent>(TEXT("GatheringComponent"));
 	CraftingComponent = CreateDefaultSubobject<UCraftingComponent>(TEXT("CraftingComponent"));
 	MovementComponent = CreateDefaultSubobject<ULocationMovementComponent>(TEXT("MovementComponent"));
+	CombatComponent = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
 
 	// Create Base Management System component
 	BaseComponent = CreateDefaultSubobject<UBaseComponent>(TEXT("BaseComponent"));
