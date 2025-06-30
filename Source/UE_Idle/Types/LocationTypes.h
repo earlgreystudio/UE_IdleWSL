@@ -192,4 +192,16 @@ struct FLocationDataRow : public FTableRowBase
     {
         return !GatherableItemsString.IsEmpty();
     }
+
+    // 採集可能アイテムIDリストを取得
+    void GetGatherableItemIds(TArray<FString>& OutItemIds) const
+    {
+        OutItemIds.Empty();
+        TArray<FGatherableItemInfo> GatherableList = ParseGatherableItemsList();
+        
+        for (const FGatherableItemInfo& ItemInfo : GatherableList)
+        {
+            OutItemIds.Add(ItemInfo.ItemId);
+        }
+    }
 };

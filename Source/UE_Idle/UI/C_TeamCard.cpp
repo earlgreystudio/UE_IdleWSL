@@ -279,6 +279,7 @@ void UC_TeamCard::BindTeamEvents()
 {
     if (!TeamComponent)
     {
+        UE_LOG(LogTemp, Error, TEXT("BindTeamEvents: TeamComponent is NULL for TeamCard %d"), TeamIndex);
         return;
     }
 
@@ -290,6 +291,7 @@ void UC_TeamCard::BindTeamEvents()
     TeamComponent->OnTeamTaskStarted.AddDynamic(this, &UC_TeamCard::OnTeamTaskStarted);
     TeamComponent->OnTeamTaskCompleted.AddDynamic(this, &UC_TeamCard::OnTeamTaskCompleted);
     TeamComponent->OnCharacterDataChanged.AddDynamic(this, &UC_TeamCard::OnCharacterDataChanged);
+    TeamComponent->OnTeamsUpdated.AddDynamic(this, &UC_TeamCard::OnTeamsUpdated);
     
     // MovementComponentのイベントもバインド
     if (UWorld* World = GetWorld())
@@ -322,6 +324,7 @@ void UC_TeamCard::UnbindTeamEvents()
     TeamComponent->OnTeamTaskStarted.RemoveDynamic(this, &UC_TeamCard::OnTeamTaskStarted);
     TeamComponent->OnTeamTaskCompleted.RemoveDynamic(this, &UC_TeamCard::OnTeamTaskCompleted);
     TeamComponent->OnCharacterDataChanged.RemoveDynamic(this, &UC_TeamCard::OnCharacterDataChanged);
+    TeamComponent->OnTeamsUpdated.RemoveDynamic(this, &UC_TeamCard::OnTeamsUpdated);
     
     // MovementComponentのイベントもアンバインド
     if (UWorld* World = GetWorld())
@@ -382,7 +385,6 @@ void UC_TeamCard::OnTeamActionStateChanged(int32 InTeamIndex, ETeamActionState N
 {
     if (InTeamIndex == TeamIndex)
     {
-        UE_LOG(LogTemp, VeryVerbose, TEXT("UC_TeamCard::OnTeamActionStateChanged - Team %d"), TeamIndex);
         UpdateTeamStatusDisplay();
     }
 }
@@ -418,6 +420,14 @@ void UC_TeamCard::OnCharacterDataChanged(AC_IdleCharacter* Character)
         UE_LOG(LogTemp, Log, TEXT("UC_TeamCard::OnCharacterDataChanged - Team %d"), TeamIndex);
         UpdateCharacterCards();
     }
+}
+
+void UC_TeamCard::OnTeamsUpdated()
+{
+    // アイテム採集等でチーム状態が変わった可能性があるため、全ての表示を更新
+    UpdateTeamStatusDisplay();
+    UpdateCurrentTaskDisplay();
+    UpdateCharacterCards();
 }
 
 void UC_TeamCard::OnMovementProgressUpdated(int32 InTeamIndex, const FMovementInfo& MovementInfo)
@@ -625,7 +635,8 @@ FString UC_TeamCard::GetTeamStatusDisplayText() const
         int32 CurrentResourceCount = GetCurrentResourceCount();
         if (CurrentResourceCount >= 0)
         {
-            return FString::Printf(TEXT("作業中（%d個）"), CurrentResourceCount);
+            FString WorkingText = FString::Printf(TEXT("作業中（%d個）"), CurrentResourceCount);
+            return WorkingText;
         }
     }
     
@@ -705,7 +716,8 @@ int32 UC_TeamCard::GetCurrentResourceCount() const
         if (Member && Member->GetInventoryComponent())
         {
             UInventoryComponent* CharInventory = Member->GetInventoryComponent();
-            TotalCount += CharInventory->GetItemCount(TargetItemId);
+            int32 MemberCount = CharInventory->GetItemCount(TargetItemId);
+            TotalCount += MemberCount;
         }
     }
     
@@ -736,6 +748,10 @@ void UC_TeamCard::UpdateTeamStatusDisplay()
     {
         FString StatusText = GetTeamStatusDisplayText();
         TeamStatusText->SetText(FText::FromString(StatusText));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("UpdateTeamStatusDisplay: Team %d TeamStatusText is NULL"), TeamIndex);
     }
 }
 

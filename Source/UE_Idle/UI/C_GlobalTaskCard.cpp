@@ -1,6 +1,7 @@
 #include "C_GlobalTaskCard.h"
 #include "../Components/TaskManagerComponent.h"
 #include "../Managers/ItemDataTableManager.h"
+#include "../Managers/LocationDataTableManager.h"
 #include "Components/TextBlock.h"
 #include "Components/Button.h"
 #include "Components/HorizontalBox.h"
@@ -30,6 +31,7 @@ void UC_GlobalTaskCard::NativeConstruct()
     if (UGameInstance* GameInstance = GetGameInstance())
     {
         ItemDataManager = GameInstance->GetSubsystem<UItemDataTableManager>();
+        LocationDataManager = GameInstance->GetSubsystem<ULocationDataTableManager>();
     }
 }
 
@@ -202,12 +204,22 @@ FString UC_GlobalTaskCard::GetItemDisplayName(const FString& ItemId) const
         return TEXT("アイテム未設定");
     }
 
+    // 毎回GameInstanceからマネージャーを取得（初期化タイミング問題を回避）
+    UItemDataTableManager* CurrentItemDataManager = nullptr;
+    ULocationDataTableManager* CurrentLocationDataManager = nullptr;
+    
+    if (UGameInstance* GameInstance = GetGameInstance())
+    {
+        CurrentItemDataManager = GameInstance->GetSubsystem<UItemDataTableManager>();
+        CurrentLocationDataManager = GameInstance->GetSubsystem<ULocationDataTableManager>();
+    }
+
     // ItemDataTableManagerからアイテム名を取得
-    if (ItemDataManager)
+    if (CurrentItemDataManager)
     {
         UE_LOG(LogTemp, Warning, TEXT("GetItemDisplayName: ItemDataManager exists, calling GetItemData"));
         FItemDataRow ItemData;
-        if (ItemDataManager->GetItemData(ItemId, ItemData))
+        if (CurrentItemDataManager->GetItemData(ItemId, ItemData))
         {
             FString DisplayName = ItemData.Name.ToString();
             UE_LOG(LogTemp, Warning, TEXT("GetItemDisplayName: SUCCESS - %s -> '%s'"), *ItemId, *DisplayName);
@@ -215,12 +227,33 @@ FString UC_GlobalTaskCard::GetItemDisplayName(const FString& ItemId) const
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("GetItemDisplayName: FAILED to get item data for '%s'"), *ItemId);
+            UE_LOG(LogTemp, Warning, TEXT("GetItemDisplayName: FAILED to get item data for '%s', trying LocationData"), *ItemId);
         }
     }
     else
     {
         UE_LOG(LogTemp, Error, TEXT("GetItemDisplayName: ItemDataManager is NULL"));
+    }
+
+    // LocationDataTableManagerから場所名を取得
+    if (CurrentLocationDataManager)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("GetItemDisplayName: LocationDataManager exists, calling GetLocationData"));
+        FLocationDataRow LocationData;
+        if (CurrentLocationDataManager->GetLocationData(ItemId, LocationData))
+        {
+            FString DisplayName = LocationData.Name;
+            UE_LOG(LogTemp, Warning, TEXT("GetItemDisplayName: SUCCESS - %s -> '%s'"), *ItemId, *DisplayName);
+            return DisplayName;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("GetItemDisplayName: FAILED to get location data for '%s'"), *ItemId);
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("GetItemDisplayName: LocationDataManager is NULL"));
     }
 
     // 取得できない場合はIDをそのまま返す

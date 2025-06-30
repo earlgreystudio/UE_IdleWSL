@@ -113,6 +113,10 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Task Selection")
     bool CanTeamExecuteTask(int32 TeamIndex, const FGlobalTask& Task) const;
 
+    // グローバルタスクから指定場所での目標アイテム取得
+    UFUNCTION(BlueprintCallable, Category = "Task Selection")
+    FString GetTargetItemFromGlobalTasks(const FString& LocationId) const;
+
     // === リソース監視・判定 ===
 
     // リソース要件チェック

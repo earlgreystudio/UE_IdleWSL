@@ -9,6 +9,7 @@ class UTextBlock;
 class UButton;
 class UTaskManagerComponent;
 class UItemDataTableManager;
+class ULocationDataTableManager;
 class UHorizontalBox;
 
 /**
@@ -78,6 +79,9 @@ protected:
 
     UPROPERTY()
     UItemDataTableManager* ItemDataManager;
+
+    UPROPERTY()
+    ULocationDataTableManager* LocationDataManager;
 
 protected:
     // 削除確認ダイアログ

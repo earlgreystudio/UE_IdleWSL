@@ -641,6 +641,13 @@ void UGatheringComponent::ProcessGatheringExecutionWithTarget(int32 TeamIndex, c
                 
                 UE_LOG(LogTemp, Log, TEXT("Team %d gathered %d %s (target)"), TeamIndex, GatheredAmount, *ItemInfo.ItemId);
                 
+                // UI更新のため、TeamComponentのイベントを発火
+                if (TeamComponent)
+                {
+                    TeamComponent->OnTeamsUpdated.Broadcast();
+                    UE_LOG(LogTemp, Warning, TEXT("🔄 GatheringComponent: Triggered UI update for team %d after gathering"), TeamIndex);
+                }
+                
                 // 個数指定タイプのタスクの目標量を減らす
                 UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecutionWithTarget: Calling ReduceSpecifiedTaskQuantity for %s x%d"), 
                     *ItemInfo.ItemId, GatheredAmount);

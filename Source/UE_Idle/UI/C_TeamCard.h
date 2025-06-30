@@ -149,6 +149,9 @@ private:
     UFUNCTION()
     void OnCharacterDataChanged(AC_IdleCharacter* Character);
 
+    UFUNCTION()
+    void OnTeamsUpdated();
+
     // MovementComponentイベントハンドラー
     UFUNCTION()
     void OnMovementProgressUpdated(int32 InTeamIndex, const FMovementInfo& MovementInfo);
