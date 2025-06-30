@@ -108,7 +108,8 @@ void AC_PlayerController::BeginPlay()
 	// Initialize Task Management System
 	InitializeTaskManagementSystem();
 
-	// Default tasks removed - tasks will be created through UI
+	// Add debug tasks for testing
+	AddDefaultTasks();
 	
 	// Start the time system for task processing
 	StartTaskSystemCpp();
@@ -431,13 +432,25 @@ void AC_PlayerController::AddDefaultTasks()
 	GatheringTask.CreatedTime = FDateTime::Now();
 	GatheringTask.RelatedSkills = UTaskTypeUtils::GetTaskRelatedSkills(ETaskType::Gathering);
 
-	// タスクを追加（採集のみ）
-	// TaskManager->AddGlobalTask(CookingTask);
-	// TaskManager->AddGlobalTask(ConstructionTask);
-	// TaskManager->AddGlobalTask(AdventureTask);
+	// デバッグ用冒険タスク: 平原
+	FGlobalTask PlainsAdventureTask;
+	PlainsAdventureTask.TaskId = TEXT("debug_adventure_plains");
+	PlainsAdventureTask.DisplayName = TEXT("冒険: 平原");
+	PlainsAdventureTask.TaskType = ETaskType::Adventure;
+	PlainsAdventureTask.TargetItemId = TEXT("plains");
+	PlainsAdventureTask.TargetQuantity = 1;
+	PlainsAdventureTask.Priority = 1;
+	PlainsAdventureTask.CurrentProgress = 0;
+	PlainsAdventureTask.bIsCompleted = false;
+	PlainsAdventureTask.bIsKeepQuantity = false;
+	PlainsAdventureTask.CreatedTime = FDateTime::Now();
+	PlainsAdventureTask.RelatedSkills = UTaskTypeUtils::GetTaskRelatedSkills(ETaskType::Adventure);
+
+	// タスクを追加（デバッグ用冒険タスクと採集タスク）
+	TaskManager->AddGlobalTask(PlainsAdventureTask);
 	TaskManager->AddGlobalTask(GatheringTask);
 
-	UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: Added 1 default gathering task (wood x10, Specified type)"));
+	UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: Added debug adventure task (plains) and gathering task (wood x10)"));
 }
 
 void AC_PlayerController::StopTaskSystemCpp()

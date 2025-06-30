@@ -167,6 +167,10 @@ public:
     // 指定アイテムのみの採集処理（TimeManagerからの委譲用）
     UFUNCTION(BlueprintCallable, Category = "Gathering")
     void ProcessGatheringExecutionWithTarget(int32 TeamIndex, const FString& TargetItemId);
+    
+    // チームの採集場所を設定
+    UFUNCTION(BlueprintCallable, Category = "Gathering")
+    void SetTeamTargetLocation(int32 TeamIndex, const FString& LocationId);
 
     // === アイテム配分システム ===
 

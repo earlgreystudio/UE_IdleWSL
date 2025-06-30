@@ -152,7 +152,7 @@ void ULocationMovementComponent::ProcessMovement(int32 TeamIndex)
         return;
     }
     
-    UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessMovement: Processing movement for team %d"), TeamIndex);
+    UE_LOG(LogTemp, Warning, TEXT("ProcessMovement: Processing movement for team %d"), TeamIndex);
     
     // 1秒分の移動処理
     UpdateMovementInfo(TeamIndex, 1.0f);
@@ -344,6 +344,9 @@ void ULocationMovementComponent::UpdateMovementInfo(int32 TeamIndex, float Delta
         return;
     }
     
+    UE_LOG(LogTemp, Warning, TEXT("🔍 UpdateMovementInfo: Team %d - Current: %.1f, Target: %.1f, Remaining: %.1f"), 
+        TeamIndex, MovementInfo->CurrentDistanceFromBase, MovementInfo->TargetDistanceFromBase, MovementInfo->RemainingTime);
+    
     // 即座移動の場合
     if (MovementInfo->TotalTime <= 0.0f)
     {
@@ -354,14 +357,17 @@ void ULocationMovementComponent::UpdateMovementInfo(int32 TeamIndex, float Delta
         return;
     }
     
-    // このティックでの移動距離を計算
-    float DistanceThisTick = MovementInfo->Speed * DeltaTime;
+    // このティックでの最大移動距離を計算
+    float MaxDistanceThisTick = MovementInfo->Speed * DeltaTime;
     
     // 移動方向に応じて現在距離を更新
     if (MovementInfo->bMovingAwayFromBase)
     {
         // 拠点から離れる方向
-        MovementInfo->CurrentDistanceFromBase += DistanceThisTick;
+        float RemainingDistance = MovementInfo->TargetDistanceFromBase - MovementInfo->CurrentDistanceFromBase;
+        float ActualMovement = FMath::Min(MaxDistanceThisTick, RemainingDistance);
+        
+        MovementInfo->CurrentDistanceFromBase += ActualMovement;
         
         // 目的地に到達したかチェック
         if (MovementInfo->CurrentDistanceFromBase >= MovementInfo->TargetDistanceFromBase)
@@ -376,7 +382,10 @@ void ULocationMovementComponent::UpdateMovementInfo(int32 TeamIndex, float Delta
     else
     {
         // 拠点に向かう方向
-        MovementInfo->CurrentDistanceFromBase -= DistanceThisTick;
+        float RemainingDistance = MovementInfo->CurrentDistanceFromBase - MovementInfo->TargetDistanceFromBase;
+        float ActualMovement = FMath::Min(MaxDistanceThisTick, RemainingDistance);
+        
+        MovementInfo->CurrentDistanceFromBase -= ActualMovement;
         
         // 拠点に到達したかチェック
         if (MovementInfo->CurrentDistanceFromBase <= MovementInfo->TargetDistanceFromBase)
@@ -399,8 +408,8 @@ void ULocationMovementComponent::UpdateMovementInfo(int32 TeamIndex, float Delta
     float RemainingDistance = FMath::Abs(MovementInfo->TargetDistanceFromBase - MovementInfo->CurrentDistanceFromBase);
     MovementInfo->RemainingTime = (MovementInfo->Speed > 0.0f) ? (RemainingDistance / MovementInfo->Speed) : 0.0f;
     
-    UE_LOG(LogTemp, VeryVerbose, TEXT("MovementComponent: Team %d at %.1fm, progress %.2f, remaining %.1fs"), 
-        TeamIndex, MovementInfo->CurrentDistanceFromBase, MovementInfo->Progress, MovementInfo->RemainingTime);
+    UE_LOG(LogTemp, Warning, TEXT("MovementComponent: Team %d at %.1fm/%.1fm, progress %.2f, remaining %.1fs (speed: %.1f, delta: %.1f)"), 
+        TeamIndex, MovementInfo->CurrentDistanceFromBase, MovementInfo->TargetDistanceFromBase, MovementInfo->Progress, MovementInfo->RemainingTime, MovementInfo->Speed, DeltaTime);
     
     // UI更新イベント発行
     OnMovementProgressUpdated.Broadcast(TeamIndex, *MovementInfo);

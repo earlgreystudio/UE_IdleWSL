@@ -295,7 +295,7 @@ void UGatheringComponent::UpdateGathering()
 
 void UGatheringComponent::ProcessTeamGatheringWithTarget(int32 TeamIndex, const FString& TargetItemId)
 {
-    UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessTeamGatheringWithTarget: Team %d targeting %s"), TeamIndex, *TargetItemId);
+    UE_LOG(LogTemp, Warning, TEXT("🎯 GatheringComponent: ProcessTeamGatheringWithTarget Team %d targeting %s"), TeamIndex, *TargetItemId);
     
     if (!IsValidTeam(TeamIndex))
     {
@@ -311,24 +311,32 @@ void UGatheringComponent::ProcessTeamGatheringWithTarget(int32 TeamIndex, const 
     }
     
     EGatheringState CurrentState = GetGatheringState(TeamIndex);
+    UE_LOG(LogTemp, Warning, TEXT("🎯 GatheringComponent: Team %d current state: %d"), TeamIndex, (int32)CurrentState);
     
     switch (CurrentState)
     {
         case EGatheringState::MovingToSite:
         case EGatheringState::MovingToBase:
+            UE_LOG(LogTemp, Warning, TEXT("🎯 GatheringComponent: Team %d processing movement"), TeamIndex);
             ProcessMovement(TeamIndex);
             break;
             
         case EGatheringState::Gathering:
+            UE_LOG(LogTemp, Warning, TEXT("🎯 GatheringComponent: Team %d executing gathering for %s"), TeamIndex, *TargetItemId);
             ProcessGatheringExecutionWithTarget(TeamIndex, TargetItemId);
             break;
             
         case EGatheringState::Unloading:
+            UE_LOG(LogTemp, Warning, TEXT("🎯 GatheringComponent: Team %d unloading resources"), TeamIndex);
             AutoUnloadResourceItems(TeamIndex);
             break;
             
+        case EGatheringState::Inactive:
         default:
-            // Inactive状態の場合は何もしない
+            // Inactive状態で採集要求があった場合、採集開始
+            UE_LOG(LogTemp, Warning, TEXT("🎯 GatheringComponent: Team %d starting gathering from inactive state"), TeamIndex);
+            SetGatheringState(TeamIndex, EGatheringState::Gathering);
+            ProcessGatheringExecutionWithTarget(TeamIndex, TargetItemId);
             break;
     }
 }
@@ -540,13 +548,15 @@ void UGatheringComponent::ProcessGatheringExecution(int32 TeamIndex)
 
 void UGatheringComponent::ProcessGatheringExecutionWithTarget(int32 TeamIndex, const FString& TargetItemId)
 {
-    UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringExecutionWithTarget: Team %d targeting %s"), TeamIndex, *TargetItemId);
+    UE_LOG(LogTemp, Warning, TEXT("🌾 ProcessGatheringExecutionWithTarget: Team %d targeting %s"), TeamIndex, *TargetItemId);
     
     if (!TeamTargetLocations.Contains(TeamIndex))
     {
-        UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecutionWithTarget: Team %d not in target locations"), TeamIndex);
+        UE_LOG(LogTemp, Warning, TEXT("🌾 ProcessGatheringExecutionWithTarget: Team %d not in target locations"), TeamIndex);
         return;
     }
+    
+    UE_LOG(LogTemp, Warning, TEXT("🌾 ProcessGatheringExecutionWithTarget: Team %d has target location"), TeamIndex);
 
     FString LocationId = TeamTargetLocations[TeamIndex];
     FLocationDataRow LocationData = GetLocationData(LocationId);
@@ -587,8 +597,8 @@ void UGatheringComponent::ProcessGatheringExecutionWithTarget(int32 TeamIndex, c
         // 採取量計算
         float BaseGatherRate = (TeamGatheringPower * ItemInfo.GatheringCoefficient) / GatheringEfficiencyMultiplier;
         
-        UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringExecutionWithTarget: Item %s - coefficient %.2f, base rate %.4f"), 
-            *ItemInfo.ItemId, ItemInfo.GatheringCoefficient, BaseGatherRate);
+        UE_LOG(LogTemp, Warning, TEXT("🌾 GATHERING CALC: Item %s - TeamPower %.2f, Coefficient %.2f, Multiplier %.2f, BaseRate %.4f"), 
+            *ItemInfo.ItemId, TeamGatheringPower, ItemInfo.GatheringCoefficient, GatheringEfficiencyMultiplier, BaseGatherRate);
         
         int32 GatheredAmount = 0;
         
@@ -613,7 +623,7 @@ void UGatheringComponent::ProcessGatheringExecutionWithTarget(int32 TeamIndex, c
             }
         }
 
-        UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringExecutionWithTarget: Item %s - calculated amount: %d"), 
+        UE_LOG(LogTemp, Warning, TEXT("🌾 GATHERING RESULT: Item %s - calculated amount: %d"), 
             *ItemInfo.ItemId, GatheredAmount);
 
         // アイテム獲得処理
@@ -654,6 +664,12 @@ void UGatheringComponent::ProcessGatheringExecutionWithTarget(int32 TeamIndex, c
         UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringExecutionWithTarget: Target item %s not available at %s"), 
             *TargetItemId, *LocationId);
     }
+}
+
+void UGatheringComponent::SetTeamTargetLocation(int32 TeamIndex, const FString& LocationId)
+{
+    TeamTargetLocations.Add(TeamIndex, LocationId);
+    UE_LOG(LogTemp, Warning, TEXT("🌾 SetTeamTargetLocation: Team %d target location set to %s"), TeamIndex, *LocationId);
 }
 
 // === アイテム配分システム ===

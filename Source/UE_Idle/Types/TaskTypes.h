@@ -29,6 +29,62 @@ enum class EGatheringQuantityType : uint8
     Keep        UMETA(DisplayName = "個数キープ")  // 常に指定数をキープ
 };
 
+// ======== タスク実行計画システム ========
+
+// タスク実行アクション
+UENUM(BlueprintType)
+enum class ETaskExecutionAction : uint8
+{
+    None            UMETA(DisplayName = "何もしない"),
+    MoveToLocation  UMETA(DisplayName = "指定場所へ移動"),
+    ExecuteGathering UMETA(DisplayName = "採集実行"),
+    ExecuteCombat   UMETA(DisplayName = "戦闘実行"),
+    ReturnToBase    UMETA(DisplayName = "拠点帰還"),
+    UnloadItems     UMETA(DisplayName = "荷下ろし"),
+    WaitIdle        UMETA(DisplayName = "待機")
+};
+
+// タスク実行計画
+USTRUCT(BlueprintType)
+struct UE_IDLE_API FTaskExecutionPlan
+{
+    GENERATED_BODY()
+
+    // 実行すべきアクション
+    UPROPERTY(BlueprintReadWrite, Category = "Plan")
+    ETaskExecutionAction ExecutionAction;
+    
+    // 対象タスクID（実行時）
+    UPROPERTY(BlueprintReadWrite, Category = "Plan")
+    FString TaskId;
+    
+    // 目標場所（移動時）
+    UPROPERTY(BlueprintReadWrite, Category = "Plan")
+    FString TargetLocation;
+    
+    // 対象アイテム（採集・戦闘時）
+    UPROPERTY(BlueprintReadWrite, Category = "Plan")
+    FString TargetItem;
+    
+    // 実行指示の理由（ログ用）
+    UPROPERTY(BlueprintReadWrite, Category = "Plan")
+    FString ExecutionReason;
+    
+    // 成功フラグ
+    UPROPERTY(BlueprintReadWrite, Category = "Plan")
+    bool bIsValid;
+    
+    FTaskExecutionPlan()
+    {
+        ExecutionAction = ETaskExecutionAction::None;
+        TaskId = TEXT("");
+        TargetLocation = TEXT("");
+        TargetItem = TEXT("");
+        ExecutionReason = TEXT("");
+        bIsValid = false;
+    }
+};
+
 // チームアクション状態とECombatStateはTeamTypes.hで定義
 
 // ======== タスクとスキルの関連定義 ========

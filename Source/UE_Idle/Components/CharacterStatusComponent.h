@@ -70,6 +70,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Character Status")
 	void SetTalent(const FCharacterTalent& NewTalent);
 
+	// 個別才能ステータス取得
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Character Status")
+	float GetAgility() const { return Talent.Agility; }
+
 	// 派生ステータス取得
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Derived Stats")
 	FDerivedStats GetDerivedStats() const { return DerivedStats; }

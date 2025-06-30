@@ -88,6 +88,11 @@ UE_IdleWSL/
 ### Turn-Based Recalculation Architecture
 **CRITICAL DESIGN PRINCIPLE**: Every turn, TimeManagerComponent completely recalculates what each team should do based on current state only.
 
+#### Team Task Priority System
+- **Team Tasks Override Global Tasks**: Team task priorities take precedence over global task priorities
+- **Keep Task Satisfaction**: Keep quantity tasks check total base inventory (base storage + all team inventories) for satisfaction
+- **Three Gathering Types**: Unlimited (永続), Keep (維持), Specified (個数指定) with different completion behaviors
+
 - **Complete Recalculation**: Each turn is independent - no dependency on past states or future plans
 - **No State Memory**: Never assume "we're moving for 10 turns so skip thinking" - ALWAYS recalculate
 - **Simple Logic**: Each turn asks only "What should this team do RIGHT NOW?"

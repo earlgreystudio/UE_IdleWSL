@@ -493,6 +493,10 @@ bool UTaskManagerComponent::CheckGlobalTaskRequirements(const FGlobalTask& Task,
             // 製作は材料が必要（例）
             return GetTotalResourceAmount(TEXT("material")) >= 1;
             
+        case ETaskType::Adventure:
+            // 冒険タスクは常に実行可能（戦闘装備は後で実装）
+            return true;
+            
         default:
             return true;
     }
@@ -1113,8 +1117,31 @@ FString UTaskManagerComponent::FindMatchingGatheringTask(int32 TeamIndex, const 
 
 FString UTaskManagerComponent::FindMatchingAdventureTask(int32 TeamIndex, const FString& LocationId) const
 {
-    UE_LOG(LogTemp, VeryVerbose, TEXT("  🏔️ Adventure task matching (not implemented)"));
-    // TODO: 冒険システム実装時に追加
+    UE_LOG(LogTemp, VeryVerbose, TEXT("  🏔️ Searching adventure tasks for location %s"), *LocationId);
+    
+    // 冒険タスクを優先度順で取得
+    TArray<FGlobalTask> AdventureTasks = GetGlobalTasksByPriority();
+    
+    for (const FGlobalTask& Task : AdventureTasks)
+    {
+        // 冒険タスクかつ未完了のタスクのみ対象
+        if (Task.TaskType == ETaskType::Adventure && !Task.bIsCompleted)
+        {
+            // TargetItemIdを場所IDとして使用（例: "plains", "forest"など）
+            if (Task.TargetItemId == LocationId || Task.TargetItemId.IsEmpty())
+            {
+                // チームがタスクを実行可能かチェック
+                if (CanTeamExecuteTask(TeamIndex, Task))
+                {
+                    UE_LOG(LogTemp, VeryVerbose, TEXT("  ✅ Selected adventure task: %s at %s"), 
+                        *Task.DisplayName, *LocationId);
+                    return Task.TaskId;
+                }
+            }
+        }
+    }
+    
+    UE_LOG(LogTemp, VeryVerbose, TEXT("  ❌ No adventure tasks available for %s"), *LocationId);
     return FString();
 }
 
@@ -1137,4 +1164,266 @@ FString UTaskManagerComponent::FindMatchingCraftingTask(int32 TeamIndex) const
     UE_LOG(LogTemp, VeryVerbose, TEXT("  ⚒️ Crafting task matching (not implemented)"));
     // TODO: 製作システム実装時に追加
     return FString();
+}
+
+// === タスク実行計画システム実装 ===
+
+FTaskExecutionPlan UTaskManagerComponent::CreateExecutionPlanForTeam(int32 TeamIndex, const FString& CurrentLocation, ETaskType CurrentTask)
+{
+    UE_LOG(LogTemp, VeryVerbose, TEXT("📋 Creating execution plan for Team %d at %s (Current Task: %s)"), 
+        TeamIndex, *CurrentLocation, *UTaskTypeUtils::GetTaskTypeDisplayName(CurrentTask));
+    
+    // タスクタイプに応じて専門メソッドに委譲
+    switch (CurrentTask)
+    {
+        case ETaskType::Gathering:
+            return CreateGatheringExecutionPlan(TeamIndex, CurrentLocation);
+            
+        case ETaskType::Adventure:
+            return CreateAdventureExecutionPlan(TeamIndex, CurrentLocation);
+            
+        case ETaskType::All:
+            return CreateAllModeExecutionPlan(TeamIndex, CurrentLocation);
+            
+        default:
+            UE_LOG(LogTemp, Warning, TEXT("⚠️ Unsupported task type for execution plan: %s"), 
+                *UTaskTypeUtils::GetTaskTypeDisplayName(CurrentTask));
+            
+            // 無効な計画を返す
+            FTaskExecutionPlan InvalidPlan;
+            InvalidPlan.ExecutionAction = ETaskExecutionAction::WaitIdle;
+            InvalidPlan.ExecutionReason = TEXT("Unsupported task type");
+            InvalidPlan.bIsValid = false;
+            return InvalidPlan;
+    }
+}
+
+FTaskExecutionPlan UTaskManagerComponent::CreateGatheringExecutionPlan(int32 TeamIndex, const FString& CurrentLocation)
+{
+    UE_LOG(LogTemp, VeryVerbose, TEXT("🌾 Creating gathering execution plan for Team %d at %s"), TeamIndex, *CurrentLocation);
+    
+    FTaskExecutionPlan Plan;
+    Plan.ExecutionAction = ETaskExecutionAction::None;
+    Plan.bIsValid = false;
+    
+    // 1. 拠点にいる場合の処理
+    if (CurrentLocation == TEXT("base"))
+    {
+        // 自動荷下ろしが必要
+        Plan.ExecutionAction = ETaskExecutionAction::UnloadItems;
+        Plan.ExecutionReason = TEXT("Auto-unload at base before next gathering task");
+        Plan.bIsValid = true;
+        
+        // 次の採集先を探す
+        TArray<FString> LocationsToCheck = {TEXT("plains"), TEXT("forest"), TEXT("swamp"), TEXT("mountain")};
+        for (const FString& LocationId : LocationsToCheck)
+        {
+            TArray<FGlobalTask> GatheringTasks = GetExecutableGatheringTasksAtLocation(TeamIndex, LocationId);
+            if (GatheringTasks.Num() > 0)
+            {
+                // 最優先の採集タスクを選択
+                const FGlobalTask& SelectedTask = GatheringTasks[0];
+                Plan.ExecutionAction = ETaskExecutionAction::MoveToLocation;
+                Plan.TaskId = SelectedTask.TaskId;
+                Plan.TargetLocation = LocationId;
+                Plan.TargetItem = SelectedTask.TargetItemId;
+                Plan.ExecutionReason = FString::Printf(TEXT("Moving to %s for %s gathering"), 
+                    *LocationId, *SelectedTask.TargetItemId);
+                Plan.bIsValid = true;
+                
+                UE_LOG(LogTemp, Log, TEXT("📋 Gathering Plan: Move to %s for %s"), 
+                    *LocationId, *SelectedTask.TargetItemId);
+                return Plan;
+            }
+        }
+        
+        // 利用可能なタスクがない場合
+        Plan.ExecutionAction = ETaskExecutionAction::WaitIdle;
+        Plan.ExecutionReason = TEXT("No gathering tasks available");
+        Plan.bIsValid = true;
+        return Plan;
+    }
+    
+    // 2. 拠点以外にいる場合の処理
+    FString TargetItemId = GetTargetItemForTeam(TeamIndex, CurrentLocation);
+    
+    // 2.1 タスク完了チェック
+    if (!TargetItemId.IsEmpty())
+    {
+        FGlobalTask ActiveTask = FindActiveGatheringTask(TargetItemId);
+        if (!ActiveTask.TaskId.IsEmpty() && IsTaskCompleted(ActiveTask.TaskId))
+        {
+            Plan.ExecutionAction = ETaskExecutionAction::ReturnToBase;
+            Plan.ExecutionReason = FString::Printf(TEXT("Task %s completed, returning to base"), *ActiveTask.TaskId);
+            Plan.bIsValid = true;
+            
+            UE_LOG(LogTemp, Log, TEXT("📋 Gathering Plan: Task completed, returning to base"));
+            return Plan;
+        }
+    }
+    
+    // 2.2 アイテム満タン判定（TODO: チーム容量チェック実装）
+    // 現在は簡易実装
+    
+    // 2.3 タスク存在判定
+    if (TargetItemId.IsEmpty())
+    {
+        Plan.ExecutionAction = ETaskExecutionAction::ReturnToBase;
+        Plan.ExecutionReason = TEXT("No target item for current location");
+        Plan.bIsValid = true;
+        
+        UE_LOG(LogTemp, Log, TEXT("📋 Gathering Plan: No target item, returning to base"));
+        return Plan;
+    }
+    
+    // 2.4 採集実行
+    Plan.ExecutionAction = ETaskExecutionAction::ExecuteGathering;
+    Plan.TargetItem = TargetItemId;
+    Plan.TargetLocation = CurrentLocation;
+    Plan.ExecutionReason = FString::Printf(TEXT("Execute gathering for %s at %s"), 
+        *TargetItemId, *CurrentLocation);
+    Plan.bIsValid = true;
+    
+    UE_LOG(LogTemp, Log, TEXT("📋 Gathering Plan: Execute gathering for %s"), *TargetItemId);
+    return Plan;
+}
+
+FTaskExecutionPlan UTaskManagerComponent::CreateAdventureExecutionPlan(int32 TeamIndex, const FString& CurrentLocation)
+{
+    UE_LOG(LogTemp, VeryVerbose, TEXT("⚔️ Creating adventure execution plan for Team %d at %s"), TeamIndex, *CurrentLocation);
+    
+    FTaskExecutionPlan Plan;
+    Plan.ExecutionAction = ETaskExecutionAction::None;
+    Plan.bIsValid = false;
+    
+    // 1. 拠点にいる場合 - 冒険先を決定
+    if (CurrentLocation == TEXT("base"))
+    {
+        // 利用可能な冒険タスクから目的地を決定（既存のロジックを統合）
+        TArray<FGlobalTask> AdventureTasks = GetGlobalTasksByPriority();
+        FString TargetLocation;
+        FString SelectedTaskId;
+        
+        for (const FGlobalTask& Task : AdventureTasks)
+        {
+            if (Task.TaskType == ETaskType::Adventure && !Task.bIsCompleted)
+            {
+                // TargetItemIdを場所として使用
+                if (!Task.TargetItemId.IsEmpty())
+                {
+                    TargetLocation = Task.TargetItemId;
+                    SelectedTaskId = Task.TaskId;
+                    break;
+                }
+                else
+                {
+                    // 場所が指定されていない場合はランダムに選択
+                    TArray<FString> PossibleLocations = {TEXT("plains"), TEXT("forest"), TEXT("swamp"), TEXT("cave")};
+                    TargetLocation = PossibleLocations[FMath::RandRange(0, PossibleLocations.Num() - 1)];
+                    SelectedTaskId = Task.TaskId;
+                    break;
+                }
+            }
+        }
+        
+        if (TargetLocation.IsEmpty())
+        {
+            Plan.ExecutionAction = ETaskExecutionAction::WaitIdle;
+            Plan.ExecutionReason = TEXT("No adventure tasks available");
+            Plan.bIsValid = true;
+            
+            UE_LOG(LogTemp, Log, TEXT("📋 Adventure Plan: No adventure tasks available"));
+            return Plan;
+        }
+        
+        // 冒険先への移動
+        Plan.ExecutionAction = ETaskExecutionAction::MoveToLocation;
+        Plan.TaskId = SelectedTaskId;
+        Plan.TargetLocation = TargetLocation;
+        Plan.ExecutionReason = FString::Printf(TEXT("Moving to %s for adventure"), *TargetLocation);
+        Plan.bIsValid = true;
+        
+        UE_LOG(LogTemp, Log, TEXT("📋 Adventure Plan: Move to %s for adventure"), *TargetLocation);
+        return Plan;
+    }
+    
+    // 2. 目的地に到着している場合 - 戦闘実行
+    // マッチする冒険タスクがあるかチェック
+    FString MatchingTaskId = FindMatchingAdventureTask(TeamIndex, CurrentLocation);
+    
+    if (!MatchingTaskId.IsEmpty())
+    {
+        Plan.ExecutionAction = ETaskExecutionAction::ExecuteCombat;
+        Plan.TaskId = MatchingTaskId;
+        Plan.TargetLocation = CurrentLocation;
+        Plan.ExecutionReason = FString::Printf(TEXT("Execute combat at %s"), *CurrentLocation);
+        Plan.bIsValid = true;
+        
+        UE_LOG(LogTemp, Log, TEXT("📋 Adventure Plan: Execute combat at %s"), *CurrentLocation);
+        return Plan;
+    }
+    
+    // 3. 該当する冒険タスクがない場合 - 拠点に帰還
+    Plan.ExecutionAction = ETaskExecutionAction::ReturnToBase;
+    Plan.ExecutionReason = FString::Printf(TEXT("No matching adventure task at %s, returning to base"), *CurrentLocation);
+    Plan.bIsValid = true;
+    
+    UE_LOG(LogTemp, Log, TEXT("📋 Adventure Plan: No matching task at %s, returning to base"), *CurrentLocation);
+    return Plan;
+}
+
+FTaskExecutionPlan UTaskManagerComponent::CreateAllModeExecutionPlan(int32 TeamIndex, const FString& CurrentLocation)
+{
+    UE_LOG(LogTemp, VeryVerbose, TEXT("🔄 Creating all-mode execution plan for Team %d at %s"), TeamIndex, *CurrentLocation);
+    
+    FTaskExecutionPlan Plan;
+    Plan.ExecutionAction = ETaskExecutionAction::None;
+    Plan.bIsValid = false;
+    
+    // 「全て」モードでは最優先のタスクを自動選択
+    FGlobalTask NextTask = GetNextAvailableTask(TeamIndex);
+    
+    if (NextTask.TaskId.IsEmpty())
+    {
+        // 利用可能なタスクがない場合
+        Plan.ExecutionAction = ETaskExecutionAction::WaitIdle;
+        Plan.ExecutionReason = TEXT("No available tasks in all-mode");
+        Plan.bIsValid = true;
+        
+        UE_LOG(LogTemp, Log, TEXT("📋 All-Mode Plan: No available tasks"));
+        return Plan;
+    }
+    
+    // タスクタイプに応じて適切な実行計画に委譲
+    switch (NextTask.TaskType)
+    {
+        case ETaskType::Gathering:
+            {
+                FTaskExecutionPlan GatheringPlan = CreateGatheringExecutionPlan(TeamIndex, CurrentLocation);
+                GatheringPlan.ExecutionReason = FString::Printf(TEXT("All-mode selected gathering: %s"), 
+                    *GatheringPlan.ExecutionReason);
+                UE_LOG(LogTemp, Log, TEXT("📋 All-Mode Plan: Delegated to gathering"));
+                return GatheringPlan;
+            }
+            
+        case ETaskType::Adventure:
+            {
+                FTaskExecutionPlan AdventurePlan = CreateAdventureExecutionPlan(TeamIndex, CurrentLocation);
+                AdventurePlan.ExecutionReason = FString::Printf(TEXT("All-mode selected adventure: %s"), 
+                    *AdventurePlan.ExecutionReason);
+                UE_LOG(LogTemp, Log, TEXT("📋 All-Mode Plan: Delegated to adventure"));
+                return AdventurePlan;
+            }
+            
+        default:
+            // サポートされていないタスクタイプ
+            Plan.ExecutionAction = ETaskExecutionAction::WaitIdle;
+            Plan.ExecutionReason = FString::Printf(TEXT("All-mode: Unsupported task type %s"), 
+                *UTaskTypeUtils::GetTaskTypeDisplayName(NextTask.TaskType));
+            Plan.bIsValid = true;
+            
+            UE_LOG(LogTemp, Warning, TEXT("📋 All-Mode Plan: Unsupported task type: %s"), 
+                *UTaskTypeUtils::GetTaskTypeDisplayName(NextTask.TaskType));
+            return Plan;
+    }
 }

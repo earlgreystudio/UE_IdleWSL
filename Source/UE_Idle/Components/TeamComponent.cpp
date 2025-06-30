@@ -2,6 +2,9 @@
 #include "../Actor/C_IdleCharacter.h"
 #include "../Managers/BattleSystemManager.h"
 #include "InventoryComponent.h"
+#include "CombatComponent.h"
+#include "GatheringComponent.h"
+#include "LocationMovementComponent.h"
 #include "Engine/World.h"
 
 UTeamComponent::UTeamComponent()
@@ -325,7 +328,10 @@ bool UTeamComponent::SetTeamGatheringLocation(int32 TeamIndex, const FString& Lo
 	Teams[TeamIndex].GatheringLocationId = LocationId;
 	
 	// 採集場所を設定した場合、タスクも採集に変更
-	if (!LocationId.IsEmpty() && Teams[TeamIndex].AssignedTask != ETaskType::Gathering)
+	// ただし、冒険タスク中の場合は変更しない
+	if (!LocationId.IsEmpty() && 
+		Teams[TeamIndex].AssignedTask != ETaskType::Gathering && 
+		Teams[TeamIndex].AssignedTask != ETaskType::Adventure)
 	{
 		Teams[TeamIndex].AssignedTask = ETaskType::Gathering;
 		OnTaskChanged.Broadcast(TeamIndex, ETaskType::Gathering);
@@ -962,4 +968,312 @@ bool UTeamComponent::IsTeamInCombat(int32 TeamIndex) const
 	}
 	
 	return false;
+}
+
+void UTeamComponent::SetTeamCombatState(int32 TeamIndex, ETeamCombatState NewState)
+{
+	if (IsValidTeamIndex(TeamIndex))
+	{
+		Teams[TeamIndex].CombatState = NewState;
+		UE_LOG(LogTemp, VeryVerbose, TEXT("SetTeamCombatState: Team %d set to %s"), 
+			TeamIndex, *UEnum::GetValueAsString(NewState));
+	}
+}
+
+UCombatComponent* UTeamComponent::GetCombatComponent() const
+{
+	// 現在のアクターのCombatComponentを取得
+	if (AActor* Owner = GetOwner())
+	{
+		return Owner->FindComponentByClass<UCombatComponent>();
+	}
+	
+	return nullptr;
+}
+
+// === 新しい委譲型実行システム実装 ===
+
+// 専門コンポーネント取得ヘルパー
+UGatheringComponent* UTeamComponent::GetGatheringComponent() const
+{
+	if (AActor* Owner = GetOwner())
+	{
+		return Owner->FindComponentByClass<UGatheringComponent>();
+	}
+	return nullptr;
+}
+
+ULocationMovementComponent* UTeamComponent::GetMovementComponent() const
+{
+	if (AActor* Owner = GetOwner())
+	{
+		return Owner->FindComponentByClass<ULocationMovementComponent>();
+	}
+	return nullptr;
+}
+
+// 委譲メソッド実装
+bool UTeamComponent::ExecuteMovement(int32 TeamIndex, const FString& TargetLocation)
+{
+	UE_LOG(LogTemp, Log, TEXT("🚶 TeamComponent: Delegating movement to %s for team %d"), *TargetLocation, TeamIndex);
+	
+	if (!IsValidTeamIndex(TeamIndex) || TargetLocation.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("❌ Invalid movement parameters"));
+		return false;
+	}
+	
+	ULocationMovementComponent* MovementComp = GetMovementComponent();
+	if (!MovementComp)
+	{
+		UE_LOG(LogTemp, Error, TEXT("❌ MovementComponent not found"));
+		return false;
+	}
+	
+	// チームの現在位置を取得（LocationMovementComponentから）
+	FString CurrentLocation = TEXT("base"); // デフォルトは拠点
+	
+	// LocationMovementComponentから現在位置を取得
+	float CurrentDistance = MovementComp->GetCurrentDistanceFromBase(TeamIndex);
+	if (CurrentDistance <= 0.0f)
+	{
+		CurrentLocation = TEXT("base");
+	}
+	else if (FMath::IsNearlyEqual(CurrentDistance, 100.0f, 1.0f))
+	{
+		CurrentLocation = TEXT("plains");
+	}
+	else if (FMath::IsNearlyEqual(CurrentDistance, 200.0f, 1.0f))
+	{
+		CurrentLocation = TEXT("forest");
+	}
+	else if (FMath::IsNearlyEqual(CurrentDistance, 500.0f, 1.0f))
+	{
+		CurrentLocation = TEXT("swamp");
+	}
+	else if (FMath::IsNearlyEqual(CurrentDistance, 800.0f, 1.0f))
+	{
+		CurrentLocation = TEXT("mountain");
+	}
+	else
+	{
+		// 移動中の場合は最後の目的地を使用
+		CurrentLocation = TEXT("base");
+	}
+	
+	UE_LOG(LogTemp, Log, TEXT("🗺️ Team %d current location: %s (distance: %.1f)"), TeamIndex, *CurrentLocation, CurrentDistance);
+	
+	// 既に目的地にいるかチェック
+	if (CurrentLocation == TargetLocation)
+	{
+		UE_LOG(LogTemp, Log, TEXT("🏁 Team %d is already at %s, skipping movement"), TeamIndex, *TargetLocation);
+		SetTeamActionState(TeamIndex, ETeamActionState::Working);
+		return true;
+	}
+	
+	// LocationMovementComponentに移動開始を委譲
+	bool bMovementStarted = MovementComp->StartMovement(TeamIndex, CurrentLocation, TargetLocation);
+	if (!bMovementStarted)
+	{
+		UE_LOG(LogTemp, Error, TEXT("❌ Failed to start movement for team %d"), TeamIndex);
+		return false;
+	}
+	
+	// チーム状態を更新
+	SetTeamGatheringLocation(TeamIndex, TargetLocation);
+	SetTeamActionState(TeamIndex, ETeamActionState::Moving);
+	
+	UE_LOG(LogTemp, Log, TEXT("✅ Movement initiated to %s"), *TargetLocation);
+	return true;
+}
+
+bool UTeamComponent::ExecuteGathering(int32 TeamIndex, const FString& TargetItem)
+{
+	UE_LOG(LogTemp, Log, TEXT("🌾 TeamComponent: Delegating gathering of %s for team %d"), *TargetItem, TeamIndex);
+	
+	if (!IsValidTeamIndex(TeamIndex) || TargetItem.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("❌ Invalid gathering parameters"));
+		return false;
+	}
+	
+	UGatheringComponent* GatheringComp = GetGatheringComponent();
+	if (!GatheringComp)
+	{
+		UE_LOG(LogTemp, Error, TEXT("❌ GatheringComponent not found"));
+		return false;
+	}
+	
+	// チームの現在位置を取得（LocationMovementComponentから）
+	ULocationMovementComponent* MovementComp = GetMovementComponent();
+	FString CurrentLocation = TEXT("base");
+	
+	if (MovementComp)
+	{
+		float CurrentDistance = MovementComp->GetCurrentDistanceFromBase(TeamIndex);
+		if (CurrentDistance <= 0.0f)
+		{
+			CurrentLocation = TEXT("base");
+		}
+		else if (FMath::IsNearlyEqual(CurrentDistance, 100.0f, 1.0f))
+		{
+			CurrentLocation = TEXT("plains");
+		}
+		else if (FMath::IsNearlyEqual(CurrentDistance, 200.0f, 1.0f))
+		{
+			CurrentLocation = TEXT("forest");
+		}
+		else if (FMath::IsNearlyEqual(CurrentDistance, 500.0f, 1.0f))
+		{
+			CurrentLocation = TEXT("swamp");
+		}
+		else if (FMath::IsNearlyEqual(CurrentDistance, 800.0f, 1.0f))
+		{
+			CurrentLocation = TEXT("mountain");
+		}
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("🌾 ExecuteGathering: Team %d at location %s"), TeamIndex, *CurrentLocation);
+	
+	// GatheringComponentに採集場所を登録
+	GatheringComp->SetTeamTargetLocation(TeamIndex, CurrentLocation);
+	
+	// GatheringComponentに採集処理を委譲
+	GatheringComp->ProcessTeamGatheringWithTarget(TeamIndex, TargetItem);
+	SetTeamActionState(TeamIndex, ETeamActionState::Working);
+	
+	UE_LOG(LogTemp, Log, TEXT("✅ Gathering initiated for %s"), *TargetItem);
+	return true;
+}
+
+bool UTeamComponent::ExecuteCombat(int32 TeamIndex, const FString& TargetLocation)
+{
+	UE_LOG(LogTemp, Log, TEXT("⚔️ TeamComponent: Delegating combat at %s for team %d"), *TargetLocation, TeamIndex);
+	
+	if (!IsValidTeamIndex(TeamIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("❌ Invalid combat parameters"));
+		return false;
+	}
+	
+	UCombatComponent* CombatComp = GetCombatComponent();
+	if (!CombatComp)
+	{
+		UE_LOG(LogTemp, Error, TEXT("❌ CombatComponent not found"));
+		return false;
+	}
+	
+	// 戦闘中でなければ戦闘開始
+	if (!CombatComp->IsInCombat())
+	{
+		// TODO: 敵生成システムと連携
+		TArray<AC_IdleCharacter*> EnemyTeam; // 一時的に空の敵チーム
+		
+		FTeam Team = GetTeam(TeamIndex);
+		bool bCombatStarted = CombatComp->StartCombatSimple(Team.Members, EnemyTeam);
+		
+		if (bCombatStarted)
+		{
+			SetTeamActionState(TeamIndex, ETeamActionState::InCombat);
+			UE_LOG(LogTemp, Log, TEXT("✅ Combat started for team %d"), TeamIndex);
+			return true;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("❌ Failed to start combat for team %d"), TeamIndex);
+			return false;
+		}
+	}
+	else
+	{
+		// 戦闘継続中 - CombatComponent::ProcessCombat()で1ターン処理
+		CombatComp->ProcessCombat(0.0f);
+		UE_LOG(LogTemp, VeryVerbose, TEXT("⚔️ Processing combat turn for team %d"), TeamIndex);
+		return true;
+	}
+}
+
+bool UTeamComponent::ExecuteUnload(int32 TeamIndex)
+{
+	UE_LOG(LogTemp, Log, TEXT("📦 TeamComponent: Delegating unload for team %d"), TeamIndex);
+	
+	if (!IsValidTeamIndex(TeamIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("❌ Invalid unload parameters"));
+		return false;
+	}
+	
+	// TODO: TimeManagerのAutoUnloadResourceItems()ロジックを委譲
+	// 一時的な実装：処理完了フラグ
+	UE_LOG(LogTemp, Log, TEXT("✅ Unload completed for team %d"), TeamIndex);
+	return true;
+}
+
+// メインの実行メソッド
+bool UTeamComponent::ExecutePlan(const FTaskExecutionPlan& Plan, int32 TeamIndex)
+{
+	UE_LOG(LogTemp, Log, TEXT("📋 TeamComponent: Executing plan for team %d - %s"), TeamIndex, *Plan.ExecutionReason);
+	
+	if (!Plan.bIsValid)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("❌ Invalid execution plan"));
+		return false;
+	}
+	
+	switch (Plan.ExecutionAction)
+	{
+		case ETaskExecutionAction::MoveToLocation:
+			return ExecuteMovement(TeamIndex, Plan.TargetLocation);
+			
+		case ETaskExecutionAction::ExecuteGathering:
+			return ExecuteGathering(TeamIndex, Plan.TargetItem);
+			
+		case ETaskExecutionAction::ExecuteCombat:
+			return ExecuteCombat(TeamIndex, Plan.TargetLocation);
+			
+		case ETaskExecutionAction::ReturnToBase:
+			return ExecuteMovement(TeamIndex, TEXT("base"));
+			
+		case ETaskExecutionAction::UnloadItems:
+			return ExecuteUnload(TeamIndex);
+			
+		case ETaskExecutionAction::WaitIdle:
+			SetToIdle(TeamIndex);
+			return true;
+			
+		case ETaskExecutionAction::None:
+		default:
+			UE_LOG(LogTemp, Warning, TEXT("❌ Unsupported execution action: %d"), (int32)Plan.ExecutionAction);
+			SetToIdle(TeamIndex);
+			return false;
+	}
+}
+
+void UTeamComponent::SetToIdle(int32 TeamIndex)
+{
+	UE_LOG(LogTemp, Log, TEXT("💤 TeamComponent: Setting team %d to idle"), TeamIndex);
+	
+	if (IsValidTeamIndex(TeamIndex))
+	{
+		SetTeamActionState(TeamIndex, ETeamActionState::Idle);
+	}
+}
+
+// === TimeManagerComponent用アクセサー実装 ===
+
+void UTeamComponent::SetTeamActionStateInternal(int32 TeamIndex, ETeamActionState NewState, float ActionStartTime, float EstimatedCompletionTime)
+{
+	if (!Teams.IsValidIndex(TeamIndex))
+	{
+		UE_LOG(LogTemp, Error, TEXT("SetTeamActionStateInternal: Invalid team index %d"), TeamIndex);
+		return;
+	}
+	
+	FTeam& Team = Teams[TeamIndex];
+	Team.ActionState = NewState;
+	Team.ActionStartTime = ActionStartTime;
+	Team.EstimatedCompletionTime = EstimatedCompletionTime;
+	
+	// イベント通知
+	OnTeamActionStateChanged.Broadcast(TeamIndex, NewState);
 }

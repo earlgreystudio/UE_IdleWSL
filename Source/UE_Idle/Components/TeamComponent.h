@@ -8,6 +8,7 @@
 
 class AC_IdleCharacter;
 class UInventoryComponent;
+class UCombatComponent;
 
 // デリゲート宣言
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnTeamCreated, int32, TeamIndex, const FString&, TeamName);
@@ -242,15 +243,58 @@ public:
 	// 戦闘中チェック
 	UFUNCTION(BlueprintPure, Category = "Combat")
 	bool IsTeamInCombat(int32 TeamIndex) const;
+	
+	// 戦闘状態設定
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void SetTeamCombatState(int32 TeamIndex, ETeamCombatState NewState);
 
+	// === 新しい委譲型実行システム ===
+	
+	// タスク実行計画を実行（委譲設計の中核）
+	UFUNCTION(BlueprintCallable, Category = "Task Execution")
+	bool ExecutePlan(const FTaskExecutionPlan& Plan, int32 TeamIndex);
+	
+	// チームを待機状態に設定
+	UFUNCTION(BlueprintCallable, Category = "Task Execution")
+	void SetToIdle(int32 TeamIndex);
+
+private:
+	// === 専門コンポーネントへの委譲メソッド ===
+	
+	// 移動処理委譲
+	bool ExecuteMovement(int32 TeamIndex, const FString& TargetLocation);
+	
+	// 採集処理委譲
+	bool ExecuteGathering(int32 TeamIndex, const FString& TargetItem);
+	
+	// 戦闘処理委譲
+	bool ExecuteCombat(int32 TeamIndex, const FString& TargetLocation);
+	
+	// 荷下ろし処理委譲
+	bool ExecuteUnload(int32 TeamIndex);
+	
+	// === 専門コンポーネント取得ヘルパー ===
+	
+	// 採集コンポーネント取得
+	class UGatheringComponent* GetGatheringComponent() const;
+	
+	// 移動コンポーネント取得
+	class ULocationMovementComponent* GetMovementComponent() const;
+	
+	// CombatComponentへの参照取得
+	UFUNCTION(BlueprintPure, Category = "Combat")
+	UCombatComponent* GetCombatComponent() const;
+
+public:
 	// ======== データアクセス ========
 
 	// Teamsの参照取得（TimeManagerComponent用）
 	UFUNCTION(BlueprintPure, Category = "Data Access")
 	const TArray<FTeam>& GetTeams() const { return Teams; }
 
-	// 非const版（TimeManagerComponent用）
-	TArray<FTeam>& GetTeams() { return Teams; }
+	// TimeManagerComponent用のチーム状態更新メソッド
+	UFUNCTION(BlueprintCallable, Category = "Data Access")
+	void SetTeamActionStateInternal(int32 TeamIndex, ETeamActionState NewState, float ActionStartTime = 0.0f, float EstimatedCompletionTime = 0.0f);
 
 	// チーム数を取得
 	UFUNCTION(BlueprintPure, Category = "Data Access")

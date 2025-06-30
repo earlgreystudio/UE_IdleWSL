@@ -17,6 +17,7 @@ class AC_IdleCharacter;
 class AC_PlayerController;
 class UInventoryComponent;
 class UCharacterStatusComponent;
+class UCombatComponent;
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class UE_IDLE_API UTimeManagerComponent : public UActorComponent
@@ -156,6 +157,10 @@ public:
     // 採集タスク専用処理
     UFUNCTION(BlueprintCallable, Category = "Task Processing")
     void ProcessGatheringTask(int32 TeamIndex);
+    
+    // 冒険タスク専用処理
+    UFUNCTION(BlueprintCallable, Category = "Task Processing")
+    void ProcessAdventureTask(int32 TeamIndex);
 
     // 中断不可能アクション監視
     UFUNCTION(BlueprintCallable, Category = "Task Processing")
@@ -164,6 +169,11 @@ public:
     // 戦闘終了後処理
     UFUNCTION(BlueprintCallable, Category = "Task Processing")
     void ProcessPostCombatTask(int32 TeamIndex);
+
+    // === 新しい委譲型設計ヘルパー ===
+    
+    // タスク実行計画を直接実行（一時的実装）
+    void ExecuteTaskPlanDirectly(int32 TeamIndex, const FTaskExecutionPlan& Plan);
 
     // === シンプルなターンベースロジック ===
     
@@ -206,6 +216,10 @@ public:
     // 自動荷下ろし処理
     UFUNCTION(BlueprintCallable, Category = "Simple Logic")
     void AutoUnloadResourceItems(int32 TeamIndex);
+    
+    // 移動進捗処理
+    UFUNCTION(BlueprintCallable, Category = "Simple Logic")
+    void ProcessMovementProgress(int32 TeamIndex);
 
     // === タスク切り替えロジック ===
 

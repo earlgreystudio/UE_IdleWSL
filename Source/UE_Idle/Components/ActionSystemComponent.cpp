@@ -267,6 +267,29 @@ void UActionSystemComponent::RegisterTeam(const TArray<AC_IdleCharacter*>& AllyT
             UE_LOG(LogTemp, Error, TEXT("ActionSystemComponent: No PlayerController found"));
         }
     }
+    
+    // === 行動ゲージシステム初期化 ===
+    
+    // 味方チームのゲージ初期化
+    for (AC_IdleCharacter* Ally : AllyTeam)
+    {
+        if (Ally)
+        {
+            InitializeCharacterGauge(Ally);
+        }
+    }
+    
+    // 敵チームのゲージ初期化
+    for (AC_IdleCharacter* Enemy : EnemyTeam)
+    {
+        if (Enemy)
+        {
+            InitializeCharacterGauge(Enemy);
+        }
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("RegisterTeam: Initialized action gauges for %d allies and %d enemies"), 
+        AllyTeam.Num(), EnemyTeam.Num());
 }
 
 void UActionSystemComponent::ClearAllCharacters()
@@ -977,4 +1000,224 @@ void UActionSystemComponent::CleanupInvalidCharacters()
         UE_LOG(LogTemp, Log, TEXT("CleanupInvalidCharacters: Removed %d allies and %d enemies"), 
                RemovedAllies, RemovedEnemies);
     }
+}
+
+// === 新しい1ターン1行動システム ===
+
+AC_IdleCharacter* UActionSystemComponent::GetNextActingCharacter() const
+{
+    if (!bSystemActive)
+    {
+        return nullptr;
+    }
+    
+    // const関数なので無効キャラクターのクリーンアップはしない
+    
+    AC_IdleCharacter* NextCharacter = nullptr;
+    float EarliestTime = FLT_MAX;
+    
+    // 味方チームから最も早い行動時間のキャラクターを検索
+    for (const FCharacterAction& Action : AllyActions)
+    {
+        if (IsCharacterAlive(Action.Character) && Action.NextActionTime < EarliestTime)
+        {
+            EarliestTime = Action.NextActionTime;
+            NextCharacter = Action.Character;
+        }
+    }
+    
+    // 敵チームから最も早い行動時間のキャラクターを検索
+    for (const FCharacterAction& Action : EnemyActions)
+    {
+        if (IsCharacterAlive(Action.Character) && Action.NextActionTime < EarliestTime)
+        {
+            EarliestTime = Action.NextActionTime;
+            NextCharacter = Action.Character;
+        }
+    }
+    
+    return NextCharacter;
+}
+
+bool UActionSystemComponent::ProcessSingleTurn()
+{
+    if (!bSystemActive)
+    {
+        return false;
+    }
+    
+    // 無効なキャラクター参照をクリーンアップ
+    CleanupInvalidCharacters();
+    
+    // 次に行動するキャラクターを取得
+    AC_IdleCharacter* NextCharacter = GetNextActingCharacter();
+    if (!NextCharacter)
+    {
+        UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessSingleTurn: No character ready to act"));
+        return false;
+    }
+    
+    // そのキャラクターの行動データを取得
+    FCharacterAction* CharacterAction = FindCharacterAction(NextCharacter);
+    if (!CharacterAction)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ProcessSingleTurn: Character action not found"));
+        return false;
+    }
+    
+    // 現在時刻をチェック（デバッグ情報として使用）
+    float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+    UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessSingleTurn: %s acting (NextActionTime: %f, CurrentTime: %f)"), 
+        *NextCharacter->GetName(), CharacterAction->NextActionTime, CurrentTime);
+    
+    // そのキャラクターのみ行動
+    ProcessCharacterAction(*CharacterAction);
+    
+    return true;
+}
+
+// === 行動ゲージシステム実装 ===
+
+void UActionSystemComponent::UpdateAllGauges()
+{
+    // 味方チームのゲージ更新
+    for (FCharacterAction& Action : AllyActions)
+    {
+        if (IsCharacterAlive(Action.Character))
+        {
+            Action.UpdateGauge();
+        }
+    }
+    
+    // 敵チームのゲージ更新
+    for (FCharacterAction& Action : EnemyActions)
+    {
+        if (IsCharacterAlive(Action.Character))
+        {
+            Action.UpdateGauge();
+        }
+    }
+}
+
+AC_IdleCharacter* UActionSystemComponent::GetNextActingCharacterWithGauge() const
+{
+    if (!bSystemActive)
+    {
+        return nullptr;
+    }
+    
+    AC_IdleCharacter* NextCharacter = nullptr;
+    float HighestScore = 0.0f;
+    
+    // 味方チームから最高スコアキャラクター検索
+    for (const FCharacterAction& Action : AllyActions)
+    {
+        if (IsCharacterAlive(Action.Character) && Action.CanAct())
+        {
+            float Score = Action.GetActionScore();
+            if (Score > HighestScore)
+            {
+                HighestScore = Score;
+                NextCharacter = Action.Character;
+            }
+        }
+    }
+    
+    // 敵チームから最高スコアキャラクター検索
+    for (const FCharacterAction& Action : EnemyActions)
+    {
+        if (IsCharacterAlive(Action.Character) && Action.CanAct())
+        {
+            float Score = Action.GetActionScore();
+            if (Score > HighestScore)
+            {
+                HighestScore = Score;
+                NextCharacter = Action.Character;
+            }
+        }
+    }
+    
+    return NextCharacter;
+}
+
+void UActionSystemComponent::InitializeCharacterGauge(AC_IdleCharacter* Character)
+{
+    if (!Character)
+    {
+        return;
+    }
+    
+    // キャラクターのアクションデータを検索
+    FCharacterAction* CharacterAction = FindCharacterAction(Character);
+    if (!CharacterAction)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("InitializeCharacterGauge: Character action not found for %s"), 
+            *Character->GetName());
+        return;
+    }
+    
+    // AGI値からゲージ速度を計算
+    if (UCharacterStatusComponent* StatusComp = Character->GetStatusComponent())
+    {
+        float AGI = StatusComp->GetAgility();
+        CharacterAction->GaugeSpeed = FMath::Max(1.0f, AGI * 0.5f); // AGI値の半分、最低1.0
+        CharacterAction->ActionPriority = FMath::RoundToInt(AGI);     // AGI値を優先度に
+        
+        UE_LOG(LogTemp, VeryVerbose, TEXT("InitializeCharacterGauge: %s - AGI:%.1f, GaugeSpeed:%.1f, Priority:%d"), 
+            *Character->GetName(), AGI, CharacterAction->GaugeSpeed, CharacterAction->ActionPriority);
+    }
+    else
+    {
+        // StatusComponentがない場合のデフォルト値
+        CharacterAction->GaugeSpeed = 10.0f;
+        CharacterAction->ActionPriority = 10;
+        
+        UE_LOG(LogTemp, Warning, TEXT("InitializeCharacterGauge: %s has no StatusComponent, using defaults"), 
+            *Character->GetName());
+    }
+    
+    // ゲージを初期化
+    CharacterAction->ActionGauge = 0.0f;
+    CharacterAction->SpeedMultiplier = 1.0f;
+}
+
+bool UActionSystemComponent::ProcessSingleTurnWithGauge()
+{
+    if (!bSystemActive)
+    {
+        return false;
+    }
+    
+    // 無効なキャラクター参照をクリーンアップ
+    CleanupInvalidCharacters();
+    
+    // 全キャラクターのゲージを更新
+    UpdateAllGauges();
+    
+    // 次に行動するキャラクターを取得
+    AC_IdleCharacter* NextCharacter = GetNextActingCharacterWithGauge();
+    if (!NextCharacter)
+    {
+        UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessSingleTurnWithGauge: No character ready to act"));
+        return false;
+    }
+    
+    // そのキャラクターの行動データを取得
+    FCharacterAction* CharacterAction = FindCharacterAction(NextCharacter);
+    if (!CharacterAction)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ProcessSingleTurnWithGauge: Character action not found"));
+        return false;
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("ProcessSingleTurnWithGauge: %s acting (Gauge: %.1f, Score: %.2f)"), 
+        *NextCharacter->GetName(), CharacterAction->ActionGauge, CharacterAction->GetActionScore());
+    
+    // そのキャラクターのみ行動
+    ProcessCharacterAction(*CharacterAction);
+    
+    // 行動後ゲージリセット
+    CharacterAction->ResetAfterAction();
+    
+    return true;
 }

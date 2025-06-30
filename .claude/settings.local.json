@@ -26,7 +26,9 @@
       "Bash(/home/yo314/UnrealEngine/Engine/Build/BatchFiles/Linux/Build.sh UE_IdleLinux Development -Project=/home/yo314/UE_IdleWSL/UE_Idle.uproject -WaitMutex -FromMsBuild)",
       "Bash(dotnet --version)",
       "Bash(/home/yo314/UnrealEngine/Engine/Build/BatchFiles/Linux/Build.sh UE_IdleEditor Linux Development -Project=/home/yo314/UE_IdleWSL/UE_Idle.uproject -WaitMutex -FromMSBuild)",
-      "Bash(/home/yo314/UnrealEngine/Engine/Build/BatchFiles/Linux/Build.sh UE_IdleEditor Linux Development -Project=/home/yo314/UE_IdleWSL/UE_Idle.uproject)"
+      "Bash(/home/yo314/UnrealEngine/Engine/Build/BatchFiles/Linux/Build.sh UE_IdleEditor Linux Development -Project=/home/yo314/UE_IdleWSL/UE_Idle.uproject)",
+      "Bash(\"/home/yo314/.local/bin/ue5\" --compile)",
+      "Bash(\"/c/Program Files/Epic Games/UE_5.6/Engine/Build/BatchFiles/Rebuild.bat\" UE_IdleEditor Win64 Development -Project=\"$PWD/UE_Idle.uproject\" -WaitMutex -FromMsBuild -architecture=x64)"
     ],
     "deny": []
   }

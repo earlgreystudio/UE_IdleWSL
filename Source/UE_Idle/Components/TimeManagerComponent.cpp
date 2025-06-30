@@ -5,6 +5,7 @@
 #include "../Components/LocationMovementComponent.h"
 #include "../Components/InventoryComponent.h"
 #include "../Components/CharacterStatusComponent.h"
+#include "../Components/CombatComponent.h"
 #include "../Managers/LocationDataTableManager.h"
 #include "../Managers/ItemDataTableManager.h"
 #include "../Types/ItemTypes.h"
@@ -227,9 +228,9 @@ void UTimeManagerComponent::ProcessTeamTasks()
                         break;
                         
                     case ETeamActionState::Moving:
-                        // 移動中も処理を継続（MovementComponentで移動処理）
-                        UE_LOG(LogTemp, Warning, TEXT("ProcessTeamTasks: Team %d is moving, continuing task processing"), TeamIndex);
-                        ProcessNormalTaskSafe(TeamIndex);
+                        // 移動中は移動処理のみ実行（新しいタスク処理は行わない）
+                        UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessTeamTasks: Team %d is moving, processing movement only"), TeamIndex);
+                        ProcessMovementProgress(TeamIndex);
                         break;
                         
                     case ETeamActionState::InCombat:
@@ -336,6 +337,9 @@ void UTimeManagerComponent::ProcessSpecificTask(int32 TeamIndex, ETaskType TaskT
         return;
     }
 
+    UE_LOG(LogTemp, Warning, TEXT("ProcessSpecificTask: Team %d executing TaskType=%s"), 
+        TeamIndex, *UTaskTypeUtils::GetTaskTypeDisplayName(TaskType));
+
     // 特定タスクタイプ別の処理
     switch (TaskType)
     {
@@ -351,6 +355,10 @@ void UTimeManagerComponent::ProcessSpecificTask(int32 TeamIndex, ETaskType TaskT
             break;
         }
         case ETaskType::Adventure:
+        {
+            ProcessAdventureTask(TeamIndex);
+            break;
+        }
         case ETaskType::Cooking:
         case ETaskType::Construction:
         case ETaskType::Crafting:
@@ -370,124 +378,145 @@ void UTimeManagerComponent::ProcessSpecificTask(int32 TeamIndex, ETaskType TaskT
 
 void UTimeManagerComponent::ProcessGatheringTask(int32 TeamIndex)
 {
-    UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringTask: Processing team %d with turn-based logic"), TeamIndex);
+    UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringTask: Processing team %d with delegated design"), TeamIndex);
     
-    if (!IsValidTeam(TeamIndex) || !TaskManager || !MovementComponent)
+    // 基本的な検証
+    if (!IsValidTeam(TeamIndex) || !TaskManager)
     {
         return;
     }
 
-    UTeamComponent* TeamComp = TeamComponents[TeamIndex];
-    FTeam Team = TeamComp->GetTeam(TeamIndex);
-
-    // 1. 現在位置を取得
+    // 1. 現在状態の取得のみ（詳細判定はしない）
     FString CurrentLocation = GetCurrentLocation(TeamIndex);
     
-    // 2. 拠点にいる場合は自動荷下ろしと次の目標設定
-    if (CurrentLocation == TEXT("base"))
+    // 2. TaskManagerに完全委譲して実行計画を取得
+    FTaskExecutionPlan Plan = TaskManager->CreateExecutionPlanForTeam(
+        TeamIndex, CurrentLocation, ETaskType::Gathering);
+    
+    // 3. TeamComponentに実行委譲（完全な委譲設計）
+    if (Plan.bIsValid && TeamComponents.IsValidIndex(TeamIndex))
     {
-        UE_LOG(LogTemp, Warning, TEXT("ProcessGatheringTask: Team %d at base, checking for auto-unload and next task"), TeamIndex);
+        UE_LOG(LogTemp, Log, TEXT("📋 Delegating gathering plan to TeamComponent: %s"), *Plan.ExecutionReason);
         
-        // 自動荷下ろし処理（簡易実装）
-        AutoUnloadResourceItems(TeamIndex);
-        
-        // 次の採集場所を探す
-        FString NextTargetItemId;
-        FString NextTargetLocation;
-        
-        TArray<FString> LocationsToCheck = {TEXT("plains"), TEXT("forest"), TEXT("swamp"), TEXT("mountain")};
-        for (const FString& LocationId : LocationsToCheck)
+        bool bExecutionSuccess = TeamComponents[TeamIndex]->ExecutePlan(Plan, TeamIndex);
+        if (!bExecutionSuccess)
         {
-            FString TestItemId = TaskManager->GetTargetItemForTeam(TeamIndex, LocationId);
-            if (!TestItemId.IsEmpty())
-            {
-                NextTargetItemId = TestItemId;
-                NextTargetLocation = LocationId;
-                break;
-            }
+            UE_LOG(LogTemp, Warning, TEXT("⚠️ Plan execution failed for team %d"), TeamIndex);
+            TeamComponents[TeamIndex]->SetToIdle(TeamIndex);
         }
-        
-        if (NextTargetItemId.IsEmpty())
-        {
-            UE_LOG(LogTemp, Warning, TEXT("❌ NO TASKS: Team %d going idle"), TeamIndex);
-            TeamComp->SetTeamActionState(TeamIndex, ETeamActionState::Idle);
-            return;
-        }
-        
-        // 新しい採集場所を設定
-        TeamComp->SetTeamGatheringLocation(TeamIndex, NextTargetLocation);
-        UE_LOG(LogTemp, Warning, TEXT("→ NEW TARGET: Team %d going to %s for %s"), 
-            TeamIndex, *NextTargetLocation, *NextTargetItemId);
-        
-        // 移動開始
-        ExecuteMovementStep(TeamIndex, NextTargetLocation);
-        TeamComp->SetTeamActionState(TeamIndex, ETeamActionState::Moving);
-        return;
-    }
-    
-    // 3. 拠点以外の場所での処理
-    FString TargetItemId = TaskManager->GetTargetItemForTeam(TeamIndex, Team.GatheringLocationId);
-    FString TargetLocation = Team.GatheringLocationId;
-    
-    // 3.5. タスク完了チェック（目標数量達成）
-    if (!TargetItemId.IsEmpty())
-    {
-        FGlobalTask ActiveTask = TaskManager->FindActiveGatheringTask(TargetItemId);
-        if (!ActiveTask.TaskId.IsEmpty())
-        {
-            UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringTask: Checking task completion for %s"), *ActiveTask.TaskId);
-            if (TaskManager->IsTaskCompleted(ActiveTask.TaskId))
-            {
-                UE_LOG(LogTemp, Warning, TEXT("✅ TASK DONE: %s - Team %d returning home"), 
-                    *ActiveTask.TaskId, TeamIndex);
-                ExecuteMovementStep(TeamIndex, TEXT("base"));
-                TeamComp->SetTeamActionState(TeamIndex, ETeamActionState::Moving);
-                return;
-            }
-            UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringTask: Task %s not yet completed"), *ActiveTask.TaskId);
-        }
-    }
-    
-    // 4. アイテム満タン判定（拠点以外で実行）
-    if (!TargetItemId.IsEmpty() && !CanTeamCarryNextGather(TeamIndex, TargetItemId))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("📦 FULL: Team %d returning to base"), TeamIndex);
-        // 拠点を採集場所に設定して帰還
-        TeamComp->SetTeamGatheringLocation(TeamIndex, TEXT("base"));
-        ExecuteMovementStep(TeamIndex, TEXT("base"));
-        TeamComp->SetTeamActionState(TeamIndex, ETeamActionState::Moving);
-        return;
-    }
-    
-    // 5. タスク存在判定
-    if (TargetItemId.IsEmpty())
-    {
-        UE_LOG(LogTemp, Warning, TEXT("❓ NO TARGET: Team %d at %s - returning"), 
-            TeamIndex, *Team.GatheringLocationId);
-        ExecuteMovementStep(TeamIndex, TEXT("base"));
-        TeamComp->SetTeamActionState(TeamIndex, ETeamActionState::Moving);
-        return;
-    }
-    
-    // 6. 位置判定と実行
-    UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringTask: Team %d at %s, target %s for %s"), 
-        TeamIndex, *CurrentLocation, *TargetLocation, *TargetItemId);
-    
-    if (CurrentLocation == TargetLocation)
-    {
-        // 目標地にいる → 採集実行
-        UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringTask: Team %d executing gathering for %s at %s"), 
-            TeamIndex, *TargetItemId, *CurrentLocation);
-        ExecuteGathering(TeamIndex, TargetItemId);
-        TeamComp->SetTeamActionState(TeamIndex, ETeamActionState::Working);
     }
     else
     {
-        // 目標地にいない → 1ターン分移動実行
-        UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessGatheringTask: Team %d executing movement step from %s to %s"), 
-            TeamIndex, *CurrentLocation, *TargetLocation);
-        ExecuteMovementStep(TeamIndex, TargetLocation);
-        TeamComp->SetTeamActionState(TeamIndex, ETeamActionState::Moving);
+        UE_LOG(LogTemp, Warning, TEXT("📋 Invalid gathering plan for team %d"), TeamIndex);
+        if (TeamComponents.IsValidIndex(TeamIndex))
+        {
+            TeamComponents[TeamIndex]->SetToIdle(TeamIndex);
+        }
+    }
+}
+
+// === 新しい委譲型実装のヘルパーメソッド ===
+
+void UTimeManagerComponent::ExecuteTaskPlanDirectly(int32 TeamIndex, const FTaskExecutionPlan& Plan)
+{
+    if (!TeamComponents.IsValidIndex(TeamIndex))
+    {
+        return;
+    }
+    
+    UTeamComponent* TeamComp = TeamComponents[TeamIndex];
+    
+    switch (Plan.ExecutionAction)
+    {
+        case ETaskExecutionAction::MoveToLocation:
+            UE_LOG(LogTemp, Log, TEXT("📋 Executing: Move to %s"), *Plan.TargetLocation);
+            if (!Plan.TargetLocation.IsEmpty())
+            {
+                // 新しい委譲システムを使用（TeamComponentに移動処理を委譲）
+                FTaskExecutionPlan MovementPlan;
+                MovementPlan.ExecutionAction = ETaskExecutionAction::MoveToLocation;
+                MovementPlan.TargetLocation = Plan.TargetLocation;
+                TeamComp->ExecutePlan(MovementPlan, TeamIndex);
+            }
+            break;
+            
+        case ETaskExecutionAction::ExecuteGathering:
+            UE_LOG(LogTemp, Log, TEXT("📋 Executing: Gather %s"), *Plan.TargetItem);
+            if (!Plan.TargetItem.IsEmpty())
+            {
+                ExecuteGathering(TeamIndex, Plan.TargetItem);
+            }
+            break;
+            
+        case ETaskExecutionAction::ExecuteCombat:
+            UE_LOG(LogTemp, Log, TEXT("📋 Executing: Combat at %s"), *Plan.TargetLocation);
+            // TODO: 戦闘実行実装
+            break;
+            
+        case ETaskExecutionAction::ReturnToBase:
+            UE_LOG(LogTemp, Log, TEXT("📋 Executing: Return to base"));
+            // 新しい委譲システムを使用（TeamComponentに移動処理を委譲）
+            {
+                FTaskExecutionPlan ReturnPlan;
+                ReturnPlan.ExecutionAction = ETaskExecutionAction::ReturnToBase;
+                ReturnPlan.TargetLocation = TEXT("base");
+                TeamComp->ExecutePlan(ReturnPlan, TeamIndex);
+            }
+            break;
+            
+        case ETaskExecutionAction::UnloadItems:
+            UE_LOG(LogTemp, Log, TEXT("📋 Executing: Unload items"));
+            AutoUnloadResourceItems(TeamIndex);
+            break;
+            
+        case ETaskExecutionAction::WaitIdle:
+            UE_LOG(LogTemp, Log, TEXT("📋 Executing: Wait idle"));
+            TeamComp->SetTeamActionState(TeamIndex, ETeamActionState::Idle);
+            break;
+            
+        default:
+            UE_LOG(LogTemp, Warning, TEXT("📋 Unsupported execution action: %d"), (int32)Plan.ExecutionAction);
+            TeamComp->SetTeamActionState(TeamIndex, ETeamActionState::Idle);
+            break;
+    }
+}
+
+void UTimeManagerComponent::ProcessAdventureTask(int32 TeamIndex)
+{
+    UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessAdventureTask: Processing team %d with delegated design"), TeamIndex);
+    
+    // 基本的な検証
+    if (!IsValidTeam(TeamIndex) || !TaskManager)
+    {
+        return;
+    }
+
+    // 1. 現在状態の取得のみ（詳細判定はしない）
+    FString CurrentLocation = GetCurrentLocation(TeamIndex);
+    
+    // 2. TaskManagerに完全委譲して実行計画を取得
+    FTaskExecutionPlan Plan = TaskManager->CreateExecutionPlanForTeam(
+        TeamIndex, CurrentLocation, ETaskType::Adventure);
+    
+    // 3. TeamComponentに実行委譲（完全な委譲設計）
+    if (Plan.bIsValid && TeamComponents.IsValidIndex(TeamIndex))
+    {
+        UE_LOG(LogTemp, Log, TEXT("📋 Delegating adventure plan to TeamComponent: %s"), *Plan.ExecutionReason);
+        
+        bool bExecutionSuccess = TeamComponents[TeamIndex]->ExecutePlan(Plan, TeamIndex);
+        if (!bExecutionSuccess)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("⚠️ Plan execution failed for team %d"), TeamIndex);
+            TeamComponents[TeamIndex]->SetToIdle(TeamIndex);
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("📋 Invalid adventure plan for team %d"), TeamIndex);
+        if (TeamComponents.IsValidIndex(TeamIndex))
+        {
+            TeamComponents[TeamIndex]->SetToIdle(TeamIndex);
+        }
     }
 }
 
@@ -593,10 +622,7 @@ void UTimeManagerComponent::StartTaskExecution(int32 TeamIndex, const FGlobalTas
     UTeamComponent* TeamComp = TeamComponents[TeamIndex];
     
     // チームの状態を作業中に設定
-    FTeam& Team = TeamComp->GetTeams()[TeamIndex];
-    Team.ActionState = ETeamActionState::Working;
-    Team.ActionStartTime = CurrentGameTime;
-    Team.EstimatedCompletionTime = 3600.0f; // 1時間（例）
+    TeamComp->SetTeamActionStateInternal(TeamIndex, ETeamActionState::Working, CurrentGameTime, 3600.0f); // 1時間（例）
     
     UE_LOG(LogTemp, Log, TEXT("StartTaskExecution: Team %d started task %s"), TeamIndex, *Task.TaskId);
     
@@ -611,10 +637,7 @@ void UTimeManagerComponent::SetTeamToIdle(int32 TeamIndex)
     }
 
     UTeamComponent* TeamComp = TeamComponents[TeamIndex];
-    FTeam& Team = TeamComp->GetTeams()[TeamIndex];
-    Team.ActionState = ETeamActionState::Idle;
-    Team.ActionStartTime = 0.0f;
-    Team.EstimatedCompletionTime = 0.0f;
+    TeamComp->SetTeamActionStateInternal(TeamIndex, ETeamActionState::Idle, 0.0f, 0.0f);
     
     UE_LOG(LogTemp, VeryVerbose, TEXT("SetTeamToIdle: Team %d set to idle"), TeamIndex);
 }
@@ -814,9 +837,9 @@ void UTimeManagerComponent::ProcessTeamTaskSafe(int32 TeamIndex)
             ProcessNormalTaskSafe(TeamIndex);
             break;
         case ETeamActionState::Moving:
-            // 移動中も処理を継続（MovementComponentで移動処理）
-            UE_LOG(LogTemp, Warning, TEXT("ProcessTeamTaskSafe: Team %d is moving, continuing task processing"), TeamIndex);
-            ProcessNormalTaskSafe(TeamIndex);
+            // 移動中は移動処理のみ実行（新しいタスク処理は行わない）
+            UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessTeamTaskSafe: Team %d is moving, processing movement only"), TeamIndex);
+            ProcessMovementProgress(TeamIndex);
             break;
         case ETeamActionState::Locked:
             MonitorLockedAction(TeamIndex);
@@ -1223,9 +1246,10 @@ void UTimeManagerComponent::ProcessReturnToBase(int32 TeamIndex)
     
     if (CurrentLocation == TEXT("base"))
     {
-        // 既に拠点にいる場合はIdleに設定
+        // 既に拠点にいる場合はIdleに設定（毎ターン再計算で次の行動が決まる）
         UTeamComponent* TeamComp = TeamComponents[TeamIndex];
         TeamComp->SetTeamActionState(TeamIndex, ETeamActionState::Idle);
+        
         UE_LOG(LogTemp, Warning, TEXT("ProcessReturnToBase: Team %d already at base, set to Idle"), TeamIndex);
         return;
     }
@@ -1460,4 +1484,38 @@ void UTimeManagerComponent::AutoUnloadResourceItems(int32 TeamIndex)
     }
     
     UE_LOG(LogTemp, VeryVerbose, TEXT("AutoUnloadResourceItems: Completed auto-unload for team %d"), TeamIndex);
+}
+
+void UTimeManagerComponent::ProcessMovementProgress(int32 TeamIndex)
+{
+    if (!MovementComponent || !IsValidTeam(TeamIndex))
+    {
+        return;
+    }
+    
+    // LocationMovementComponentに移動処理を委譲
+    MovementComponent->ProcessMovement(TeamIndex);
+    
+    // 移動完了チェック
+    EMovementState MovementState = MovementComponent->GetMovementState(TeamIndex);
+    if (MovementState == EMovementState::Stationary)
+    {
+        // 移動完了 - 拠点到着時の特別処理をチェック
+        UTeamComponent* TeamComp = TeamComponents[TeamIndex];
+        
+        // 拠点に到着した場合は荷下ろし処理を実行
+        float CurrentDistance = MovementComponent->GetCurrentDistanceFromBase(TeamIndex);
+        if (CurrentDistance <= 1.0f) // 拠点（距離0付近）に到着
+        {
+            UE_LOG(LogTemp, Log, TEXT("🏠 Team %d arrived at base, performing auto-unload"), TeamIndex);
+            AutoUnloadResourceItems(TeamIndex);
+        }
+        
+        TeamComp->SetTeamActionState(TeamIndex, ETeamActionState::Idle);
+        
+        UE_LOG(LogTemp, Log, TEXT("🏁 Team %d movement completed in same turn, switching to task processing"), TeamIndex);
+        
+        // 移動完了と同時に次のタスク処理を実行
+        ProcessNormalTaskSafe(TeamIndex);
+    }
 }

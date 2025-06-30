@@ -140,13 +140,31 @@ struct FCharacterAction
     UPROPERTY(BlueprintReadWrite, Category = "Action")
     AC_IdleCharacter* TargetCharacter;
 
-    // 次の行動可能時刻
+    // 次の行動可能時刻（既存システム用）
     UPROPERTY(BlueprintReadWrite, Category = "Action")
     float NextActionTime;
 
     // 攻撃速度（秒間行動回数）
     UPROPERTY(BlueprintReadWrite, Category = "Action")
     float AttackSpeed;
+
+    // === 新しい行動ゲージシステム ===
+    
+    // 行動ゲージ（0-100）
+    UPROPERTY(BlueprintReadWrite, Category = "Action Gauge")
+    float ActionGauge;
+    
+    // ゲージ増加速度（毎ターン増加量）
+    UPROPERTY(BlueprintReadWrite, Category = "Action Gauge")
+    float GaugeSpeed;
+    
+    // 速度倍率（バフ/デバフ用）
+    UPROPERTY(BlueprintReadWrite, Category = "Action Gauge")
+    float SpeedMultiplier;
+    
+    // 行動優先度（同ゲージ値時の順序決定用）
+    UPROPERTY(BlueprintReadWrite, Category = "Action Gauge")
+    int32 ActionPriority;
 
     FCharacterAction()
     {
@@ -155,6 +173,37 @@ struct FCharacterAction
         TargetCharacter = nullptr;
         NextActionTime = 0.0f;
         AttackSpeed = 1.0f;
+        
+        // 新システム初期化
+        ActionGauge = 0.0f;
+        GaugeSpeed = 10.0f;  // デフォルト速度
+        SpeedMultiplier = 1.0f;
+        ActionPriority = 0;
+    }
+    
+    // 行動可能かチェック
+    bool CanAct() const
+    {
+        return ActionGauge >= 100.0f;
+    }
+    
+    // 行動後のゲージリセット
+    void ResetAfterAction()
+    {
+        ActionGauge = 0.0f;
+    }
+    
+    // ターン毎のゲージ更新
+    void UpdateGauge()
+    {
+        ActionGauge += GaugeSpeed * SpeedMultiplier;
+        ActionGauge = FMath::Clamp(ActionGauge, 0.0f, 200.0f); // オーバーフロー防止
+    }
+    
+    // 行動優先度計算（ゲージ値 + 優先度）
+    float GetActionScore() const
+    {
+        return ActionGauge + (ActionPriority * 0.01f); // 優先度は小数点以下に影響
     }
 };
 

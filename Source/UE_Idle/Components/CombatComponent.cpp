@@ -478,3 +478,96 @@ TArray<AC_IdleCharacter*> UCombatComponent::GetAliveMembers(const TArray<AC_Idle
     
     return AliveMembers;
 }
+
+// === TimeManager統合関数 ===
+
+void UCombatComponent::ProcessCombat(float DeltaTime)
+{
+    if (CurrentState == ECombatState::Inactive)
+    {
+        return; // 戦闘中でなければ何もしない
+    }
+    
+    switch (CurrentState)
+    {
+        case ECombatState::Preparing:
+            // 準備状態 - タイマーで自動進行されるので何もしない
+            break;
+            
+        case ECombatState::InProgress:
+            // 行動ゲージシステム - TimeManagerの1ターンで1人行動
+            if (ActionSystemComponent && ActionSystemComponent->IsSystemActive())
+            {
+                bool bCharacterActed = ActionSystemComponent->ProcessSingleTurnWithGauge();
+                if (bCharacterActed)
+                {
+                    UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessCombat: Character action processed with gauge system"));
+                }
+            }
+            
+            // 戦闘終了チェック
+            CheckCombatCompletion();
+            break;
+            
+        case ECombatState::Completed:
+            // 終了処理中 - 何もしない（自動的に完了する）
+            break;
+            
+        default:
+            break;
+    }
+}
+
+bool UCombatComponent::IsInCombat() const
+{
+    return CurrentState == ECombatState::Preparing || 
+           CurrentState == ECombatState::InProgress || 
+           CurrentState == ECombatState::Completed;
+}
+
+bool UCombatComponent::StartCombatSimple(const TArray<AC_IdleCharacter*>& AllyTeam, const TArray<AC_IdleCharacter*>& EnemyTeam)
+{
+    if (CurrentState != ECombatState::Inactive)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Combat already active, cannot start new combat"));
+        return false;
+    }
+
+    if (AllyTeam.Num() == 0)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Cannot start combat with empty ally team"));
+        return false;
+    }
+
+    if (EnemyTeam.Num() == 0)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Cannot start combat with empty enemy team"));
+        return false;
+    }
+
+    // チームメンバーを設定
+    AllyTeamMembers = AllyTeam;
+    EnemyTeamMembers = EnemyTeam;
+    CombatLocationId = TEXT("unknown"); // 場所は後で設定可能
+    
+    // 戦闘開始処理
+    SetCombatState(ECombatState::Preparing, TEXT("Combat starting"));
+    CombatStartTime = GetWorld()->GetTimeSeconds();
+    
+    UE_LOG(LogTemp, Warning, TEXT("⚔️ COMBAT INITIALIZED: %d allies vs %d enemies"), 
+        AllyTeam.Num(), EnemyTeam.Num());
+    
+    // 準備時間後に戦闘開始
+    if (bAutoStartCombat)
+    {
+        GetWorld()->GetTimerManager().SetTimer(
+            PreparationTimerHandle,
+            this,
+            &UCombatComponent::StartCombatAfterPreparation,
+            CombatPreparationTime,
+            false
+        );
+    }
+    
+    return true;
+}

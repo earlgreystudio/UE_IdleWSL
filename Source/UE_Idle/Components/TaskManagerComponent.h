@@ -195,6 +195,19 @@ public:
     UFUNCTION(BlueprintPure, Category = "Task Utils")
     int32 GetCompletedTaskCount() const;
 
+    // === タスク実行計画システム ===
+
+    // チーム用の実行計画を作成（新しい委譲設計の中核）
+    UFUNCTION(BlueprintCallable, Category = "Task Execution Plan")
+    FTaskExecutionPlan CreateExecutionPlanForTeam(int32 TeamIndex, const FString& CurrentLocation, ETaskType CurrentTask);
+
+private:
+    // 各タスクタイプ別の実行計画作成（内部実装）
+    FTaskExecutionPlan CreateGatheringExecutionPlan(int32 TeamIndex, const FString& CurrentLocation);
+    FTaskExecutionPlan CreateAdventureExecutionPlan(int32 TeamIndex, const FString& CurrentLocation);
+    FTaskExecutionPlan CreateAllModeExecutionPlan(int32 TeamIndex, const FString& CurrentLocation);
+
+public:
     // === 安全性確保機能 ===
 
     // 処理中かチェック

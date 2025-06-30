@@ -72,6 +72,18 @@ public:
     // 戦闘終了チェック（外部から呼び出し可能）
     UFUNCTION(BlueprintCallable, Category = "Combat")
     void RequestCombatCompletion() { CheckCombatCompletion(); }
+    
+    // TimeManager統合用 - ターンベース戦闘処理
+    UFUNCTION(BlueprintCallable, Category = "Combat")
+    void ProcessCombat(float DeltaTime);
+    
+    // 戦闘中かどうかチェック（中断不可能性判定用）
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Combat")
+    bool IsInCombat() const;
+    
+    // シンプルな戦闘開始（配列版）
+    UFUNCTION(BlueprintCallable, Category = "Combat")
+    bool StartCombatSimple(const TArray<AC_IdleCharacter*>& AllyTeam, const TArray<AC_IdleCharacter*>& EnemyTeam);
 
     // イベントディスパッチャー
     UPROPERTY(BlueprintAssignable, Category = "Combat Events")

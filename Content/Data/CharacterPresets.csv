@@ -2,3 +2,7 @@ RowName,Name,Description,bIsEnemy,Strength,Toughness,Intelligence,Dexterity,Agil
 "rat","ネズミ","小さな害獣",true,3,2,1,4,5,3,"Combat:3|Evasion:3","","rat_bite",4,"ネズミの歯"
 "giant_frog","巨大ガエル","沼地に生息する大型の両生類",true,5,7,2,4,6,6,"Combat:5|Swimming:7","","frog_tongue",7,"ガエルの毒舌"
 "goblin","ゴブリン","知能を持つ小型の亜人種",true,15,16,12,16,17,14,"OneHandedWeapons:10|Combat:8","short_sword:1","goblin_claw",6,"ゴブリンの爪"
+"wolf","オオカミ","群れで狩りをする肉食動物",true,8,10,4,10,12,8,"Combat:7|Hunting:8","","wolf_bite",10,"オオカミの牙"
+"bear","クマ","森に住む大型の雑食動物",true,18,20,5,8,6,15,"Combat:10|Wrestling:8","","bear_claw",15,"クマの爪"
+"rock_golem","ロックゴーレム","岩でできた魔法生物",true,25,35,3,4,3,20,"Combat:12|Defense:15","","golem_fist",20,"ゴーレムの拳"
+"troll","トロール","再生能力を持つ大型の亜人種",true,22,25,6,12,10,18,"Combat:15|Regeneration:10","","troll_club",18,"トロールの棍棒"

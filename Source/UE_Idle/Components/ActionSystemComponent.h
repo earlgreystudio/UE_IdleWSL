@@ -100,15 +100,40 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
     bool bEnableAI = true;
+    
+    // === 行動ゲージシステム（public for CombatComponent access）===
+    
+    // ゲージベース1ターン処理
+    UFUNCTION(BlueprintCallable, Category = "Action Gauge System")
+    bool ProcessSingleTurnWithGauge();
 
 private:
     // フェイルセーフ用：実際のキャラクターアクション数をカウント
     int32 TotalActionCount = 0;
 
 protected:
-    // タイマー処理
+    // タイマー処理（既存のシステム）
     UFUNCTION()
     void ProcessActions();
+    
+    // 新しい1ターン1行動システム（既存）
+    UFUNCTION(BlueprintCallable, Category = "Turn Based Combat")
+    bool ProcessSingleTurn();
+    
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Turn Based Combat")
+    AC_IdleCharacter* GetNextActingCharacter() const;
+    
+    // 全キャラクターのゲージ更新
+    UFUNCTION(BlueprintCallable, Category = "Action Gauge System")
+    void UpdateAllGauges();
+    
+    // 最高ゲージキャラクター取得
+    UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Action Gauge System")
+    AC_IdleCharacter* GetNextActingCharacterWithGauge() const;
+    
+    // キャラクターゲージ初期化
+    UFUNCTION(BlueprintCallable, Category = "Action Gauge System")
+    void InitializeCharacterGauge(AC_IdleCharacter* Character);
 
     // キャラクター行動処理
     void ProcessCharacterAction(FCharacterAction& Action);

@@ -2,6 +2,7 @@
 #include "C_GlobalTaskCard.h"
 #include "../Components/TaskManagerComponent.h"
 #include "../Components/CraftingComponent.h"
+#include "../Managers/LocationDataTableManager.h"
 #include "../C_PlayerController.h"
 #include "Components/ComboBoxString.h"
 #include "Components/EditableTextBox.h"
@@ -416,19 +417,33 @@ void UC_TaskMakeSheet::UpdateLocationComboBox()
     // コンボボックスをクリア
     LocationComboBox->ClearOptions();
 
-    // 冒険用の場所リストを追加（仮のデータ）
-    TArray<FString> AdventureLocations = {
-        TEXT("森の奥地"),
-        TEXT("洞窟"),
-        TEXT("山頂"),
-        TEXT("遺跡"),
-        TEXT("魔の森")
-    };
-
-    // コンボボックスに追加
-    for (const FString& Location : AdventureLocations)
+    // LocationDataTableManagerから実際の場所データを取得
+    if (UGameInstance* GameInstance = GetGameInstance())
     {
-        LocationComboBox->AddOption(Location);
+        if (ULocationDataTableManager* LocationManager = GameInstance->GetSubsystem<ULocationDataTableManager>())
+        {
+            // 全ての場所IDを取得
+            TArray<FName> AllLocationIds = LocationManager->GetAllLocationRowNames();
+            
+            for (const FName& LocationId : AllLocationIds)
+            {
+                // 拠点以外の場所のみ追加（冒険可能な場所）
+                if (LocationId.ToString() != TEXT("base"))
+                {
+                    FLocationDataRow LocationData;
+                    if (LocationManager->GetLocationData(LocationId.ToString(), LocationData))
+                    {
+                        // 場所の表示名（日本語）を使用
+                        FString DisplayName = LocationData.Name.IsEmpty() ? 
+                            LocationId.ToString() : LocationData.Name;
+                        LocationComboBox->AddOption(DisplayName);
+                        
+                        UE_LOG(LogTemp, VeryVerbose, TEXT("Added location: %s (%s)"), 
+                            *DisplayName, *LocationId.ToString());
+                    }
+                }
+            }
+        }
     }
 
     // デフォルト選択
@@ -437,7 +452,8 @@ void UC_TaskMakeSheet::UpdateLocationComboBox()
         LocationComboBox->SetSelectedIndex(0);
     }
 
-    UE_LOG(LogTemp, Log, TEXT("UC_TaskMakeSheet: Updated location list (%d locations)"), AdventureLocations.Num());
+    UE_LOG(LogTemp, Log, TEXT("UC_TaskMakeSheet: Updated location list from CSV (%d locations)"), 
+        LocationComboBox->GetOptionCount());
 }
 
 void UC_TaskMakeSheet::UpdateUIVisibilityForTaskType(ETaskType TaskType)
@@ -642,9 +658,40 @@ FGlobalTask UC_TaskMakeSheet::CreateTaskFromInput() const
     switch (NewTask.TaskType)
     {
         case ETaskType::Adventure:
-            // 冒険：場所情報を設定
-            NewTask.TargetItemId = LocationComboBox->GetSelectedOption();
-            NewTask.TargetQuantity = 1; // 冒険は常に1
+            // 冒険：場所情報を設定（表示名からIDに変換）
+            {
+                FString SelectedDisplayName = LocationComboBox->GetSelectedOption();
+                FString LocationId = SelectedDisplayName; // デフォルトは表示名をそのまま使用
+                
+                // LocationDataTableManagerから正しいIDを取得
+                if (UGameInstance* GameInstance = GetGameInstance())
+                {
+                    if (ULocationDataTableManager* LocationManager = GameInstance->GetSubsystem<ULocationDataTableManager>())
+                    {
+                        TArray<FName> AllLocationIds = LocationManager->GetAllLocationRowNames();
+                        
+                        for (const FName& TestLocationId : AllLocationIds)
+                        {
+                            FLocationDataRow LocationData;
+                            if (LocationManager->GetLocationData(TestLocationId.ToString(), LocationData))
+                            {
+                                // 表示名が一致する場合、そのIDを使用
+                                if (LocationData.Name == SelectedDisplayName)
+                                {
+                                    LocationId = TestLocationId.ToString();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                NewTask.TargetItemId = LocationId;
+                NewTask.TargetQuantity = 1; // 冒険は常に1
+                
+                UE_LOG(LogTemp, Log, TEXT("Adventure task: Display='%s' -> ID='%s'"), 
+                    *SelectedDisplayName, *LocationId);
+            }
             break;
 
         case ETaskType::Construction:

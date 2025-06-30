@@ -94,7 +94,54 @@ int32 GetTotalResourceAmount(const FString& ResourceId) const
 - null参照チェックとエラーハンドリング
 - VeryVerboseレベルでの詳細ログ出力
 
-### 5. タスク完了処理
+### 5. チームタスク優先度ベースマッチングシステム
+
+#### 新しいタスク選択ロジック
+```cpp
+FString GetTargetItemForTeam(int32 TeamIndex, const FString& LocationId) const
+```
+- **チームタスク優先**: グローバルタスクよりチームタスクの優先度を優先
+- **優先度順マッチング**: チームタスクの優先度順でグローバルタスクとマッチング
+- **毎ターン再計算**: 状態変化に即座に対応
+- **ターンベース設計**: 完全な状態リセットによる確実な動作
+
+#### タスクマッチング用ヘルパー関数群
+```cpp
+FString FindMatchingGlobalTask(const FTeamTask& TeamTask, int32 TeamIndex, const FString& LocationId) const
+FString FindMatchingGatheringTask(int32 TeamIndex, const FString& LocationId) const
+FString FindMatchingAdventureTask(int32 TeamIndex, const FString& LocationId) const
+FString FindMatchingConstructionTask(int32 TeamIndex) const
+FString FindMatchingCookingTask(int32 TeamIndex) const
+FString FindMatchingCraftingTask(int32 TeamIndex) const
+```
+- **タスクタイプ別の専用マッチング**: 各タスクタイプに特化した判定ロジック
+- **拡張可能設計**: 新しいタスクタイプの追加が容易
+- **ログ統合**: VeryVerboseレベルでの詳細マッチング過程追跡
+
+### 6. 採集数量タイプの詳細管理
+
+#### 3つの採集数量タイプ
+```cpp
+enum class EGatheringQuantityType {
+    Unlimited,    // 無制限採集（永続実行）
+    Keep,         // キープ型（拠点全体で指定数量維持）
+    Specified     // 個数指定型（目標達成で自動削除）
+}
+```
+
+#### Keep タスクの満足度判定
+```cpp
+// Keep タスクは拠点全体の在庫量で判定
+int32 TotalCurrentAmount = GetTotalResourceAmount(Task.TargetItemId);
+if (TotalCurrentAmount >= Task.TargetQuantity) {
+    // 満足済み → 次の優先度タスクへ移行
+}
+```
+- **拠点全体在庫**: 拠点倉庫 + 全チーム所持の合計で判定
+- **適正数量維持**: 既存在庫を考慮した必要量のみ採集
+- **優先度システム連携**: 満足時は次優先度タスクに自動移行
+
+### 8. タスク完了処理
 
 #### 進行状況の管理
 ```cpp
@@ -106,7 +153,26 @@ void ClearCompletedTasks()
 - 完了時の自動イベント通知
 - 完了タスクの一括削除
 
-### 6. 安全性確保機能
+#### 数量タイプ別完了ロジック
+```cpp
+switch (Task.GatheringQuantityType) {
+    case EGatheringQuantityType::Unlimited:
+        // 無制限採集は永続的に実行（完了しない）
+        return true;
+    case EGatheringQuantityType::Keep:
+        // キープ型は永続的に実行（完了しない）
+        return true;
+    case EGatheringQuantityType::Specified:
+        // 個数指定型のみ完了判定・自動削除
+        if (Task.CurrentProgress >= Task.TargetQuantity) {
+            Task.bIsCompleted = true;
+            GlobalTasks.RemoveAt(TaskIndex);
+        }
+        return true;
+}
+```
+
+### 7. 安全性確保機能
 
 #### 処理の排他制御
 ```cpp
