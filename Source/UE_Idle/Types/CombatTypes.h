@@ -122,30 +122,30 @@ struct FCombatCalculationResult
     }
 };
 
-// キャラクターの行動情報
+// 戦闘行動情報（名前変更してCharacterTypes.hとの競合を回避）
 USTRUCT(BlueprintType)
-struct FCharacterAction
+struct FCombatAction
 {
     GENERATED_BODY()
 
     // 行動するキャラクター
-    UPROPERTY(BlueprintReadWrite, Category = "Action")
+    UPROPERTY(BlueprintReadWrite, Category = "Combat Action")
     AC_IdleCharacter* Character;
 
     // 行動タイプ
-    UPROPERTY(BlueprintReadWrite, Category = "Action")
+    UPROPERTY(BlueprintReadWrite, Category = "Combat Action")
     EActionType ActionType;
 
     // 対象キャラクター（攻撃対象など）
-    UPROPERTY(BlueprintReadWrite, Category = "Action")
+    UPROPERTY(BlueprintReadWrite, Category = "Combat Action")
     AC_IdleCharacter* TargetCharacter;
 
     // 次の行動可能時刻（既存システム用）
-    UPROPERTY(BlueprintReadWrite, Category = "Action")
+    UPROPERTY(BlueprintReadWrite, Category = "Combat Action")
     float NextActionTime;
 
     // 攻撃速度（秒間行動回数）
-    UPROPERTY(BlueprintReadWrite, Category = "Action")
+    UPROPERTY(BlueprintReadWrite, Category = "Combat Action")
     float AttackSpeed;
 
     // === 新しい行動ゲージシステム ===
@@ -166,7 +166,7 @@ struct FCharacterAction
     UPROPERTY(BlueprintReadWrite, Category = "Action Gauge")
     int32 ActionPriority;
 
-    FCharacterAction()
+    FCombatAction()
     {
         Character = nullptr;
         ActionType = EActionType::Attack;

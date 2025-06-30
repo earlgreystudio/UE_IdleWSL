@@ -629,6 +629,13 @@ FString UC_TeamCard::GetTeamStatusDisplayText() const
         return TEXT("移動中");
     }
     
+    // 移動中や帰還中の場合は基本状態表示を使用
+    if (TeamData.ActionState == ETeamActionState::Moving || 
+        TeamData.ActionState == ETeamActionState::Returning)
+    {
+        return TeamData.GetActionStateDisplayName();
+    }
+    
     // 作業中の場合は目標資源の個数を表示
     if (TeamData.ActionState == ETeamActionState::Working)
     {

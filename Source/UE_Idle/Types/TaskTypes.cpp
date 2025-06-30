@@ -81,6 +81,8 @@ FString UTaskTypeUtils::GetActionStateDisplayName(ETeamActionState ActionState)
             return TEXT("待機");
         case ETeamActionState::Moving:
             return TEXT("移動中");
+        case ETeamActionState::Returning:
+            return TEXT("帰還中");
         case ETeamActionState::Working:
             return TEXT("作業中");
         case ETeamActionState::InCombat:

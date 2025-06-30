@@ -135,8 +135,8 @@ protected:
     UFUNCTION(BlueprintCallable, Category = "Action Gauge System")
     void InitializeCharacterGauge(AC_IdleCharacter* Character);
 
-    // キャラクター行動処理
-    void ProcessCharacterAction(FCharacterAction& Action);
+    // キャラクター行動処理（戦闘用構造体を使用）
+    void ProcessCharacterAction(FCombatAction& Action);
 
     // AI行動決定
     AC_IdleCharacter* SelectTarget(AC_IdleCharacter* Actor, const TArray<AC_IdleCharacter*>& Enemies);
@@ -145,13 +145,13 @@ protected:
     FString SelectWeapon(AC_IdleCharacter* Character);
 
     // 攻撃速度計算と次回行動時間設定
-    void UpdateNextActionTime(FCharacterAction& Action, const FString& WeaponId);
+    void UpdateNextActionTime(FCombatAction& Action, const FString& WeaponId);
 
     // キャラクターの生存チェック
     bool IsCharacterAlive(AC_IdleCharacter* Character) const;
 
-    // デバッグ用
-    void LogActionInfo(const FCharacterAction& Action, const FString& WeaponId) const;
+    // デバッグ用（戦闘用構造体を使用）
+    void LogActionInfo(const FCombatAction& Action, const FString& WeaponId) const;
     
     // 戦闘終了通知は削除 - CombatComponentで一元管理
     
@@ -164,12 +164,12 @@ protected:
     void CleanupInvalidCharacters();
 
 private:
-    // 登録済みキャラクター
+    // 登録済みキャラクター（戦闘用構造体を使用）
     UPROPERTY()
-    TArray<FCharacterAction> AllyActions;
+    TArray<FCombatAction> AllyActions;
 
     UPROPERTY()
-    TArray<FCharacterAction> EnemyActions;
+    TArray<FCombatAction> EnemyActions;
 
     // システム状態
     UPROPERTY()
@@ -182,7 +182,7 @@ private:
     UPROPERTY()
     TObjectPtr<UEventLogManager> EventLogManager;
 
-    // ヘルパー関数
-    FCharacterAction* FindCharacterAction(AC_IdleCharacter* Character);
+    // ヘルパー関数（戦闘用構造体を使用）
+    FCombatAction* FindCharacterAction(AC_IdleCharacter* Character);
     bool RemoveCharacterAction(AC_IdleCharacter* Character);
 };

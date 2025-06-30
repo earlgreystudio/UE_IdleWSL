@@ -398,14 +398,10 @@ void ULocationMovementComponent::UpdateMovementInfo(int32 TeamIndex, float Delta
         }
     }
     
-    // 進捗と残り時間を再計算
-    float TraveledDistance = FMath::Abs(MovementInfo->CurrentDistanceFromBase - 
-                                       (MovementInfo->bMovingAwayFromBase ? 
-                                        MovementInfo->TargetDistanceFromBase - MovementInfo->Distance :
-                                        MovementInfo->TargetDistanceFromBase + MovementInfo->Distance));
-    MovementInfo->Progress = (MovementInfo->Distance > 0.0f) ? (TraveledDistance / MovementInfo->Distance) : 1.0f;
-    
+    // 簡略化された進捗と残り時間の再計算
     float RemainingDistance = FMath::Abs(MovementInfo->TargetDistanceFromBase - MovementInfo->CurrentDistanceFromBase);
+    MovementInfo->Progress = (MovementInfo->Distance > 0.0f) ? 
+        ((MovementInfo->Distance - RemainingDistance) / MovementInfo->Distance) : 1.0f;
     MovementInfo->RemainingTime = (MovementInfo->Speed > 0.0f) ? (RemainingDistance / MovementInfo->Speed) : 0.0f;
     
     UE_LOG(LogTemp, Warning, TEXT("MovementComponent: Team %d at %.1fm/%.1fm, progress %.2f, remaining %.1fs (speed: %.1f, delta: %.1f)"), 
@@ -437,8 +433,10 @@ void ULocationMovementComponent::CompleteMovement(int32 TeamIndex)
     // 移動完了イベント発行
     OnMovementCompleted.Broadcast(TeamIndex, ArrivedLocation);
     
-    // 移動情報をクリア（到着後は静止状態）
+    // 移動情報をクリア（静止状態に戻す）
     TeamMovementInfos.Remove(TeamIndex);
+    
+    UE_LOG(LogTemp, Warning, TEXT("MovementComponent: Team %d arrived at %s - movement info cleared"), TeamIndex, *ArrivedLocation);
 }
 
 bool ULocationMovementComponent::IsValidTeam(int32 TeamIndex) const

@@ -12,13 +12,28 @@ This is an Unreal Engine idle game project (UE_IdleWSL) targeting **iOS and Andr
 UE_IdleWSL/
 ├── Source/UE_Idle/                    # C++ source code
 │   ├── Types/                         # Data structures and enums
-│   ├── Managers/                      # GameInstance Subsystems
+│   │   ├── CharacterTypes.h           # FCharacterSituation, FCharacterAction, ECharacterPersonality
+│   │   ├── TeamTypes.h                # FTeamStrategy, FTeamInfo, ETaskType
+│   │   ├── CommonTypes.h              # ETeamActionState (shared enums)
+│   │   └── ...
+│   ├── Managers/                      # GameInstance Subsystems  
 │   ├── Components/                    # Actor components
+│   │   ├── CharacterBrain.h           # Individual character decision engine
+│   │   ├── TimeManagerComponent.h     # Simplified turn notification system
+│   │   ├── TeamComponent.h            # Team coordination (not command)
+│   │   └── ...
+│   ├── Services/                      # Autonomous system services
+│   │   ├── MovementService.h          # Movement operations
+│   │   ├── GatheringService.h         # Resource collection
+│   │   ├── CombatService.h            # Combat coordination
+│   │   └── TaskInformationService.h   # Task recommendations
 │   ├── Actor/                         # Custom actors
+│   │   └── C_IdleCharacter.h          # Autonomous character with brain
 │   └── UI/                           # UI widgets
 ├── Content/Data/                      # DataTable CSV files
 └── docs/
     ├── specifications/                # Detailed component specs
+    ├── ImplementationPlan/            # Migration documentation
     └── RoleAllocation.md              # Quick reference
 ```
 
@@ -61,10 +76,12 @@ UE_IdleWSL/
 - **Two-tier Storage**: Global storage (PlayerController) + Character inventories
 - **Event-driven UI**: Real-time updates via event dispatchers
 
-### Task Management System
-- **TaskManagerComponent**: Global task management and prioritization
-- **TimeManagerComponent**: Timer-based task execution and time progression
-- **TeamComponent**: Team formation and task assignment
+### Autonomous Character System (Post-Migration Architecture)
+- **CharacterBrain**: Individual character decision-making and autonomous behavior
+- **TimeManagerComponent**: Simplified turn notification system (1 second = 1 turn)
+- **TeamComponent**: Team coordination and strategy suggestions (not command)
+- **Service Architecture**: MovementService, GatheringService, CombatService, TaskInformationService
+- **TaskManagerComponent**: Task information provider (reduced responsibility)
 
 ### Item System Features
 - **Item Types**: Weapon, Armor, Consumable, Material, Quest, Misc
@@ -78,40 +95,56 @@ UE_IdleWSL/
 - **Headers**: Must match struct properties exactly
 - **Import Settings**: Ignore Extra/Missing Fields ON, Preserve Values OFF
 
-### Key Blueprint Functions
+### Key Systems Integration
 - **Item Management**: `AddItemToStorage`, `AddItem`, `TransferToCharacter`
 - **Equipment**: `EquipWeapon`, `EquipArmor`, `CanEquipItem`
-- **UI Updates**: Event dispatchers for real-time inventory changes
+- **Autonomous Characters**: `OnTurnTick`, `AnalyzeMySituation`, `DecideMyAction`
+- **Team Coordination**: `GetTeamStrategy`, `CoordinateWithTeammates`
+- **Service Integration**: MovementService, GatheringService, CombatService
+- **UI Updates**: Event dispatchers for real-time inventory and team changes
 
 ## Design Philosophy
 
-### Turn-Based Recalculation Architecture
-**CRITICAL DESIGN PRINCIPLE**: Every turn, TimeManagerComponent completely recalculates what each team should do based on current state only.
+### Autonomous Character Design (Bottom-Up Architecture)
+**CRITICAL DESIGN PRINCIPLE**: Each character makes independent decisions based on their situation analysis and team coordination.
 
-#### Team Task Priority System
-- **Team Tasks Override Global Tasks**: Team task priorities take precedence over global task priorities
-- **Keep Task Satisfaction**: Keep quantity tasks check total base inventory (base storage + all team inventories) for satisfaction
-- **Three Gathering Types**: Unlimited (永続), Keep (維持), Specified (個数指定) with different completion behaviors
+#### Character-Driven Decision Making
+- **Individual Autonomy**: Each character analyzes their situation and decides actions autonomously
+- **Team Coordination**: Teams provide strategy suggestions, not commands
+- **Situation-Based Logic**: Characters use FCharacterSituation to understand their context
+- **Personality System**: ECharacterPersonality affects decision preferences and behavior
 
-- **Complete Recalculation**: Each turn is independent - no dependency on past states or future plans
-- **No State Memory**: Never assume "we're moving for 10 turns so skip thinking" - ALWAYS recalculate
-- **Simple Logic**: Each turn asks only "What should this team do RIGHT NOW?"
-- **Current Situation Only**: Decisions based solely on: current location, current tasks, current inventory
-- **No Complex State Machines**: Avoid storing movement states, action sequences, or multi-turn plans
+#### Service-Oriented Architecture
+- **MovementService**: Handles all movement-related operations
+- **GatheringService**: Manages resource collection activities  
+- **CombatService**: Coordinates combat encounters
+- **TaskInformationService**: Provides task-related information and recommendations
 
-**Example Flow**:
-1. Turn 1: "Team at base, task needs wood at plains" → Start movement to plains
-2. Turn 2: "Team moving to plains" → Continue movement  
-3. Turn 3: "Team at plains, task needs wood" → Execute gathering
-4. Turn 4: "Team at plains, task complete" → Start return to base
+#### Turn-Based Autonomous Processing
+- **Simple TimeManager**: Only sends turn notifications (OnTurnTick) to all characters
+- **Character Brain**: Each character's UCharacterBrain processes the turn independently
+- **No Central Control**: No single component controls all character actions
+- **Event-Driven Coordination**: Characters coordinate through team strategies and events
 
-Each turn decision is made independently without reference to previous turns.
+**Example Autonomous Flow**:
+1. Turn 1: Character analyzes situation → Consults team strategy → Decides to move to plains
+2. Turn 2: Character sees they're moving → Continues movement autonomously
+3. Turn 3: Character arrives at plains → Analyzes situation → Decides to gather wood
+4. Turn 4: Character completes gathering → Analyzes inventory → Decides to return to base
+
+Each character makes independent decisions every turn based on current situation.
 
 ### Interface-Driven Architecture
 - Use `UINTERFACE` for actor communication contracts
 - Avoid expensive Cast<> operations - use interface checks instead
 - Implement `_Implementation` functions in C++ for performance
 - Prefer composition over inheritance for complex behaviors
+
+### Backward Compatibility Strategy
+- **UI Systems**: All existing UIs continue to work unchanged
+- **Event Dispatchers**: Team and character events maintain existing signatures
+- **Progressive Migration**: Old systems coexist with new autonomous systems
+- **Service Integration**: New services provide functionality for both old and new systems
 
 ## Code Conventions
 - **Enums**: `ETypeNameTable`, **Structs**: `FStructName`, **Classes**: `UClassName`

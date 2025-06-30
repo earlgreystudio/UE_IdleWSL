@@ -788,6 +788,8 @@ FGlobalTask UTaskManagerComponent::FindActiveGatheringTask(const FString& ItemId
 
 FString UTaskManagerComponent::GetTargetItemForTeam(int32 TeamIndex, const FString& LocationId) const
 {
+    UE_LOG(LogTemp, VeryVerbose, TEXT("📋🎯 GetTargetItemForTeam: Team %d, Location %s"), TeamIndex, *LocationId);
+    
     if (!IsValid(TeamComponentRef))
     {
         UE_LOG(LogTemp, Error, TEXT("GetTargetItemForTeam: TeamComponent unavailable"));
@@ -797,8 +799,11 @@ FString UTaskManagerComponent::GetTargetItemForTeam(int32 TeamIndex, const FStri
     // 1. チームタスクを優先度順で取得
     TArray<FTeamTask> TeamTasks = TeamComponentRef->GetTeamTasks(TeamIndex);
     
+    UE_LOG(LogTemp, VeryVerbose, TEXT("📋📝 GetTargetItemForTeam: Found %d team tasks"), TeamTasks.Num());
+    
     if (TeamTasks.Num() == 0)
     {
+        UE_LOG(LogTemp, Warning, TEXT("📋⚠️ GetTargetItemForTeam: No team tasks, falling back to global tasks"));
         // チームタスクなし → グローバルタスクにフォールバック
         return GetTargetItemFromGlobalTasks(LocationId);
     }
@@ -808,15 +813,22 @@ FString UTaskManagerComponent::GetTargetItemForTeam(int32 TeamIndex, const FStri
     {
         const FTeamTask& TeamTask = TeamTasks[i];
         
+        UE_LOG(LogTemp, VeryVerbose, TEXT("📋🔍 GetTargetItemForTeam: Checking team task %d - Type: %d, Priority: %d"), 
+            i, (int32)TeamTask.TaskType, TeamTask.Priority);
+        
         // 3. このチームタスクに対応するグローバルタスクを探す
         FString MatchedTarget = FindMatchingGlobalTask(TeamTask, TeamIndex, LocationId);
         
+        UE_LOG(LogTemp, VeryVerbose, TEXT("📋📦 GetTargetItemForTeam: FindMatchingGlobalTask returned: '%s'"), *MatchedTarget);
+        
         if (!MatchedTarget.IsEmpty())
         {
+            UE_LOG(LogTemp, VeryVerbose, TEXT("📋✅ GetTargetItemForTeam: Returning matched target: '%s'"), *MatchedTarget);
             return MatchedTarget; // 最初にマッチしたものを返す
         }
     }
     
+    UE_LOG(LogTemp, Warning, TEXT("📋❌ GetTargetItemForTeam: No matching tasks found, returning empty string"));
     return FString(); // 全てのチームタスクでマッチしない → 拠点帰還
 }
 
@@ -1101,15 +1113,30 @@ FString UTaskManagerComponent::FindMatchingGlobalTask(const FTeamTask& TeamTask,
 
 FString UTaskManagerComponent::FindMatchingGatheringTask(int32 TeamIndex, const FString& LocationId) const
 {
+    UE_LOG(LogTemp, VeryVerbose, TEXT("📋🌱 FindMatchingGatheringTask: Team %d, Location %s"), TeamIndex, *LocationId);
+    
     // その場所で採集可能なグローバルタスクを優先度順で取得
     TArray<FGlobalTask> ExecutableTasks = GetExecutableGatheringTasksAtLocation(TeamIndex, LocationId);
+    
+    if (ExecutableTasks.Num() == 0)
+    {
+        UE_LOG(LogTemp, VeryVerbose, TEXT("📋❌ FindMatchingGatheringTask: No executable tasks at location %s"), *LocationId);
+    }
+    else
+    {
+        UE_LOG(LogTemp, VeryVerbose, TEXT("📋📊 FindMatchingGatheringTask: Found %d executable tasks at location %s"), 
+            ExecutableTasks.Num(), *LocationId);
+    }
     
     if (ExecutableTasks.Num() > 0)
     {
         const FGlobalTask& SelectedTask = ExecutableTasks[0]; // 最優先
+        UE_LOG(LogTemp, VeryVerbose, TEXT("📋✅ FindMatchingGatheringTask: Selected task target item: %s"), 
+            *SelectedTask.TargetItemId);
         return SelectedTask.TargetItemId;
     }
     
+    // This was already changed above
     return FString();
 }
 

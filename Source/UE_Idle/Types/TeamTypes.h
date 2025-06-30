@@ -2,22 +2,11 @@
 
 #include "CoreMinimal.h"
 #include "Engine/Engine.h"
-#include "../Types/ItemTypes.h"
+#include "../Types/CommonTypes.h"
 #include "TeamTypes.generated.h"
 
 // Forward declarations for avoiding circular dependencies
 class UTeamComponent;
-
-// チームアクション状態（TaskTypes.hから移動を避けるため、ここで定義）
-UENUM(BlueprintType)
-enum class ETeamActionState : uint8
-{
-    Idle            UMETA(DisplayName = "待機"),
-    Moving          UMETA(DisplayName = "移動中"),       // 中断可能
-    Working         UMETA(DisplayName = "作業中"),       // 中断可能
-    InCombat        UMETA(DisplayName = "戦闘中"),       // 中断不可
-    Locked          UMETA(DisplayName = "アクション中")   // 中断不可
-};
 
 // チーム戦闘状態の詳細管理
 UENUM(BlueprintType)
@@ -235,6 +224,8 @@ struct FTeam
                 return TEXT("待機");
             case ETeamActionState::Moving:
                 return TEXT("移動中");
+            case ETeamActionState::Returning:
+                return TEXT("帰還中");
             case ETeamActionState::Working:
                 return TEXT("作業中");
             case ETeamActionState::InCombat:
@@ -264,5 +255,122 @@ struct FTeam
             default:
                 return TEXT("不明");
         }
+    }
+};
+
+// ===========================================
+// 自律的キャラクターシステム - チーム連携用構造体
+// ===========================================
+
+/**
+ * チーム戦略情報（自律的キャラクターへの提案用）
+ */
+USTRUCT(BlueprintType)
+struct UE_IDLE_API FTeamStrategy
+{
+    GENERATED_BODY()
+
+    // 推奨する全体戦略
+    UPROPERTY(BlueprintReadWrite, Category = "Team Strategy")
+    ETaskType RecommendedTaskType;
+
+    // 戦略の優先度
+    UPROPERTY(BlueprintReadWrite, Category = "Team Strategy")
+    int32 StrategyPriority;
+
+    // 戦略の理由・説明
+    UPROPERTY(BlueprintReadWrite, Category = "Team Strategy")
+    FString StrategyReason;
+
+    // 推奨する目標アイテム（採集・製作等）
+    UPROPERTY(BlueprintReadWrite, Category = "Team Strategy")
+    FString RecommendedTargetItem;
+
+    // 推奨する目標場所
+    UPROPERTY(BlueprintReadWrite, Category = "Team Strategy")
+    FString RecommendedLocation;
+
+    // この戦略が有効な期間（秒）
+    UPROPERTY(BlueprintReadWrite, Category = "Team Strategy")
+    float ValidDuration;
+
+    // 戦略に必要な最小チームサイズ
+    UPROPERTY(BlueprintReadWrite, Category = "Team Strategy")
+    int32 RequiredMinTeamSize;
+
+    FTeamStrategy()
+    {
+        RecommendedTaskType = ETaskType::Idle;
+        StrategyPriority = 1;
+        StrategyReason = TEXT("Default strategy");
+        RecommendedTargetItem = TEXT("");
+        RecommendedLocation = TEXT("base");
+        ValidDuration = 60.0f;
+        RequiredMinTeamSize = 1;
+    }
+};
+
+/**
+ * チーム情報（キャラクターに提供する情報）
+ */
+USTRUCT(BlueprintType)
+struct UE_IDLE_API FTeamInfo
+{
+    GENERATED_BODY()
+
+    // チーム基本情報
+    UPROPERTY(BlueprintReadWrite, Category = "Team Info")
+    int32 TeamIndex;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Team Info")
+    FString TeamName;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Team Info")
+    ETaskType CurrentTask;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Team Info")
+    ETeamActionState ActionState;
+
+    // メンバー情報
+    UPROPERTY(BlueprintReadWrite, Category = "Team Info")
+    int32 TotalMembers;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Team Info")
+    int32 ActiveMembers;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Team Info")
+    TArray<AC_IdleCharacter*> Teammates;
+
+    // 現在の目標
+    UPROPERTY(BlueprintReadWrite, Category = "Team Info")
+    FString CurrentTargetItem;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Team Info")
+    FString CurrentTargetLocation;
+
+    // チーム戦略
+    UPROPERTY(BlueprintReadWrite, Category = "Team Info")
+    FTeamStrategy CurrentStrategy;
+
+    // 連携情報
+    UPROPERTY(BlueprintReadWrite, Category = "Team Info")
+    bool bNeedsCoordination;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Team Info")
+    FString CoordinationMessage;
+
+    FTeamInfo()
+    {
+        TeamIndex = -1;
+        TeamName = TEXT("Unknown Team");
+        CurrentTask = ETaskType::Idle;
+        ActionState = ETeamActionState::Idle;
+        TotalMembers = 0;
+        ActiveMembers = 0;
+        CurrentTargetItem = TEXT("");
+        CurrentTargetLocation = TEXT("base");
+        CurrentStrategy = FTeamStrategy();
+        bNeedsCoordination = false;
+        CoordinationMessage = TEXT("");
     }
 };

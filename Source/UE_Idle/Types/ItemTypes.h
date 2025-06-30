@@ -2,7 +2,6 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
-#include "UE_Idle/Types/CharacterTypes.h"
 #include "ItemTypes.generated.h"
 
 UENUM(BlueprintType)

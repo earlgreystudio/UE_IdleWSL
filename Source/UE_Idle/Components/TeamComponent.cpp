@@ -1,11 +1,15 @@
 #include "TeamComponent.h"
 #include "../Actor/C_IdleCharacter.h"
 #include "../Managers/BattleSystemManager.h"
+#include "../Types/CharacterTypes.h"
+#include "../C_PlayerController.h"
 #include "InventoryComponent.h"
 #include "CombatComponent.h"
 #include "GatheringComponent.h"
 #include "LocationMovementComponent.h"
+#include "TaskManagerComponent.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
 
 UTeamComponent::UTeamComponent()
 {
@@ -226,9 +230,16 @@ bool UTeamComponent::SetTeamTask(int32 TeamIndex, ETaskType NewTask)
 			Teams[TeamIndex].bInCombat = false;
 		}
 		
+		// 🚨 CRITICAL FIX: UIからのタスク設定を自律システムに反映
+		// 実装計画書：「既存機能の完全再現」を保証
+		ReevaluateAllTeamStrategies();
+		
 		// イベント通知
 		OnTaskChanged.Broadcast(TeamIndex, NewTask);
 		OnTeamsUpdated.Broadcast();
+		
+		UE_LOG(LogTemp, Log, TEXT("🎯 SetTeamTask: Team %d task updated to %d, strategies reevaluated"), 
+			TeamIndex, (int32)NewTask);
 		
 		return true;
 	}
@@ -244,11 +255,20 @@ bool UTeamComponent::SetTeamAdventureLocation(int32 TeamIndex, const FString& Lo
 
 	Teams[TeamIndex].AdventureLocationId = LocationId;
 	
+	bool bTaskChanged = false;
+	
 	// 冒険場所を設定した場合、タスクも冒険に変更
 	if (!LocationId.IsEmpty() && Teams[TeamIndex].AssignedTask != ETaskType::Adventure)
 	{
 		Teams[TeamIndex].AssignedTask = ETaskType::Adventure;
 		OnTaskChanged.Broadcast(TeamIndex, ETaskType::Adventure);
+		bTaskChanged = true;
+	}
+	
+	// 🚨 CRITICAL FIX: 場所やタスクが変更された場合、戦略を更新
+	if (bTaskChanged || !LocationId.IsEmpty())
+	{
+		ReevaluateAllTeamStrategies();
 	}
 	
 	OnTeamsUpdated.Broadcast();
@@ -327,6 +347,8 @@ bool UTeamComponent::SetTeamGatheringLocation(int32 TeamIndex, const FString& Lo
 
 	Teams[TeamIndex].GatheringLocationId = LocationId;
 	
+	bool bTaskChanged = false;
+	
 	// 採集場所を設定した場合、タスクも採集に変更
 	// ただし、冒険タスク中の場合は変更しない
 	if (!LocationId.IsEmpty() && 
@@ -335,6 +357,13 @@ bool UTeamComponent::SetTeamGatheringLocation(int32 TeamIndex, const FString& Lo
 	{
 		Teams[TeamIndex].AssignedTask = ETaskType::Gathering;
 		OnTaskChanged.Broadcast(TeamIndex, ETaskType::Gathering);
+		bTaskChanged = true;
+	}
+	
+	// 🚨 CRITICAL FIX: 場所やタスクが変更された場合、戦略を更新
+	if (bTaskChanged || !LocationId.IsEmpty())
+	{
+		ReevaluateAllTeamStrategies();
 	}
 	
 	OnTeamsUpdated.Broadcast();
@@ -1081,7 +1110,18 @@ bool UTeamComponent::ExecuteMovement(int32 TeamIndex, const FString& TargetLocat
 	
 	// チーム状態を更新
 	SetTeamGatheringLocation(TeamIndex, TargetLocation);
-	SetTeamActionState(TeamIndex, ETeamActionState::Moving);
+	
+	// 拠点への移動で既にReturning状態の場合は状態を保持、そうでなければMoving状態に設定
+	FTeam& Team = Teams[TeamIndex];
+	if (TargetLocation == TEXT("base") && Team.ActionState == ETeamActionState::Returning)
+	{
+		UE_LOG(LogTemp, Log, TEXT("🏠 Team %d continuing return to base, keeping Returning state"), TeamIndex);
+		// Returning状態を保持
+	}
+	else
+	{
+		SetTeamActionState(TeamIndex, ETeamActionState::Moving);
+	}
 	
 	UE_LOG(LogTemp, Log, TEXT("✅ Movement initiated to %s"), *TargetLocation);
 	return true;
@@ -1276,4 +1316,262 @@ void UTeamComponent::SetTeamActionStateInternal(int32 TeamIndex, ETeamActionStat
 	
 	// イベント通知
 	OnTeamActionStateChanged.Broadcast(TeamIndex, NewState);
+}
+
+// ===========================================
+// 自律的キャラクターシステム - チーム連携機能実装（Phase 2.2）
+// ===========================================
+
+FTeamStrategy UTeamComponent::GetTeamStrategy(int32 TeamIndex) const
+{
+	// チームインデックスの有効性チェック
+	if (!IsValidTeamIndex(TeamIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("🧠👥 GetTeamStrategy: Invalid team index %d"), TeamIndex);
+		return FTeamStrategy(); // デフォルト戦略
+	}
+
+	// 戦略が存在するかチェック
+	if (!TeamStrategies.IsValidIndex(TeamIndex))
+	{
+		UE_LOG(LogTemp, VeryVerbose, TEXT("🧠👥 GetTeamStrategy: No strategy found for team %d, generating default"), TeamIndex);
+		
+		// デフォルト戦略を生成
+		FTeamStrategy DefaultStrategy;
+		const FTeam& Team = Teams[TeamIndex];
+		DefaultStrategy.RecommendedTaskType = Team.AssignedTask;
+		DefaultStrategy.StrategyReason = TEXT("Default strategy based on assigned task");
+		
+		return DefaultStrategy;
+	}
+
+	// 戦略の有効期限をチェック
+	float CurrentTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	if (StrategyUpdateTimes.IsValidIndex(TeamIndex))
+	{
+		float TimeSinceUpdate = CurrentTime - StrategyUpdateTimes[TeamIndex];
+		if (TimeSinceUpdate > TeamStrategies[TeamIndex].ValidDuration)
+		{
+			UE_LOG(LogTemp, VeryVerbose, TEXT("🧠👥 GetTeamStrategy: Strategy for team %d expired, needs update"), TeamIndex);
+		}
+	}
+
+	return TeamStrategies[TeamIndex];
+}
+
+FTeamInfo UTeamComponent::GetTeamInfoForCharacter(AC_IdleCharacter* Character) const
+{
+	FTeamInfo TeamInfo;
+
+	if (!IsValid(Character))
+	{
+		UE_LOG(LogTemp, Error, TEXT("🧠👥 GetTeamInfoForCharacter: Invalid character"));
+		return TeamInfo;
+	}
+
+	// キャラクターが所属するチームを検索
+	int32 CharacterTeamIndex = -1;
+	for (int32 i = 0; i < Teams.Num(); i++)
+	{
+		if (Teams[i].Members.Contains(Character))
+		{
+			CharacterTeamIndex = i;
+			break;
+		}
+	}
+
+	if (CharacterTeamIndex == -1)
+	{
+		UE_LOG(LogTemp, VeryVerbose, TEXT("🧠👥 GetTeamInfoForCharacter: Character %s not in any team"), 
+			*Character->GetCharacterName());
+		return TeamInfo; // デフォルト値（チーム未所属）
+	}
+
+	// チーム情報を設定
+	const FTeam& Team = Teams[CharacterTeamIndex];
+	TeamInfo.TeamIndex = CharacterTeamIndex;
+	TeamInfo.TeamName = Team.TeamName;
+	TeamInfo.CurrentTask = Team.AssignedTask;
+	TeamInfo.ActionState = Team.ActionState;
+	TeamInfo.TotalMembers = Team.Members.Num();
+	TeamInfo.ActiveMembers = Team.bIsActive ? Team.Members.Num() : 0;
+	TeamInfo.Teammates = Team.Members;
+
+	// 目標情報の設定
+	if (Team.AssignedTask == ETaskType::Adventure)
+	{
+		TeamInfo.CurrentTargetLocation = Team.AdventureLocationId;
+	}
+	else if (Team.AssignedTask == ETaskType::Gathering)
+	{
+		TeamInfo.CurrentTargetLocation = Team.GatheringLocationId;
+	}
+	else
+	{
+		TeamInfo.CurrentTargetLocation = TEXT("base");
+	}
+
+	// TaskManagerから目標アイテムを取得
+	AC_PlayerController* PlayerController = Cast<AC_PlayerController>(
+		UGameplayStatics::GetPlayerController(GetWorld(), 0));
+	if (PlayerController)
+	{
+		UTaskManagerComponent* TaskManager = PlayerController->FindComponentByClass<UTaskManagerComponent>();
+		if (TaskManager)
+		{
+			TeamInfo.CurrentTargetItem = TaskManager->GetTargetItemForTeam(CharacterTeamIndex, TeamInfo.CurrentTargetLocation);
+		}
+	}
+
+	// チーム戦略の設定
+	TeamInfo.CurrentStrategy = GetTeamStrategy(CharacterTeamIndex);
+
+	// 連携が必要かの判定（簡易版）
+	TeamInfo.bNeedsCoordination = (Team.Members.Num() > 1) && (Team.ActionState == ETeamActionState::Working);
+	if (TeamInfo.bNeedsCoordination)
+	{
+		TeamInfo.CoordinationMessage = TEXT("Team coordination recommended for current task");
+	}
+
+	UE_LOG(LogTemp, VeryVerbose, TEXT("🧠👥 GetTeamInfoForCharacter: Generated info for %s in team %d (%s)"), 
+		*Character->GetCharacterName(), CharacterTeamIndex, *Team.TeamName);
+
+	return TeamInfo;
+}
+
+bool UTeamComponent::CoordinateWithTeammates(AC_IdleCharacter* Character, const FCharacterAction& ProposedAction)
+{
+	if (!IsValid(Character))
+	{
+		UE_LOG(LogTemp, Error, TEXT("🧠👥 CoordinateWithTeammates: Invalid character"));
+		return false;
+	}
+
+	// キャラクターが所属するチームを検索
+	int32 TeamIndex = -1;
+	for (int32 i = 0; i < Teams.Num(); i++)
+	{
+		if (Teams[i].Members.Contains(Character))
+		{
+			TeamIndex = i;
+			break;
+		}
+	}
+
+	if (TeamIndex == -1)
+	{
+		UE_LOG(LogTemp, VeryVerbose, TEXT("🧠👥 CoordinateWithTeammates: Character %s not in any team, no coordination needed"), 
+			*Character->GetCharacterName());
+		return true; // チーム未所属なら調整不要
+	}
+
+	const FTeam& Team = Teams[TeamIndex];
+
+	// 単独チームの場合は調整不要
+	if (Team.Members.Num() <= 1)
+	{
+		return true;
+	}
+
+	// 基本的な調整ロジック（簡易版）
+	// 将来的により高度な調整ロジックを実装予定
+
+	// 重複する目標のチェック
+	if (ProposedAction.ActionType == ECharacterActionType::GatherResources)
+	{
+		// 同じアイテムを複数人で採集しようとしていないかチェック
+		// 現在は許可（実際の採集処理で調整される）
+		UE_LOG(LogTemp, VeryVerbose, TEXT("🧠👥 CoordinateWithTeammates: %s gathering %s - approved"), 
+			*Character->GetCharacterName(), *ProposedAction.TargetItem);
+		return true;
+	}
+
+	if (ProposedAction.ActionType == ECharacterActionType::MoveToLocation)
+	{
+		// 移動は基本的に問題なし
+		UE_LOG(LogTemp, VeryVerbose, TEXT("🧠👥 CoordinateWithTeammates: %s moving to %s - approved"), 
+			*Character->GetCharacterName(), *ProposedAction.TargetLocation);
+		return true;
+	}
+
+	// その他のアクションも基本的に承認
+	UE_LOG(LogTemp, VeryVerbose, TEXT("🧠👥 CoordinateWithTeammates: %s action %d - approved"), 
+		*Character->GetCharacterName(), (int32)ProposedAction.ActionType);
+	
+	return true;
+}
+
+void UTeamComponent::UpdateTeamStrategy(int32 TeamIndex, const FTeamStrategy& NewStrategy)
+{
+	if (!IsValidTeamIndex(TeamIndex))
+	{
+		UE_LOG(LogTemp, Error, TEXT("🧠👥 UpdateTeamStrategy: Invalid team index %d"), TeamIndex);
+		return;
+	}
+
+	// 配列サイズを調整
+	while (TeamStrategies.Num() <= TeamIndex)
+	{
+		TeamStrategies.Add(FTeamStrategy());
+	}
+	while (StrategyUpdateTimes.Num() <= TeamIndex)
+	{
+		StrategyUpdateTimes.Add(0.0f);
+	}
+
+	// 戦略を更新
+	TeamStrategies[TeamIndex] = NewStrategy;
+	StrategyUpdateTimes[TeamIndex] = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+
+	UE_LOG(LogTemp, Log, TEXT("🧠👥 UpdateTeamStrategy: Team %d strategy updated - %s"), 
+		TeamIndex, *NewStrategy.StrategyReason);
+}
+
+void UTeamComponent::ReevaluateAllTeamStrategies()
+{
+	UE_LOG(LogTemp, VeryVerbose, TEXT("🧠👥 ReevaluateAllTeamStrategies: Updating all team strategies"));
+
+	for (int32 i = 0; i < Teams.Num(); i++)
+	{
+		if (!Teams[i].bIsActive)
+		{
+			continue;
+		}
+
+		// 現在のチーム状況に基づいて戦略を生成
+		FTeamStrategy NewStrategy;
+		const FTeam& Team = Teams[i];
+
+		// チームの現在のタスクに基づいて戦略を決定
+		NewStrategy.RecommendedTaskType = Team.AssignedTask;
+		NewStrategy.StrategyPriority = 1; // デフォルト優先度
+
+		switch (Team.AssignedTask)
+		{
+			case ETaskType::Gathering:
+				NewStrategy.StrategyReason = TEXT("Focus on resource gathering");
+				NewStrategy.RecommendedLocation = Team.GatheringLocationId.IsEmpty() ? TEXT("plains") : Team.GatheringLocationId;
+				break;
+
+			case ETaskType::Adventure:
+				NewStrategy.StrategyReason = TEXT("Explore and combat");
+				NewStrategy.RecommendedLocation = Team.AdventureLocationId.IsEmpty() ? TEXT("plains") : Team.AdventureLocationId;
+				break;
+
+			case ETaskType::All:
+				NewStrategy.StrategyReason = TEXT("Execute tasks by priority");
+				NewStrategy.RecommendedLocation = TEXT("base");
+				break;
+
+			default:
+				NewStrategy.StrategyReason = TEXT("Idle or specialized task");
+				NewStrategy.RecommendedLocation = TEXT("base");
+				break;
+		}
+
+		NewStrategy.RequiredMinTeamSize = FMath::Max(1, Team.Members.Num());
+		NewStrategy.ValidDuration = 120.0f; // 2分間有効
+
+		UpdateTeamStrategy(i, NewStrategy);
+	}
 }

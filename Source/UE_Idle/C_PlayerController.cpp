@@ -358,8 +358,8 @@ void AC_PlayerController::StartTaskSystemCpp()
 		TimeManager->StartTimeSystem();
 		UE_LOG(LogTemp, Warning, TEXT("AC_PlayerController: Task Management System started successfully"));
 		
-		// システム状態をデバッグ出力
-		TimeManager->PrintDebugInfo();
+		// システム状態をデバッグ出力（PrintDebugInfoメソッドは削除済み）
+		// TimeManager->PrintDebugInfo();
 	}
 	else
 	{
@@ -497,11 +497,11 @@ void AC_PlayerController::InitializeTaskManagementSystem()
 	
 	if (TimeManager && TaskManager && TeamComponent && GatheringComponent && MovementComponent)
 	{
-		// TimeManager references
-		TimeManager->RegisterTaskManager(TaskManager);
-		TimeManager->RegisterTeamComponent(TeamComponent);
-		TimeManager->RegisterGatheringComponent(GatheringComponent);
-		TimeManager->RegisterMovementComponent(MovementComponent);
+		// TimeManager references（簡素化により削除済み）
+		// TimeManager->RegisterTaskManager(TaskManager);
+		// TimeManager->RegisterTeamComponent(TeamComponent);
+		// TimeManager->RegisterGatheringComponent(GatheringComponent);
+		// TimeManager->RegisterMovementComponent(MovementComponent);
 		
 		UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: TimeManager references set"));
 	}
@@ -544,12 +544,12 @@ void AC_PlayerController::InitializeTaskManagementSystem()
 			TeamComponent ? TEXT("OK") : TEXT("NULL"));
 	}
 	
-	// Bind combat end event
-	if (TeamComponent && TimeManager)
-	{
-		TeamComponent->OnCombatEnded.AddDynamic(TimeManager, &UTimeManagerComponent::OnCombatEndedHandler);
-		UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: Combat end event bound"));
-	}
+	// Bind combat end event（OnCombatEndedHandlerは削除済み）
+	// if (TeamComponent && TimeManager)
+	// {
+	//     TeamComponent->OnCombatEnded.AddDynamic(TimeManager, &UTimeManagerComponent::OnCombatEndedHandler);
+	//     UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: Combat end event bound"));
+	// }
 	
 	UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: Task Management System initialized"));
 }

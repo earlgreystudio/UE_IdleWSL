@@ -137,7 +137,7 @@ bool UGatheringComponent::StopGathering(int32 TeamIndex)
                             UE_LOG(LogTemp, Warning, TEXT("StopGathering: Team %d starting return from distance %.1fm"), TeamIndex, CurrentDistance);
                             if (TeamComponent)
                             {
-                                TeamComponent->SetTeamActionState(TeamIndex, ETeamActionState::Moving);
+                                TeamComponent->SetTeamActionState(TeamIndex, ETeamActionState::Returning);
                             }
                             return true;
                         }
@@ -204,7 +204,7 @@ bool UGatheringComponent::StopGathering(int32 TeamIndex)
                             // チーム状態を移動中に設定
                             if (TeamComponent)
                             {
-                                TeamComponent->SetTeamActionState(TeamIndex, ETeamActionState::Moving);
+                                TeamComponent->SetTeamActionState(TeamIndex, ETeamActionState::Returning);
                             }
                             
                             // ターゲット場所は保持（移動完了まで）
@@ -1122,16 +1122,43 @@ void UGatheringComponent::OnMovementCompleted(int32 TeamIndex, const FString& Ar
             }
         }
         
-        if (bHasValidTask)
+        // チームがアイテムを持っているかチェック（タスクの有無に関係なく）
+        bool bHasItemsToUnload = false;
+        if (TeamComponent)
         {
-            // 通常の拠点帰還（荷下ろし）
+            FTeam Team = TeamComponent->GetTeam(TeamIndex);
+            for (AC_IdleCharacter* Character : Team.Members)
+            {
+                if (Character && Character->GetInventoryComponent())
+                {
+                    TMap<FString, int32> Items = Character->GetInventoryComponent()->GetAllItems();
+                    if (Items.Num() > 0)
+                    {
+                        bHasItemsToUnload = true;
+                        UE_LOG(LogTemp, Warning, TEXT("GatheringComponent: Team %d member %s has items to unload"), 
+                            TeamIndex, *Character->GetName());
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (bHasItemsToUnload)
+        {
+            // アイテムがある場合は荷下ろし処理を実行
             SetGatheringState(TeamIndex, EGatheringState::Unloading);
-            UE_LOG(LogTemp, Warning, TEXT("GatheringComponent: Team %d started unloading at base"), TeamIndex);
+            UE_LOG(LogTemp, Warning, TEXT("GatheringComponent: Team %d started unloading at base (has items)"), TeamIndex);
+        }
+        else if (bHasValidTask)
+        {
+            // アイテムはないが有効なタスクがある場合は荷下ろし状態に
+            SetGatheringState(TeamIndex, EGatheringState::Unloading);
+            UE_LOG(LogTemp, Warning, TEXT("GatheringComponent: Team %d started unloading at base (has valid task)"), TeamIndex);
         }
         else
         {
-            // タスク削除による強制帰還 - 即座にIdle状態にする
-            UE_LOG(LogTemp, Warning, TEXT("GatheringComponent: Team %d returned to base due to task cancellation, setting to idle"), TeamIndex);
+            // アイテムもタスクもない場合は Idle 状態にする
+            UE_LOG(LogTemp, Warning, TEXT("GatheringComponent: Team %d returned to base, no items or tasks, setting to idle"), TeamIndex);
             
             // 状態クリア
             TeamGatheringStates.Remove(TeamIndex);

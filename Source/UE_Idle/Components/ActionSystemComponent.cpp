@@ -105,7 +105,7 @@ void UActionSystemComponent::RegisterCharacter(AC_IdleCharacter* Character, cons
         return;
     }
 
-    FCharacterAction NewAction;
+    FCombatAction NewAction;
     NewAction.Character = Character;
     NewAction.ActionType = EActionType::Attack;
     NewAction.TargetCharacter = nullptr;
@@ -120,7 +120,7 @@ void UActionSystemComponent::RegisterCharacter(AC_IdleCharacter* Character, cons
     
     // 敵チーム登録時は、Enemiesに味方チームが入っているので、このロジックを反転する必要がある
     // より明確な実装：AllyActionsに既に登録されているかチェック
-    for (const FCharacterAction& Action : AllyActions)
+    for (const FCombatAction& Action : AllyActions)
     {
         if (Action.Character == Character)
         {
@@ -130,7 +130,7 @@ void UActionSystemComponent::RegisterCharacter(AC_IdleCharacter* Character, cons
     }
     
     // EnemyActionsに既に登録されているかチェック
-    for (const FCharacterAction& Action : EnemyActions)
+    for (const FCombatAction& Action : EnemyActions)
     {
         if (Action.Character == Character)
         {
@@ -178,7 +178,7 @@ void UActionSystemComponent::RegisterAlly(AC_IdleCharacter* Character)
     }
 
     // 重複チェック
-    for (const FCharacterAction& Action : AllyActions)
+    for (const FCombatAction& Action : AllyActions)
     {
         if (Action.Character == Character)
         {
@@ -186,7 +186,7 @@ void UActionSystemComponent::RegisterAlly(AC_IdleCharacter* Character)
         }
     }
 
-    FCharacterAction NewAction;
+    FCombatAction NewAction;
     NewAction.Character = Character;
     NewAction.ActionType = EActionType::Attack;
     NewAction.TargetCharacter = nullptr;
@@ -205,7 +205,7 @@ void UActionSystemComponent::RegisterEnemy(AC_IdleCharacter* Character)
     }
 
     // 重複チェック
-    for (const FCharacterAction& Action : EnemyActions)
+    for (const FCombatAction& Action : EnemyActions)
     {
         if (Action.Character == Character)
         {
@@ -213,7 +213,7 @@ void UActionSystemComponent::RegisterEnemy(AC_IdleCharacter* Character)
         }
     }
 
-    FCharacterAction NewAction;
+    FCombatAction NewAction;
     NewAction.Character = Character;
     NewAction.ActionType = EActionType::Attack;
     NewAction.TargetCharacter = nullptr;
@@ -320,7 +320,7 @@ void UActionSystemComponent::HandleCharacterDeath(AC_IdleCharacter* Character)
 
 bool UActionSystemComponent::AreAllEnemiesDead() const
 {
-    for (const FCharacterAction& Action : EnemyActions)
+    for (const FCombatAction& Action : EnemyActions)
     {
         if (IsCharacterAlive(Action.Character))
         {
@@ -332,7 +332,7 @@ bool UActionSystemComponent::AreAllEnemiesDead() const
 
 bool UActionSystemComponent::AreAllAlliesDead() const
 {
-    for (const FCharacterAction& Action : AllyActions)
+    for (const FCombatAction& Action : AllyActions)
     {
         if (IsCharacterAlive(Action.Character))
         {
@@ -346,7 +346,7 @@ TArray<AC_IdleCharacter*> UActionSystemComponent::GetAliveAllies() const
 {
     TArray<AC_IdleCharacter*> AliveAllies;
     
-    for (const FCharacterAction& Action : AllyActions)
+    for (const FCombatAction& Action : AllyActions)
     {
         if (IsCharacterAlive(Action.Character))
         {
@@ -361,7 +361,7 @@ TArray<AC_IdleCharacter*> UActionSystemComponent::GetAliveEnemies() const
 {
     TArray<AC_IdleCharacter*> AliveEnemies;
     
-    for (const FCharacterAction& Action : EnemyActions)
+    for (const FCombatAction& Action : EnemyActions)
     {
         if (IsCharacterAlive(Action.Character))
         {
@@ -375,7 +375,7 @@ TArray<AC_IdleCharacter*> UActionSystemComponent::GetAliveEnemies() const
 TArray<AC_IdleCharacter*> UActionSystemComponent::GetAllAllies() const
 {
     TArray<AC_IdleCharacter*> AllAllies;
-    for (const FCharacterAction& Action : AllyActions)
+    for (const FCombatAction& Action : AllyActions)
     {
         if (Action.Character)
         {
@@ -388,7 +388,7 @@ TArray<AC_IdleCharacter*> UActionSystemComponent::GetAllAllies() const
 TArray<AC_IdleCharacter*> UActionSystemComponent::GetAllEnemies() const
 {
     TArray<AC_IdleCharacter*> AllEnemies;
-    for (const FCharacterAction& Action : EnemyActions)
+    for (const FCombatAction& Action : EnemyActions)
     {
         if (Action.Character)
         {
@@ -423,7 +423,7 @@ void UActionSystemComponent::ProcessActions()
     {
         if (i >= AllyActions.Num()) break; // 配列サイズ変更対策
         
-        FCharacterAction& Action = AllyActions[i];
+        FCombatAction& Action = AllyActions[i];
         if (IsCharacterAlive(Action.Character) && CurrentTime >= Action.NextActionTime)
         {
             ProcessCharacterAction(Action);
@@ -435,7 +435,7 @@ void UActionSystemComponent::ProcessActions()
     {
         if (i >= EnemyActions.Num()) break; // 配列サイズ変更対策
         
-        FCharacterAction& Action = EnemyActions[i];
+        FCombatAction& Action = EnemyActions[i];
         if (IsCharacterAlive(Action.Character) && CurrentTime >= Action.NextActionTime)
         {
             ProcessCharacterAction(Action);
@@ -462,7 +462,7 @@ void UActionSystemComponent::ProcessActions()
     // フェイルセーフチェックは ProcessCharacterAction で実行
 }
 
-void UActionSystemComponent::ProcessCharacterAction(FCharacterAction& Action)
+void UActionSystemComponent::ProcessCharacterAction(FCombatAction& Action)
 {
     // システムが停止している場合は即座に終了
     if (!bSystemActive)
@@ -524,7 +524,7 @@ void UActionSystemComponent::ProcessCharacterAction(FCharacterAction& Action)
 
     // 対象選択
     TArray<AC_IdleCharacter*> Enemies;
-    bool bIsAlly = AllyActions.ContainsByPredicate([&Action](const FCharacterAction& A) { 
+    bool bIsAlly = AllyActions.ContainsByPredicate([&Action](const FCombatAction& A) { 
         return A.Character == Action.Character; 
     });
     
@@ -628,7 +628,7 @@ void UActionSystemComponent::ProcessCharacterAction(FCharacterAction& Action)
                     Result.FinalDamage, Result.bCritical ? TEXT("true") : TEXT("false"));
                 
                 // 攻撃者が味方か敵かを判定
-                bool bIsAttackerAlly = AllyActions.ContainsByPredicate([&Action](const FCharacterAction& A) { 
+                bool bIsAttackerAlly = AllyActions.ContainsByPredicate([&Action](const FCombatAction& A) { 
                     return A.Character == Action.Character; 
                 });
                 NewEntry.CombatData.bIsPlayerAttacker = bIsAttackerAlly;
@@ -766,7 +766,7 @@ FString UActionSystemComponent::SelectWeapon(AC_IdleCharacter* Character)
     return TEXT("素手");
 }
 
-void UActionSystemComponent::UpdateNextActionTime(FCharacterAction& Action, const FString& WeaponId)
+void UActionSystemComponent::UpdateNextActionTime(FCombatAction& Action, const FString& WeaponId)
 {
     // システムが停止している場合は即座に終了
     if (!bSystemActive)
@@ -880,16 +880,16 @@ bool UActionSystemComponent::IsCharacterAlive(AC_IdleCharacter* Character) const
 
 // TriggerCombatEnd関数は削除 - 戦闘終了はCombatComponentで一元管理
 
-void UActionSystemComponent::LogActionInfo(const FCharacterAction& Action, const FString& WeaponId) const
+void UActionSystemComponent::LogActionInfo(const FCombatAction& Action, const FString& WeaponId) const
 {
     // 完全に無効化してクラッシュを防ぐ
     return;
 }
 
-FCharacterAction* UActionSystemComponent::FindCharacterAction(AC_IdleCharacter* Character)
+FCombatAction* UActionSystemComponent::FindCharacterAction(AC_IdleCharacter* Character)
 {
     // 味方チェック
-    for (FCharacterAction& Action : AllyActions)
+    for (FCombatAction& Action : AllyActions)
     {
         if (Action.Character == Character)
         {
@@ -898,7 +898,7 @@ FCharacterAction* UActionSystemComponent::FindCharacterAction(AC_IdleCharacter* 
     }
     
     // 敵チェック
-    for (FCharacterAction& Action : EnemyActions)
+    for (FCombatAction& Action : EnemyActions)
     {
         if (Action.Character == Character)
         {
@@ -912,12 +912,12 @@ FCharacterAction* UActionSystemComponent::FindCharacterAction(AC_IdleCharacter* 
 bool UActionSystemComponent::RemoveCharacterAction(AC_IdleCharacter* Character)
 {
     // 味方から削除試行
-    int32 RemovedFromAllies = AllyActions.RemoveAll([Character](const FCharacterAction& Action) {
+    int32 RemovedFromAllies = AllyActions.RemoveAll([Character](const FCombatAction& Action) {
         return Action.Character == Character;
     });
     
     // 敵から削除試行
-    int32 RemovedFromEnemies = EnemyActions.RemoveAll([Character](const FCharacterAction& Action) {
+    int32 RemovedFromEnemies = EnemyActions.RemoveAll([Character](const FCombatAction& Action) {
         return Action.Character == Character;
     });
     
@@ -948,7 +948,7 @@ void UActionSystemComponent::CleanupInvalidCharacters()
     int32 RemovedEnemies = 0;
     
     // 無効な味方キャラクターを削除
-    RemovedAllies = AllyActions.RemoveAll([](const FCharacterAction& Action) {
+    RemovedAllies = AllyActions.RemoveAll([](const FCombatAction& Action) {
         if (!Action.Character || !IsValid(Action.Character))
         {
             UE_LOG(LogTemp, Warning, TEXT("CleanupInvalidCharacters: Removing null/invalid ally character"));
@@ -972,7 +972,7 @@ void UActionSystemComponent::CleanupInvalidCharacters()
     });
     
     // 無効な敵キャラクターを削除
-    RemovedEnemies = EnemyActions.RemoveAll([](const FCharacterAction& Action) {
+    RemovedEnemies = EnemyActions.RemoveAll([](const FCombatAction& Action) {
         if (!Action.Character || !IsValid(Action.Character))
         {
             UE_LOG(LogTemp, Warning, TEXT("CleanupInvalidCharacters: Removing null/invalid enemy character"));
@@ -1017,7 +1017,7 @@ AC_IdleCharacter* UActionSystemComponent::GetNextActingCharacter() const
     float EarliestTime = FLT_MAX;
     
     // 味方チームから最も早い行動時間のキャラクターを検索
-    for (const FCharacterAction& Action : AllyActions)
+    for (const FCombatAction& Action : AllyActions)
     {
         if (IsCharacterAlive(Action.Character) && Action.NextActionTime < EarliestTime)
         {
@@ -1027,7 +1027,7 @@ AC_IdleCharacter* UActionSystemComponent::GetNextActingCharacter() const
     }
     
     // 敵チームから最も早い行動時間のキャラクターを検索
-    for (const FCharacterAction& Action : EnemyActions)
+    for (const FCombatAction& Action : EnemyActions)
     {
         if (IsCharacterAlive(Action.Character) && Action.NextActionTime < EarliestTime)
         {
@@ -1058,7 +1058,7 @@ bool UActionSystemComponent::ProcessSingleTurn()
     }
     
     // そのキャラクターの行動データを取得
-    FCharacterAction* CharacterAction = FindCharacterAction(NextCharacter);
+    FCombatAction* CharacterAction = FindCharacterAction(NextCharacter);
     if (!CharacterAction)
     {
         UE_LOG(LogTemp, Warning, TEXT("ProcessSingleTurn: Character action not found"));
@@ -1081,7 +1081,7 @@ bool UActionSystemComponent::ProcessSingleTurn()
 void UActionSystemComponent::UpdateAllGauges()
 {
     // 味方チームのゲージ更新
-    for (FCharacterAction& Action : AllyActions)
+    for (FCombatAction& Action : AllyActions)
     {
         if (IsCharacterAlive(Action.Character))
         {
@@ -1090,7 +1090,7 @@ void UActionSystemComponent::UpdateAllGauges()
     }
     
     // 敵チームのゲージ更新
-    for (FCharacterAction& Action : EnemyActions)
+    for (FCombatAction& Action : EnemyActions)
     {
         if (IsCharacterAlive(Action.Character))
         {
@@ -1110,7 +1110,7 @@ AC_IdleCharacter* UActionSystemComponent::GetNextActingCharacterWithGauge() cons
     float HighestScore = 0.0f;
     
     // 味方チームから最高スコアキャラクター検索
-    for (const FCharacterAction& Action : AllyActions)
+    for (const FCombatAction& Action : AllyActions)
     {
         if (IsCharacterAlive(Action.Character) && Action.CanAct())
         {
@@ -1124,7 +1124,7 @@ AC_IdleCharacter* UActionSystemComponent::GetNextActingCharacterWithGauge() cons
     }
     
     // 敵チームから最高スコアキャラクター検索
-    for (const FCharacterAction& Action : EnemyActions)
+    for (const FCombatAction& Action : EnemyActions)
     {
         if (IsCharacterAlive(Action.Character) && Action.CanAct())
         {
@@ -1148,7 +1148,7 @@ void UActionSystemComponent::InitializeCharacterGauge(AC_IdleCharacter* Characte
     }
     
     // キャラクターのアクションデータを検索
-    FCharacterAction* CharacterAction = FindCharacterAction(Character);
+    FCombatAction* CharacterAction = FindCharacterAction(Character);
     if (!CharacterAction)
     {
         UE_LOG(LogTemp, Warning, TEXT("InitializeCharacterGauge: Character action not found for %s"), 
@@ -1203,7 +1203,7 @@ bool UActionSystemComponent::ProcessSingleTurnWithGauge()
     }
     
     // そのキャラクターの行動データを取得
-    FCharacterAction* CharacterAction = FindCharacterAction(NextCharacter);
+    FCombatAction* CharacterAction = FindCharacterAction(NextCharacter);
     if (!CharacterAction)
     {
         UE_LOG(LogTemp, Warning, TEXT("ProcessSingleTurnWithGauge: Character action not found"));

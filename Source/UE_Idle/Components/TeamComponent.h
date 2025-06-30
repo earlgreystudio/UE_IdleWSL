@@ -376,10 +376,69 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Team State Events")
 	FOnTeamActionStateChanged OnTeamActionStateChanged;
 
+	// ===========================================
+	// 自律的キャラクターシステム - チーム連携機能（Phase 2.2）
+	// ===========================================
+	
+	/**
+	 * 指定チームの戦略を取得（指示ではなく提案）
+	 * @param TeamIndex チームインデックス
+	 * @return チーム戦略情報
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Team Coordination")
+	FTeamStrategy GetTeamStrategy(int32 TeamIndex) const;
+
+	/**
+	 * キャラクター用のチーム情報を取得
+	 * @param Character 対象キャラクター
+	 * @return チーム情報
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Team Coordination") 
+	FTeamInfo GetTeamInfoForCharacter(AC_IdleCharacter* Character) const;
+
+	/**
+	 * チームメンバー間の行動調整
+	 * @param Character 行動を起こそうとするキャラクター
+	 * @param ProposedAction 提案された行動
+	 * @return 調整が成功し、行動が承認された場合true
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Team Coordination")
+	bool CoordinateWithTeammates(AC_IdleCharacter* Character, const FCharacterAction& ProposedAction);
+
+	/**
+	 * チーム戦略を更新（内部管理用）
+	 * @param TeamIndex チームインデックス
+	 * @param NewStrategy 新しい戦略
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Team Coordination")
+	void UpdateTeamStrategy(int32 TeamIndex, const FTeamStrategy& NewStrategy);
+
+	/**
+	 * 全チームの戦略を再評価（TimeManagerから呼ばれる）
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Team Coordination")
+	void ReevaluateAllTeamStrategies();
+
 protected:
 	// チーム管理データ
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Team Management")
 	TArray<FTeam> Teams;
+
+	// ===========================================
+	// 自律的システム用データ
+	// ===========================================
+	
+	/**
+	 * 各チームの現在の戦略
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Team Coordination")
+	TArray<FTeamStrategy> TeamStrategies;
+
+	/**
+	 * 戦略の最終更新時間
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Team Coordination")
+	TArray<float> StrategyUpdateTimes;
 
 private:
 	// 内部管理関数

@@ -28,7 +28,12 @@
       "Bash(/home/yo314/UnrealEngine/Engine/Build/BatchFiles/Linux/Build.sh UE_IdleEditor Linux Development -Project=/home/yo314/UE_IdleWSL/UE_Idle.uproject -WaitMutex -FromMSBuild)",
       "Bash(/home/yo314/UnrealEngine/Engine/Build/BatchFiles/Linux/Build.sh UE_IdleEditor Linux Development -Project=/home/yo314/UE_IdleWSL/UE_Idle.uproject)",
       "Bash(\"/home/yo314/.local/bin/ue5\" --compile)",
-      "Bash(\"/c/Program Files/Epic Games/UE_5.6/Engine/Build/BatchFiles/Rebuild.bat\" UE_IdleEditor Win64 Development -Project=\"$PWD/UE_Idle.uproject\" -WaitMutex -FromMsBuild -architecture=x64)"
+      "Bash(\"/c/Program Files/Epic Games/UE_5.6/Engine/Build/BatchFiles/Rebuild.bat\" UE_IdleEditor Win64 Development -Project=\"$PWD/UE_Idle.uproject\" -WaitMutex -FromMsBuild -architecture=x64)",
+      "Bash(-exec g++ -fsyntax-only -I. -DWITH_EDITOR=1 -DUNREAL_ENGINE=1 {})",
+      "Bash(echo:*)",
+      "Bash(echo \"3. ItemTypes.h -> (none)\")",
+      "Bash(echo \"4. CommonTypes.h -> (none)\")",
+      "Bash(./compile_cpp.sh)"
     ],
     "deny": []
   }

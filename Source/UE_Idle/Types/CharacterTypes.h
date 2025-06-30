@@ -2,7 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "Engine/Engine.h"
+#include "CommonTypes.h"
+#include "TeamTypes.h"
 #include "CharacterTypes.generated.h"
+
+// Forward declarations
+class AC_IdleCharacter;
 
 // ===========================================
 // ENUMS
@@ -313,5 +318,235 @@ struct UE_IDLE_API FDerivedStats
     float GetOverallWorkRating() const
     {
         return (ConstructionPower + ProductionPower + GatheringPower + CookingPower + CraftingPower) / 5.0f;
+    }
+};
+
+// ===========================================
+// AUTONOMOUS CHARACTER SYSTEM TYPES
+// ===========================================
+
+// キャラクター性格タイプ（自律的行動判定用）
+UENUM(BlueprintType)
+enum class ECharacterPersonality : uint8
+{
+    Aggressive  UMETA(DisplayName = "積極的"),     // 戦闘・冒険優先
+    Cautious    UMETA(DisplayName = "慎重"),      // 安全・確実性優先  
+    Efficient   UMETA(DisplayName = "効率重視"),   // 最適化・生産性優先
+    Loyal       UMETA(DisplayName = "忠実"),      // チーム指示厳守
+    Creative    UMETA(DisplayName = "創造的"),     // 独自判断・柔軟性
+    Defensive   UMETA(DisplayName = "守備的"),     // 味方支援・防御優先
+};
+
+// キャラクター行動タイプ（自律的行動システム用）
+UENUM(BlueprintType)
+enum class ECharacterActionType : uint8
+{
+    Wait            UMETA(DisplayName = "待機"),
+    MoveToLocation  UMETA(DisplayName = "移動"),
+    GatherResources UMETA(DisplayName = "採集"),
+    AttackEnemy     UMETA(DisplayName = "攻撃"),
+    DefendAlly      UMETA(DisplayName = "防御"),
+    UseSkill        UMETA(DisplayName = "スキル使用"),
+    ReturnToBase    UMETA(DisplayName = "拠点帰還"),
+    UnloadItems     UMETA(DisplayName = "荷降ろし")
+};
+
+// タスクオプション（利用可能なタスクの情報）
+USTRUCT(BlueprintType)
+struct UE_IDLE_API FTaskOption
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadWrite, Category = "Task Option")
+    ETaskType TaskType;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Task Option")
+    FString TaskId;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Task Option")
+    FString Description;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Task Option")
+    int32 Priority;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Task Option")
+    bool bIsAvailable;
+
+    FTaskOption()
+    {
+        TaskType = ETaskType::Idle;
+        TaskId = TEXT("");
+        Description = TEXT("");
+        Priority = 1;
+        bIsAvailable = true;
+    }
+};
+
+// キャラクター状況データ（自律的判断のための情報）
+USTRUCT(BlueprintType)
+struct UE_IDLE_API FCharacterSituation
+{
+    GENERATED_BODY()
+    
+    // 基本状態
+    UPROPERTY(BlueprintReadWrite, Category = "Situation")
+    FString CurrentLocation;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Situation") 
+    float CurrentHealth;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Situation")
+    float CurrentStamina;
+    
+    // チーム情報
+    UPROPERTY(BlueprintReadWrite, Category = "Team")
+    int32 MyTeamIndex;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Team")
+    ETaskType TeamAssignedTask;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Team")
+    TArray<AC_IdleCharacter*> Teammates;
+    
+    // 環境情報
+    UPROPERTY(BlueprintReadWrite, Category = "Environment")
+    TArray<FTaskOption> AvailableTasks;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Environment")
+    TArray<FString> GatherableItems;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Environment")
+    bool bDangerousArea;
+
+    // ===========================================
+    // Phase 2.3: チーム連携情報（新規追加）
+    // ===========================================
+    
+    // チーム戦略から取得した情報
+    UPROPERTY(BlueprintReadWrite, Category = "Team Strategy")
+    ETaskType RecommendedTaskType;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Team Strategy")
+    FString TeamRecommendedLocation;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Team Strategy")
+    FString TeamRecommendedItem;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Team Strategy")
+    FString TeamStrategyReason;
+    
+    // チーム詳細情報
+    UPROPERTY(BlueprintReadWrite, Category = "Team Details")
+    ETeamActionState TeamActionState;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Team Details")
+    int32 ActiveTeammates;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Team Details")
+    int32 TotalTeammates;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Team Details")
+    FString CurrentTeamTarget;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Team Details")
+    bool bTeamNeedsCoordination;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Team Details")
+    FString TeamCoordinationMessage;
+    
+    // チーム連携判断フラグ
+    UPROPERTY(BlueprintReadWrite, Category = "Team Coordination")
+    bool bShouldCoordinateAction;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Team Coordination")
+    float TeamEfficiency;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Team Coordination")
+    bool bShouldFollowTeamStrategy;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Team Coordination")
+    bool bPersonallyCooperative;
+
+    FCharacterSituation()
+    {
+        CurrentLocation = TEXT("base");
+        CurrentHealth = 100.0f;
+        CurrentStamina = 100.0f;
+        MyTeamIndex = -1;
+        TeamAssignedTask = ETaskType::Idle;
+        bDangerousArea = false;
+        
+        // チーム連携情報の初期化
+        RecommendedTaskType = ETaskType::Idle;
+        TeamRecommendedLocation = TEXT("");
+        TeamRecommendedItem = TEXT("");
+        TeamStrategyReason = TEXT("");
+        TeamActionState = ETeamActionState::Idle;
+        ActiveTeammates = 0;
+        TotalTeammates = 0;
+        CurrentTeamTarget = TEXT("");
+        bTeamNeedsCoordination = false;
+        TeamCoordinationMessage = TEXT("");
+        bShouldCoordinateAction = false;
+        TeamEfficiency = 1.0f;
+        bShouldFollowTeamStrategy = false;
+        bPersonallyCooperative = false;
+    }
+};
+
+// キャラクター行動データ（決定された行動の詳細）
+USTRUCT(BlueprintType)
+struct UE_IDLE_API FCharacterAction
+{
+    GENERATED_BODY()
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Action")
+    ECharacterActionType ActionType;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Action")
+    FString TargetLocation;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Action")
+    FString TargetItem;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Action")
+    AC_IdleCharacter* TargetCharacter;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Action")
+    float ExpectedDuration;
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Action")
+    FString ActionReason; // デバッグ用
+
+    FCharacterAction()
+    {
+        ActionType = ECharacterActionType::Wait;
+        TargetLocation = TEXT("");
+        TargetItem = TEXT("");
+        TargetCharacter = nullptr;
+        ExpectedDuration = 1.0f;
+        ActionReason = TEXT("Default action");
+    }
+};
+
+// 行動優先度設定（性格システム用）
+USTRUCT(BlueprintType)
+struct UE_IDLE_API FActionPreference
+{
+    GENERATED_BODY()
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preference")
+    ECharacterActionType ActionType;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preference", meta = (ClampMin = "0.0", ClampMax = "10.0"))
+    float PreferenceWeight;  // 0.0-10.0の重み
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Preference")
+    TArray<FString> RequiredConditions; // 実行条件
+
+    FActionPreference()
+    {
+        ActionType = ECharacterActionType::Wait;
+        PreferenceWeight = 5.0f;
     }
 };
