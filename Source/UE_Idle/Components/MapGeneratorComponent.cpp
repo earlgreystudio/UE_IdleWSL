@@ -26,7 +26,18 @@ void UMapGeneratorComponent::GenerateMap(UGridMapComponent* TargetGridMap)
         return;
     }
     
-    UE_LOG(LogTemp, Log, TEXT("MapGeneratorComponent: Simple map generation completed"));
+    // GridMapComponentを初期化
+    TargetGridMap->InitializeGrid();
+    
+    // テストグリッドを作成（既存のメソッドを活用）
+    TargetGridMap->CreateTestGrid();
+    
+    // 拠点位置を記録
+    BasePosition = FIntPoint(TargetGridMap->GridWidth / 2, TargetGridMap->GridHeight / 2);
+    
+    UE_LOG(LogTemp, Warning, TEXT("MapGeneratorComponent: Map generated successfully!"));
+    UE_LOG(LogTemp, Warning, TEXT("- Grid Size: %dx%d"), TargetGridMap->GridWidth, TargetGridMap->GridHeight);
+    UE_LOG(LogTemp, Warning, TEXT("- Base Position: (%d, %d)"), BasePosition.X, BasePosition.Y);
 }
 
 int32 UMapGeneratorComponent::CalculateMovementRange(const FIntPoint& FromPosition, int32 BaseMoveDistance) const

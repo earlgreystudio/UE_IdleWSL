@@ -11,6 +11,7 @@
 #include "Components/CombatComponent.h"
 #include "Components/BaseComponent.h"
 #include "Components/GridMapComponent.h"
+#include "Components/MapGeneratorComponent.h"
 #include "Actor/C_IdleCharacter.h"
 #include "UI/C__InventoryList.h"
 #include "UI/C_TaskList.h"
@@ -49,6 +50,13 @@ AC_PlayerController::AC_PlayerController()
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("Failed to create GridMapComponent"));
+	}
+	
+	// Create Map Generator component
+	MapGeneratorComponent = CreateDefaultSubobject<UMapGeneratorComponent>(TEXT("MapGeneratorComponent"));
+	if (MapGeneratorComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("MapGeneratorComponent created successfully"));
 	}
 
 	// Initialize UI variables
@@ -137,6 +145,18 @@ void AC_PlayerController::BeginPlay()
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController::BeginPlay - BaseComponent is NULL!"));
+	}
+	
+	// TimeSystem already started by StartTaskSystemCpp() above
+	
+	// Auto-generate test map
+	if (MapGeneratorComponent && GridMapComponent)
+	{
+		MapGeneratorComponent->GenerateMap(GridMapComponent);
+		UE_LOG(LogTemp, Warning, TEXT("🗺️ Test map auto-generated"));
+		
+		// Test grid functionality
+		TestGridMapFunctionality();
 	}
 	
 }
@@ -583,6 +603,85 @@ void AC_PlayerController::TestGatheringSetup()
 		UE_LOG(LogTemp, Warning, TEXT("Team %d: Task=%d, Location='%s', Members=%d"), 
 			i, (int32)Team.AssignedTask, *Team.GatheringLocationId, Team.Members.Num());
 	}
+}
+
+void AC_PlayerController::TestGridMapFunctionality()
+{
+	if (!GridMapComponent)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestGridMapFunctionality: GridMapComponent is null"));
+		return;
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("=== GRID MAP FUNCTIONALITY TEST ==="));
+	
+	// Test 1: Grid info
+	UE_LOG(LogTemp, Warning, TEXT("Grid Size: %dx%d"), GridMapComponent->GridWidth, GridMapComponent->GridHeight);
+	
+	// Test 2: Test specific cell data
+	FIntPoint BasePos(GridMapComponent->GridWidth / 2, GridMapComponent->GridHeight / 2);
+	FGridCellData BaseCellData = GridMapComponent->GetCellData(BasePos);
+	UE_LOG(LogTemp, Warning, TEXT("Base Cell (%d, %d): Type=%s, Walkable=%s"), 
+		BasePos.X, BasePos.Y, 
+		*BaseCellData.LocationType.ToString(),
+		BaseCellData.bIsWalkable ? TEXT("Yes") : TEXT("No"));
+	
+	// Test 3: Find forest cells (safe tag request)
+	FGameplayTag ForestTag = FGameplayTag::RequestGameplayTag(FName("Location.Forest"), false);
+	if (ForestTag.IsValid())
+	{
+		TArray<FIntPoint> ForestCells = GridMapComponent->GetCellsWithTag(ForestTag);
+		UE_LOG(LogTemp, Warning, TEXT("Forest cells found: %d"), ForestCells.Num());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("GameplayTags not loaded - skipping forest cell test"));
+	}
+	
+	// Test 4: Find plains cells (safe tag request) 
+	FGameplayTag PlainsTag = FGameplayTag::RequestGameplayTag(FName("Location.Plains"), false);
+	if (PlainsTag.IsValid())
+	{
+		TArray<FIntPoint> PlainsCells = GridMapComponent->GetCellsWithTag(PlainsTag);
+		UE_LOG(LogTemp, Warning, TEXT("Plains cells found: %d"), PlainsCells.Num());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("GameplayTags not loaded - skipping plains cell test"));
+	}
+	
+	// Test 5: Test pathfinding (only if ForestTag is valid)
+	if (ForestTag.IsValid())
+	{
+		TArray<FIntPoint> ForestCells = GridMapComponent->GetCellsWithTag(ForestTag);
+		if (ForestCells.Num() > 0)
+		{
+			TArray<FIntPoint> Path = GridMapComponent->FindPath(BasePos, ForestCells[0]);
+			UE_LOG(LogTemp, Warning, TEXT("Path from base to forest: %d steps"), Path.Num());
+			if (Path.Num() > 0)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Path: Start (%d,%d) -> End (%d,%d)"), 
+					Path[0].X, Path[0].Y, Path.Last().X, Path.Last().Y);
+			}
+		}
+		
+		// Test 6: Test nearest cell search
+		FIntPoint NearestForest = GridMapComponent->FindNearestCellWithTag(BasePos, ForestTag);
+		if (NearestForest.X >= 0 && NearestForest.Y >= 0)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Nearest forest to base: (%d, %d)"), NearestForest.X, NearestForest.Y);
+		}
+	}
+	else
+	{
+		// Test basic pathfinding without tags
+		FIntPoint TestTarget(5, 5);
+		TArray<FIntPoint> Path = GridMapComponent->FindPath(BasePos, TestTarget);
+		UE_LOG(LogTemp, Warning, TEXT("Basic pathfinding test: %d steps from (%d,%d) to (%d,%d)"), 
+			Path.Num(), BasePos.X, BasePos.Y, TestTarget.X, TestTarget.Y);
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("=== GRID MAP TEST COMPLETED ==="));
 }
 
 

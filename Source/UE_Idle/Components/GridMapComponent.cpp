@@ -238,11 +238,19 @@ void UGridMapComponent::InitializeGrid()
 
 void UGridMapComponent::CreateTestGrid()
 {
-	// GameplayTagsを作成（エラー回避のため文字列で作成）
-	FGameplayTag BaseTag = FGameplayTag::RequestGameplayTag(FName("Location.Base"));
-	FGameplayTag ForestTag = FGameplayTag::RequestGameplayTag(FName("Location.Forest"));
-	FGameplayTag PlainsTag = FGameplayTag::RequestGameplayTag(FName("Location.Plains"));
-	FGameplayTag MountainTag = FGameplayTag::RequestGameplayTag(FName("Location.Mountain"));
+	// GameplayTagsを安全に作成（存在しない場合は空のタグを使用）
+	FGameplayTag BaseTag = FGameplayTag::RequestGameplayTag(FName("Location.Base"), false);
+	FGameplayTag ForestTag = FGameplayTag::RequestGameplayTag(FName("Location.Forest"), false);
+	FGameplayTag PlainsTag = FGameplayTag::RequestGameplayTag(FName("Location.Plains"), false);
+	FGameplayTag MountainTag = FGameplayTag::RequestGameplayTag(FName("Location.Mountain"), false);
+	
+	// タグが無効な場合のフォールバック処理
+	if (!BaseTag.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("GameplayTags not loaded, using fallback grid generation"));
+		CreateSimpleTestGrid();
+		return;
+	}
 	
 	for (int32 Y = 0; Y < GridHeight; Y++)
 	{
@@ -269,13 +277,21 @@ void UGridMapComponent::CreateTestGrid()
 				{
 					CellData.LocationType = ForestTag;
 					// 森には木材リソース
-					CellData.AvailableResources.Add(FGameplayTag::RequestGameplayTag(FName("Resource.Wood")));
+					FGameplayTag WoodTag = FGameplayTag::RequestGameplayTag(FName("Resource.Wood"), false);
+					if (WoodTag.IsValid())
+					{
+						CellData.AvailableResources.Add(WoodTag);
+					}
 				}
 				else
 				{
 					CellData.LocationType = PlainsTag;
 					// 平原には食料リソース
-					CellData.AvailableResources.Add(FGameplayTag::RequestGameplayTag(FName("Resource.Food")));
+					FGameplayTag FoodTag = FGameplayTag::RequestGameplayTag(FName("Resource.Food"), false);
+					if (FoodTag.IsValid())
+					{
+						CellData.AvailableResources.Add(FoodTag);
+					}
 				}
 			}
 			
@@ -302,4 +318,32 @@ TArray<FIntPoint> UGridMapComponent::ReconstructPath(const TMap<FIntPoint, FIntP
 	}
 	
 	return Path;
+}
+
+void UGridMapComponent::CreateSimpleTestGrid()
+{
+	UE_LOG(LogTemp, Warning, TEXT("Creating simple test grid without GameplayTags"));
+	
+	for (int32 Y = 0; Y < GridHeight; Y++)
+	{
+		for (int32 X = 0; X < GridWidth; X++)
+		{
+			FIntPoint GridPos(X, Y);
+			FGridCellData CellData;
+			
+			// デフォルト設定（すべて歩行可能）
+			CellData.bIsWalkable = true;
+			CellData.MovementCost = 1.0f;
+			
+			// 端を移動コスト高に設定（山の代用）
+			if (X == 0 || X == GridWidth - 1 || Y == 0 || Y == GridHeight - 1)
+			{
+				CellData.MovementCost = 2.0f;
+			}
+			
+			GridData.Add(GridPos, CellData);
+		}
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("Simple grid created: %d cells"), GridData.Num());
 }

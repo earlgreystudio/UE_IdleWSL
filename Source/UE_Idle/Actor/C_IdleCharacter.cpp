@@ -14,7 +14,7 @@
 #include "GameFramework/PawnMovementComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
-// #include "../AI/IdleAIController.h" // AIシステム一時無効化
+#include "../AI/IdleAIController.h"
 
 // Sets default values
 AC_IdleCharacter::AC_IdleCharacter()
@@ -65,8 +65,8 @@ AC_IdleCharacter::AC_IdleCharacter()
 	TargetGridPosition = CurrentGridPosition;
 	
 	// === AIコントローラー設定 ===
-	// AIControllerClass = AIdleAIController::StaticClass(); // AI一時無効化
-	// AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned; // AI一時無効化
+	AIControllerClass = AIdleAIController::StaticClass();
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 	
 	UE_LOG(LogTemp, Warning, TEXT("AC_IdleCharacter: APawn constructor completed"));
 
@@ -283,19 +283,18 @@ FDerivedStats AC_IdleCharacter::GetDerivedStats() const
 void AC_IdleCharacter::OnTurnTick(int32 CurrentTurn)
 {
 	// 新しいBehavior Tree自律システムでの実装
-	UE_LOG(LogTemp, VeryVerbose, TEXT("🧠 %s: OnTurnTick(Turn %d) - Behavior Tree autonomous processing"), 
+	UE_LOG(LogTemp, Warning, TEXT("🧠 %s: OnTurnTick(Turn %d) - Behavior Tree autonomous processing"), 
 		*CharacterName, CurrentTurn);
 
 	// AIControllerからBehavior Treeを再開（毎ターン新しい判断）
-	// AI一時無効化のため、AIController使用を停止
-	// if (auto* AIController = GetController<AIdleAIController>())
-	// {
-	//		AIController->RestartBehaviorTree();
-	//		UE_LOG(LogTemp, VeryVerbose, TEXT("🧠🔄 %s: Behavior Tree restarted for fresh decision"), 
-	//			*CharacterName);
-	// }
-	// else // elseも一時無効化
-	// {
+	if (auto* AIController = GetController<AIdleAIController>())
+	{
+		AIController->RestartBehaviorTree();
+		UE_LOG(LogTemp, Warning, TEXT("🧠🔄 %s: Behavior Tree restarted for fresh decision"), 
+			*CharacterName);
+	}
+	else
+	{
 		// フォールバック：旧システムが残っている場合
 		if (bAutonomousSystemEnabled && MyBrain)
 		{
@@ -316,7 +315,7 @@ void AC_IdleCharacter::OnTurnTick(int32 CurrentTurn)
 					*PlannedAction.ActionReason);
 			}
 		}
-	// }
+	}
 }
 
 void AC_IdleCharacter::SetPersonality(ECharacterPersonality NewPersonality)

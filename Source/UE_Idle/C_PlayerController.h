@@ -48,10 +48,6 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UEventLogManager> EventLogManager;
 
-	// Grid Map System
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UGridMapComponent> GridMapComponent;
-
 	// Task Management System Components
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Task Management")
 	TObjectPtr<UTaskManagerComponent> TaskManager;
@@ -73,6 +69,14 @@ public:
 	// Base Management System
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Base Management")
 	TObjectPtr<UBaseComponent> BaseComponent;
+
+	// Grid Map System
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Grid System")
+	TObjectPtr<UGridMapComponent> GridMapComponent;
+
+	// Map Generator
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Grid System")
+	TObjectPtr<class UMapGeneratorComponent> MapGeneratorComponent;
 
 	// IPlayerControllerInterface Implementation
 	virtual void AddItemToStorage_Implementation(const FString& ItemId, int32 Quantity) override;
@@ -144,6 +148,10 @@ public:
 	// Debug function for gathering system
 	UFUNCTION(BlueprintCallable, Category = "Debug")
 	void TestGatheringSetup();
+
+	// Debug function for grid map system
+	UFUNCTION(BlueprintCallable, Category = "Debug")
+	void TestGridMapFunctionality();
 
 	// C++専用初期化（Blueprint機能とは独立）
 	UFUNCTION(BlueprintCallable, Category = "Task Management Debug")

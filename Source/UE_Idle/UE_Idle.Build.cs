@@ -17,6 +17,7 @@ public class UE_Idle : ModuleRules
 			"Slate", 
 			"SlateCore",
 			"AIModule",
+			"GameplayTasks",
 			"GameplayTags",
 			"NavigationSystem",
 			"Paper2D"

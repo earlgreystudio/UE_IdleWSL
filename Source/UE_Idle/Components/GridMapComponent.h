@@ -104,6 +104,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Grid")
 	void CreateTestGrid(); // テスト用グリッド作成
 	
+	UFUNCTION(BlueprintCallable, Category = "Grid")
+	void CreateSimpleTestGrid(); // GameplayTags無しのシンプルグリッド作成
+	
 private:
 	// A*アルゴリズム用ヘルパー
 	struct FPathNode

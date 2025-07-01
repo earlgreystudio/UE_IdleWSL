@@ -269,6 +269,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Autonomous Character")
 	bool bShowDebugInfo;
 
+public:
 	// ===========================================
 	// グリッドシステム（Phase 1-3）
 	// ===========================================
