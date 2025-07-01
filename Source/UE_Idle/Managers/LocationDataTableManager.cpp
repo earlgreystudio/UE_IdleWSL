@@ -147,14 +147,44 @@ FString ULocationDataTableManager::GetLocationDescription(const FString& Locatio
     return FString();
 }
 
-float ULocationDataTableManager::GetLocationDistance(const FString& LocationId) const
+float ULocationDataTableManager::GetLocationMovementCost(const FString& LocationId) const
 {
     FLocationDataRow LocationData;
     if (GetLocationData(LocationId, LocationData))
     {
-        return LocationData.Distance;
+        return LocationData.MovementCost;
     }
-    return 0.0f;
+    return 1.0f;
+}
+
+float ULocationDataTableManager::GetLocationMovementDifficulty(const FString& LocationId) const
+{
+    FLocationDataRow LocationData;
+    if (GetLocationData(LocationId, LocationData))
+    {
+        return LocationData.MovementDifficulty;
+    }
+    return 1.0f;
+}
+
+int32 ULocationDataTableManager::GetLocationDifficultyLevel(const FString& LocationId) const
+{
+    FLocationDataRow LocationData;
+    if (GetLocationData(LocationId, LocationData))
+    {
+        return LocationData.DifficultyLevel;
+    }
+    return 1;
+}
+
+bool ULocationDataTableManager::IsLocationWalkable(const FString& LocationId) const
+{
+    FLocationDataRow LocationData;
+    if (GetLocationData(LocationId, LocationData))
+    {
+        return LocationData.bIsWalkable;
+    }
+    return true;
 }
 
 TArray<FGatherableItemInfo> ULocationDataTableManager::GetGatherableItems(const FString& LocationId) const
@@ -237,3 +267,4 @@ const FLocationDataRow* ULocationDataTableManager::FindLocationByLocationId(cons
     FName RowName(*LocationId);
     return LocationDataTable->FindRow<FLocationDataRow>(RowName, TEXT(""));
 }
+

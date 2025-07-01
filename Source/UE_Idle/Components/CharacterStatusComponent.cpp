@@ -571,3 +571,376 @@ float UCharacterStatusComponent::GetArmorDefense() const
 	
 	return TotalDefense;
 }
+
+// ===============================================
+// Phase 5: Modifier System Implementation
+// ===============================================
+
+void UCharacterStatusComponent::AddModifier(const FAttributeModifier& Modifier)
+{
+	if (Modifier.ModifierId.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("CharacterStatusComponent::AddModifier - ModifierId is empty"));
+		return;
+	}
+
+	// 既存のModifierをチェック
+	if (TryStackModifier(Modifier))
+	{
+		// スタック処理が成功した場合
+		UE_LOG(LogTemp, Log, TEXT("CharacterStatusComponent::AddModifier - Stacked modifier %s"), *Modifier.ModifierId);
+	}
+	else
+	{
+		// 新しいModifierとして追加
+		FAttributeModifier NewModifier = Modifier;
+		NewModifier.StartTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+		
+		ActiveModifiers.Add(NewModifier);
+		
+		UE_LOG(LogTemp, Log, TEXT("CharacterStatusComponent::AddModifier - Added new modifier %s"), *Modifier.ModifierId);
+	}
+
+	// ステータス再計算
+	RecalculateStatsWithModifiers();
+
+	// イベント通知
+	OnModifierAdded.Broadcast(Modifier);
+	OnModifiersChanged.Broadcast();
+	OnCharacterDataUpdated.Broadcast();
+}
+
+void UCharacterStatusComponent::RemoveModifier(const FString& ModifierId)
+{
+	if (ModifierId.IsEmpty())
+	{
+		return;
+	}
+
+	// ActiveModifiersから削除
+	int32 RemovedIndex = FindModifierIndex(ModifierId);
+	if (RemovedIndex != INDEX_NONE)
+	{
+		ActiveModifiers.RemoveAt(RemovedIndex);
+		UE_LOG(LogTemp, Log, TEXT("CharacterStatusComponent::RemoveModifier - Removed modifier %s"), *ModifierId);
+	}
+
+	// TimedModifiersからも削除
+	int32 TimedIndex = FindTimedModifierIndex(ModifierId);
+	if (TimedIndex != INDEX_NONE)
+	{
+		// タイマークリア
+		if (GetWorld() && TimedModifiers[TimedIndex].TimerHandle.IsValid())
+		{
+			GetWorld()->GetTimerManager().ClearTimer(TimedModifiers[TimedIndex].TimerHandle);
+		}
+		
+		TimedModifiers.RemoveAt(TimedIndex);
+		UE_LOG(LogTemp, Log, TEXT("CharacterStatusComponent::RemoveModifier - Removed timed modifier %s"), *ModifierId);
+	}
+
+	// ステータス再計算
+	RecalculateStatsWithModifiers();
+
+	// イベント通知
+	OnModifierRemoved.Broadcast(ModifierId);
+	OnModifiersChanged.Broadcast();
+	OnCharacterDataUpdated.Broadcast();
+}
+
+void UCharacterStatusComponent::AddTimedModifier(const FAttributeModifier& Modifier, float Duration)
+{
+	if (Modifier.ModifierId.IsEmpty() || Duration <= 0.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("CharacterStatusComponent::AddTimedModifier - Invalid parameters"));
+		return;
+	}
+
+	if (!GetWorld())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("CharacterStatusComponent::AddTimedModifier - World is null"));
+		return;
+	}
+
+	// Modifierを時限付きで追加
+	FAttributeModifier TimedModifier = Modifier;
+	TimedModifier.Duration = Duration;
+	
+	// 通常のModifierとして追加
+	AddModifier(TimedModifier);
+
+	// タイマー設定
+	FTimedModifier NewTimedModifier(TimedModifier);
+	
+	GetWorld()->GetTimerManager().SetTimer(
+		NewTimedModifier.TimerHandle,
+		FTimerDelegate::CreateUFunction(this, FName("OnTimedModifierExpired"), Modifier.ModifierId),
+		Duration,
+		false // 繰り返しなし
+	);
+
+	TimedModifiers.Add(NewTimedModifier);
+
+	UE_LOG(LogTemp, Log, TEXT("CharacterStatusComponent::AddTimedModifier - Added timed modifier %s for %.1f seconds"), 
+		*Modifier.ModifierId, Duration);
+}
+
+bool UCharacterStatusComponent::HasModifier(const FString& ModifierId) const
+{
+	return FindModifierIndex(ModifierId) != INDEX_NONE;
+}
+
+void UCharacterStatusComponent::ClearAllModifiers()
+{
+	// 全てのタイマーをクリア
+	if (GetWorld())
+	{
+		for (const FTimedModifier& TimedMod : TimedModifiers)
+		{
+			if (TimedMod.TimerHandle.IsValid())
+			{
+				FTimerHandle& NonConstHandle = const_cast<FTimerHandle&>(TimedMod.TimerHandle);
+				GetWorld()->GetTimerManager().ClearTimer(NonConstHandle);
+			}
+		}
+	}
+
+	// 配列クリア
+	ActiveModifiers.Empty();
+	TimedModifiers.Empty();
+
+	// ステータス再計算
+	RecalculateStatsWithModifiers();
+
+	// イベント通知
+	OnModifiersChanged.Broadcast();
+	OnCharacterDataUpdated.Broadcast();
+
+	UE_LOG(LogTemp, Log, TEXT("CharacterStatusComponent::ClearAllModifiers - All modifiers cleared"));
+}
+
+float UCharacterStatusComponent::GetExtendedAttribute(FGameplayTag AttributeTag) const
+{
+	if (const float* Value = ExtendedAttributes.Find(AttributeTag))
+	{
+		return GetModifiedExtendedAttribute(AttributeTag);
+	}
+	return 0.0f;
+}
+
+void UCharacterStatusComponent::SetExtendedAttribute(FGameplayTag AttributeTag, float Value)
+{
+	ExtendedAttributes.FindOrAdd(AttributeTag) = Value;
+	
+	// イベント通知
+	OnCharacterDataUpdated.Broadcast();
+	
+	UE_LOG(LogTemp, VeryVerbose, TEXT("CharacterStatusComponent::SetExtendedAttribute - Set %s to %.2f"), 
+		*AttributeTag.ToString(), Value);
+}
+
+float UCharacterStatusComponent::GetModifiedStatValue(const FString& StatName) const
+{
+	// 基本値を取得
+	float BaseValue = 0.0f;
+	
+	// FCharacterStatusから値を取得
+	if (StatName == "MaxHealth") BaseValue = Status.MaxHealth;
+	else if (StatName == "CurrentHealth") BaseValue = Status.CurrentHealth;
+	else if (StatName == "CarryingCapacity") BaseValue = Status.CarryingCapacity;
+	// FCharacterTalentから値を取得
+	else if (StatName == "Agility") BaseValue = Talent.Agility;
+	else if (StatName == "Intelligence") BaseValue = Talent.Intelligence;
+	else if (StatName == "Wisdom") BaseValue = Talent.Wisdom;
+	else if (StatName == "Charisma") BaseValue = Talent.Charisma;
+	else if (StatName == "Luck") BaseValue = Talent.Luck;
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("CharacterStatusComponent::GetModifiedStatValue - Unknown stat: %s"), *StatName);
+		return 0.0f;
+	}
+
+	return ApplyModifiersToStat(StatName, BaseValue);
+}
+
+float UCharacterStatusComponent::GetModifiedExtendedAttribute(FGameplayTag AttributeTag) const
+{
+	const float* BaseValue = ExtendedAttributes.Find(AttributeTag);
+	if (!BaseValue)
+	{
+		return 0.0f;
+	}
+
+	return ApplyModifiersToExtendedAttribute(AttributeTag, *BaseValue);
+}
+
+// === Private Implementation ===
+
+float UCharacterStatusComponent::ApplyModifiersToStat(const FString& StatName, float BaseValue) const
+{
+	float Result = BaseValue;
+	float AdditiveBonus = 0.0f;
+	float MultiplicativeBonus = 1.0f;
+
+	for (const FAttributeModifier& Modifier : ActiveModifiers)
+	{
+		if (const float* ModValue = Modifier.StatModifiers.Find(StatName))
+		{
+			switch (Modifier.Type)
+			{
+			case EModifierType::Additive:
+				AdditiveBonus += (*ModValue * Modifier.StackCount);
+				break;
+			case EModifierType::Multiplicative:
+				MultiplicativeBonus *= (1.0f + *ModValue) * Modifier.StackCount;
+				break;
+			case EModifierType::Override:
+				Result = *ModValue; // 最後のOverrideが適用される
+				break;
+			case EModifierType::Max:
+				Result = FMath::Min(Result, *ModValue);
+				break;
+			case EModifierType::Min:
+				Result = FMath::Max(Result, *ModValue);
+				break;
+			}
+		}
+	}
+
+	// 計算順序: (基本値 + 加算) * 乗算
+	Result = (Result + AdditiveBonus) * MultiplicativeBonus;
+
+	return Result;
+}
+
+float UCharacterStatusComponent::ApplyModifiersToExtendedAttribute(FGameplayTag AttributeTag, float BaseValue) const
+{
+	float Result = BaseValue;
+	float AdditiveBonus = 0.0f;
+	float MultiplicativeBonus = 1.0f;
+
+	for (const FAttributeModifier& Modifier : ActiveModifiers)
+	{
+		if (const float* ModValue = Modifier.TagModifiers.Find(AttributeTag))
+		{
+			switch (Modifier.Type)
+			{
+			case EModifierType::Additive:
+				AdditiveBonus += (*ModValue * Modifier.StackCount);
+				break;
+			case EModifierType::Multiplicative:
+				MultiplicativeBonus *= (1.0f + *ModValue) * Modifier.StackCount;
+				break;
+			case EModifierType::Override:
+				Result = *ModValue;
+				break;
+			case EModifierType::Max:
+				Result = FMath::Min(Result, *ModValue);
+				break;
+			case EModifierType::Min:
+				Result = FMath::Max(Result, *ModValue);
+				break;
+			}
+		}
+	}
+
+	Result = (Result + AdditiveBonus) * MultiplicativeBonus;
+	return Result;
+}
+
+void UCharacterStatusComponent::CleanupExpiredModifiers()
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+
+	float CurrentTime = GetWorld()->GetTimeSeconds();
+	
+	// 期限切れModifierを削除
+	for (int32 i = ActiveModifiers.Num() - 1; i >= 0; i--)
+	{
+		if (ActiveModifiers[i].IsExpired(CurrentTime))
+		{
+			FString ExpiredId = ActiveModifiers[i].ModifierId;
+			ActiveModifiers.RemoveAt(i);
+			
+			UE_LOG(LogTemp, Log, TEXT("CharacterStatusComponent::CleanupExpiredModifiers - Removed expired modifier %s"), *ExpiredId);
+			
+			OnModifierRemoved.Broadcast(ExpiredId);
+		}
+	}
+}
+
+void UCharacterStatusComponent::OnTimedModifierExpired(FString ModifierId)
+{
+	UE_LOG(LogTemp, Log, TEXT("CharacterStatusComponent::OnTimedModifierExpired - Modifier %s expired"), *ModifierId);
+	RemoveModifier(ModifierId);
+}
+
+void UCharacterStatusComponent::RecalculateStatsWithModifiers()
+{
+	// 期限切れModifierをクリーンアップ
+	CleanupExpiredModifiers();
+
+	// 既存の派生ステータス再計算
+	RecalculateDerivedStats();
+
+	UE_LOG(LogTemp, VeryVerbose, TEXT("CharacterStatusComponent::RecalculateStatsWithModifiers - Stats recalculated with %d active modifiers"), 
+		ActiveModifiers.Num());
+}
+
+bool UCharacterStatusComponent::TryStackModifier(const FAttributeModifier& NewModifier)
+{
+	int32 ExistingIndex = FindModifierIndex(NewModifier.ModifierId);
+	if (ExistingIndex == INDEX_NONE)
+	{
+		return false; // 既存のModifierが見つからない
+	}
+
+	FAttributeModifier& ExistingModifier = ActiveModifiers[ExistingIndex];
+	
+	if (!ExistingModifier.bStackable)
+	{
+		// スタック不可の場合は既存を置き換え
+		ExistingModifier = NewModifier;
+		ExistingModifier.StartTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+		return true;
+	}
+
+	// スタック可能の場合
+	if (ExistingModifier.StackCount < ExistingModifier.MaxStack)
+	{
+		ExistingModifier.StackCount++;
+		ExistingModifier.StartTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f; // 時間リセット
+		return true;
+	}
+
+	// 最大スタック数に達している場合は時間だけリセット
+	ExistingModifier.StartTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
+	return true;
+}
+
+int32 UCharacterStatusComponent::FindModifierIndex(const FString& ModifierId) const
+{
+	for (int32 i = 0; i < ActiveModifiers.Num(); i++)
+	{
+		if (ActiveModifiers[i].ModifierId == ModifierId)
+		{
+			return i;
+		}
+	}
+	return INDEX_NONE;
+}
+
+int32 UCharacterStatusComponent::FindTimedModifierIndex(const FString& ModifierId) const
+{
+	for (int32 i = 0; i < TimedModifiers.Num(); i++)
+	{
+		if (TimedModifiers[i].Modifier.ModifierId == ModifierId)
+		{
+			return i;
+		}
+	}
+	return INDEX_NONE;
+}

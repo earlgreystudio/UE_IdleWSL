@@ -144,6 +144,15 @@ struct FCharacterTalent
     UPROPERTY(BlueprintReadWrite, Category = "Talent|Attributes")
     float Willpower;
 
+    UPROPERTY(BlueprintReadWrite, Category = "Talent|Attributes")
+    float Wisdom;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Talent|Attributes")
+    float Charisma;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Talent|Attributes")
+    float Luck;
+
     // スキル (1-4個, 各1-20)
     UPROPERTY(BlueprintReadWrite, Category = "Talent|Skills")
     TArray<FSkillTalent> Skills;
@@ -160,6 +169,9 @@ struct FCharacterTalent
         Dexterity = 1.0f;
         Agility = 1.0f;
         Willpower = 1.0f;
+        Wisdom = 1.0f;
+        Charisma = 1.0f;
+        Luck = 1.0f;
         CharacterTraits = TArray<ECharacterTrait>();
     }
 };

@@ -166,6 +166,13 @@ private:
     FString GetDistanceFromBaseDisplayText() const;
     int32 GetCurrentResourceCount() const;
     
+    // === 毎ターン判定用ヘルパー関数 ===
+    FString GetCurrentLocation() const;
+    FString GetCurrentTargetItem() const;
+    bool IsTeamMoving() const;
+    bool ShouldUnloadItems() const;
+    FString GetMovementStatusText(bool bReturning) const;
+    
     // 表示更新ヘルパー
     void UpdateTeamNameDisplay();
     void UpdateCurrentTaskDisplay();

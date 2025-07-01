@@ -126,13 +126,20 @@ UE_IdleWSL/
 - **No Central Control**: No single component controls all character actions
 - **Event-Driven Coordination**: Characters coordinate through team strategies and events
 
-**Example Autonomous Flow**:
-1. Turn 1: Character analyzes situation → Consults team strategy → Decides to move to plains
-2. Turn 2: Character sees they're moving → Continues movement autonomously
-3. Turn 3: Character arrives at plains → Analyzes situation → Decides to gather wood
-4. Turn 4: Character completes gathering → Analyzes inventory → Decides to return to base
+#### CRITICAL DESIGN PRINCIPLE: "Every Turn Fresh Decision"
+- **No State Carryover**: Each turn is completely independent from previous turns
+- **Fresh Analysis Every Turn**: Characters analyze their current situation from scratch
+- **No Memory of Previous Actions**: Previous turn's decisions don't influence current turn
+- **Stateless Decision Making**: All decisions based solely on current game state
+- **No Action Continuation**: Every action is decided and executed within a single turn
 
-Each character makes independent decisions every turn based on current situation.
+**Example Autonomous Flow**:
+1. Turn 1: Character analyzes situation → Decides "need wood" → Decides "move to plains" → Executes movement
+2. Turn 2: Character analyzes situation → Decides "still need wood" → Decides "move to plains" → Continues movement
+3. Turn 3: Character analyzes situation → Decides "arrived at plains" → Decides "gather wood" → Executes gathering
+4. Turn 4: Character analyzes situation → Decides "inventory full" → Decides "return to base" → Executes return
+
+**KEY PRINCIPLE**: Each character makes completely independent decisions every turn based ONLY on current situation. No state is preserved between turns.
 
 ### Interface-Driven Architecture
 - Use `UINTERFACE` for actor communication contracts
@@ -152,6 +159,17 @@ Each character makes independent decisions every turn based on current situation
 - **Categories**: Organize by functionality ("Item", "Task", "Team", etc.)
 
 ## Important Notes
+
+### Development Environment Limitations
+- **WSL Environment**: Claude Code runs in WSL (Windows Subsystem for Linux) because Claude Code cannot be used directly on Windows
+- **No Unreal Engine in WSL**: WSL does not have Unreal Engine installed
+- **Manual File Transfer Required**: Code modifications must be manually copied from WSL to Windows for compilation and testing
+- **No Direct Compilation**: Cannot compile or run Unreal Engine projects directly from WSL environment
+- **Testing Workflow**: 
+  1. Modify code in WSL using Claude Code
+  2. Copy modified files to Windows Unreal project
+  3. Compile and test in Windows Unreal Editor
+  4. Report results back to Claude Code session
 
 ### Key Limitations
 - No `UFUNCTION` in `USTRUCT` definitions - use helper functions in manager classes

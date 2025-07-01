@@ -5,21 +5,70 @@
 #include "../Components/CharacterStatusComponent.h"
 #include "../Components/InventoryComponent.h"
 #include "../Components/CharacterBrain.h"
-#include "../Services/MovementService.h"
-#include "../Services/GatheringService.h"
-#include "../Services/CombatService.h"
-#include "../Services/TaskInformationService.h"
+#include "../Components/LocationMovementComponent.h"
 #include "../Components/TaskManagerComponent.h"
 #include "../Components/TeamComponent.h"
 #include "../C_PlayerController.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
+#include "GameFramework/PawnMovementComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+// #include "../AI/IdleAIController.h" // AIシステム一時無効化
 
 // Sets default values
 AC_IdleCharacter::AC_IdleCharacter()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+ 	// Set this pawn to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+	
+	// APawn基本設定
+	bUseControllerRotationYaw = false;
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationRoll = false;
+	
+	// === UE標準コンポーネントの作成 ===
+	
+	// 移動コンポーネント（2D用）- 基本クラスを使用
+	FloatingMovement = CreateDefaultSubobject<UPawnMovementComponent>(TEXT("FloatingMovement"));
+	if (FloatingMovement)
+	{
+		UE_LOG(LogTemp, VeryVerbose, TEXT("PawnMovementComponent created successfully"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to create PawnMovementComponent"));
+	}
+	
+	// 2D表示メッシュ
+	IconMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("IconMesh"));
+	if (IconMesh)
+	{
+		// ルートコンポーネントに設定
+		RootComponent = IconMesh;
+		
+		// シンプルな球メッシュをデフォルトとして使用
+		// メッシュは後でBlueprintで設定する
+		IconMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		IconMesh->SetCollisionResponseToAllChannels(ECR_Block);
+		IconMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+		
+		UE_LOG(LogTemp, VeryVerbose, TEXT("IconMesh created successfully"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to create IconMesh"));
+	}
+	
+	// グリッド位置初期化
+	CurrentGridPosition = FIntPoint(10, 10); // デフォルト位置
+	TargetGridPosition = CurrentGridPosition;
+	
+	// === AIコントローラー設定 ===
+	// AIControllerClass = AIdleAIController::StaticClass(); // AI一時無効化
+	// AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned; // AI一時無効化
+	
+	UE_LOG(LogTemp, Warning, TEXT("AC_IdleCharacter: APawn constructor completed"));
 
 	// コンポーネント作成（防御的チェック付き）
 	StatusComponent = CreateDefaultSubobject<UCharacterStatusComponent>(TEXT("StatusComponent"));
@@ -233,36 +282,41 @@ FDerivedStats AC_IdleCharacter::GetDerivedStats() const
 
 void AC_IdleCharacter::OnTurnTick(int32 CurrentTurn)
 {
-	// 自律システムが無効の場合は何もしない
-	if (!bAutonomousSystemEnabled || !MyBrain)
-	{
-		return;
-	}
-
-	UE_LOG(LogTemp, Warning, TEXT("🧠 %s: OnTurnTick(Turn %d) - Starting autonomous processing"), 
+	// 新しいBehavior Tree自律システムでの実装
+	UE_LOG(LogTemp, VeryVerbose, TEXT("🧠 %s: OnTurnTick(Turn %d) - Behavior Tree autonomous processing"), 
 		*CharacterName, CurrentTurn);
 
-	// 自律的な判断プロセスを実行
-	UE_LOG(LogTemp, VeryVerbose, TEXT("🧠📝 %s: Step 1 - AnalyzeMySituation"), *CharacterName);
-	AnalyzeMySituation();
-	
-	UE_LOG(LogTemp, VeryVerbose, TEXT("🧠👥 %s: Step 2 - ConsultMyTeam"), *CharacterName);
-	ConsultMyTeam();
-	
-	UE_LOG(LogTemp, VeryVerbose, TEXT("🧠💭 %s: Step 3 - DecideMyAction"), *CharacterName);
-	DecideMyAction();
-	
-	UE_LOG(LogTemp, VeryVerbose, TEXT("🧠⚡ %s: Step 4 - ExecuteMyAction"), *CharacterName);
-	ExecuteMyAction();
+	// AIControllerからBehavior Treeを再開（毎ターン新しい判断）
+	// AI一時無効化のため、AIController使用を停止
+	// if (auto* AIController = GetController<AIdleAIController>())
+	// {
+	//		AIController->RestartBehaviorTree();
+	//		UE_LOG(LogTemp, VeryVerbose, TEXT("🧠🔄 %s: Behavior Tree restarted for fresh decision"), 
+	//			*CharacterName);
+	// }
+	// else // elseも一時無効化
+	// {
+		// フォールバック：旧システムが残っている場合
+		if (bAutonomousSystemEnabled && MyBrain)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("🧠⚠️ %s: Using fallback CharacterBrain system"), *CharacterName);
+			
+			// 自律的な判断プロセスを実行
+			AnalyzeMySituation();
+			ConsultMyTeam();
+			DecideMyAction();
+			ExecuteMyAction();
 
-	// デバッグ情報表示
-	if (bShowDebugInfo)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("🧠📊 %s: Decided action %d (%s)"), 
-			*CharacterName, 
-			(int32)PlannedAction.ActionType, 
-			*PlannedAction.ActionReason);
-	}
+			// デバッグ情報表示
+			if (bShowDebugInfo)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("🧠📊 %s: Decided action %d (%s)"), 
+					*CharacterName, 
+					(int32)PlannedAction.ActionType, 
+					*PlannedAction.ActionReason);
+			}
+		}
+	// }
 }
 
 void AC_IdleCharacter::SetPersonality(ECharacterPersonality NewPersonality)
@@ -282,16 +336,9 @@ void AC_IdleCharacter::AnalyzeMySituation()
 {
 	UE_LOG(LogTemp, VeryVerbose, TEXT("🧠🔍 %s: Starting situation analysis"), *CharacterName);
 	
-	// 現在地の取得
-	UMovementService* MovementService = GetWorld()->GetGameInstance()->GetSubsystem<UMovementService>();
-	if (MovementService)
-	{
-		CurrentSituation.CurrentLocation = MovementService->GetCharacterCurrentLocation(this);
-	}
-	else
-	{
-		CurrentSituation.CurrentLocation = TEXT("base"); // デフォルト
-	}
+	// 現在地の取得（LocationMovementComponentから直接）
+	// GetCurrentLocationDirect()が存在しないため一時的に"base"に設定
+	CurrentSituation.CurrentLocation = TEXT("base");
 
 	// 体力・スタミナの取得
 	if (StatusComponent)
@@ -321,7 +368,7 @@ void AC_IdleCharacter::AnalyzeMySituation()
 					CurrentSituation.TeamAssignedTask = Team.AssignedTask;
 					CurrentSituation.Teammates = Team.Members;
 					
-					UE_LOG(LogTemp, Warning, TEXT("🧠👥 %s: Found in Team %d, assigned task: %d"), 
+					UE_LOG(LogTemp, VeryVerbose, TEXT("🧠👥 %s: Found in Team %d, assigned task: %d"), 
 						*CharacterName, i, (int32)Team.AssignedTask);
 					break;
 				}
@@ -342,18 +389,18 @@ void AC_IdleCharacter::AnalyzeMySituation()
 		UE_LOG(LogTemp, Warning, TEXT("🧠⚠️ %s: PlayerController not found!"), *CharacterName);
 	}
 
-	// 利用可能タスクの取得
-	UTaskInformationService* TaskInfoService = GetWorld()->GetGameInstance()->GetSubsystem<UTaskInformationService>();
-	if (TaskInfoService)
-	{
-		CurrentSituation.AvailableTasks = TaskInfoService->GetAvailableTaskOptions(this);
-	}
+	// 利用可能タスクの取得（TaskInformationService削除により一時的に無効化）
+	// 必要に応じて別の方法で実装
+	CurrentSituation.AvailableTasks.Empty();
 
-	// 採集可能アイテムの取得
-	UGatheringService* GatheringService = GetWorld()->GetGameInstance()->GetSubsystem<UGatheringService>();
-	if (GatheringService)
+	// 採集可能アイテムの取得（TaskManagerに移行）
+	AC_PlayerController* PC = Cast<AC_PlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0));
+	if (PC)
 	{
-		CurrentSituation.GatherableItems = GatheringService->GetGatherableItemsAt(CurrentSituation.CurrentLocation);
+		if (UTaskManagerComponent* TaskManager = PC->FindComponentByClass<UTaskManagerComponent>())
+		{
+			CurrentSituation.GatherableItems = TaskManager->GetGatherableItemsAt(CurrentSituation.CurrentLocation);
+		}
 	}
 
 	// 危険地域判定（簡易版）
@@ -485,7 +532,7 @@ void AC_IdleCharacter::DecideMyAction()
 		return;
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("🧠🎯 %s: Brain available, analyzing situation for decision"), *CharacterName);
+	UE_LOG(LogTemp, VeryVerbose, TEXT("🧠🎯 %s: Brain available, analyzing situation for decision"), *CharacterName);
 
 	// ========================================
 	// Phase 2.3: チーム連携を考慮した行動決定
@@ -494,7 +541,7 @@ void AC_IdleCharacter::DecideMyAction()
 	// 1. CharacterBrainに基本的な判断を委譲
 	FCharacterAction InitialAction = MyBrain->DecideOptimalAction(CurrentSituation);
 	
-	UE_LOG(LogTemp, Warning, TEXT("🧠🎯 %s: Initial action decided - %d (%s)"), 
+	UE_LOG(LogTemp, VeryVerbose, TEXT("🧠🎯 %s: Initial action decided - %d (%s)"), 
 		*CharacterName, 
 		(int32)InitialAction.ActionType, 
 		*InitialAction.ActionReason);
@@ -702,10 +749,9 @@ void AC_IdleCharacter::CheckAndUpdateActionProgress()
 	// 移動アクションの場合：移動完了をチェック
 	if (PlannedAction.ActionType == ECharacterActionType::MoveToLocation)
 	{
-		UMovementService* MovementService = GetWorld()->GetGameInstance()->GetSubsystem<UMovementService>();
-		if (MovementService && CurrentSituation.MyTeamIndex != -1)
+		if (CurrentSituation.MyTeamIndex != -1)
 		{
-			bool bMovementCompleted = MovementService->CheckMovementProgress(this);
+			bool bMovementCompleted = CheckMovementProgressDirect();
 			if (bMovementCompleted)
 			{
 				UE_LOG(LogTemp, Warning, TEXT("🧠✅ %s: Movement completed! Analyzing new situation..."), *CharacterName);
@@ -720,7 +766,7 @@ void AC_IdleCharacter::CheckAndUpdateActionProgress()
 			}
 			else
 			{
-				UE_LOG(LogTemp, Warning, TEXT("🧠🚶 %s: Still moving... waiting for completion"), *CharacterName);
+				UE_LOG(LogTemp, VeryVerbose, TEXT("🧠🚶 %s: Still moving... waiting for completion"), *CharacterName);
 			}
 		}
 	}
@@ -734,14 +780,7 @@ void AC_IdleCharacter::CheckAndUpdateActionProgress()
 
 void AC_IdleCharacter::ExecuteMovementAction()
 {
-	UMovementService* MovementService = GetWorld()->GetGameInstance()->GetSubsystem<UMovementService>();
-	if (!MovementService)
-	{
-		UE_LOG(LogTemp, Error, TEXT("🧠❌ %s: MovementService not available"), *CharacterName);
-		return;
-	}
-	
-	bool bSuccess = MovementService->MoveCharacterToLocation(this, PlannedAction.TargetLocation);
+	bool bSuccess = MoveToLocationDirect(PlannedAction.TargetLocation);
 	
 	UE_LOG(LogTemp, VeryVerbose, TEXT("🧠🚶 %s: Movement to %s %s"), 
 		*CharacterName, 
@@ -751,14 +790,47 @@ void AC_IdleCharacter::ExecuteMovementAction()
 
 void AC_IdleCharacter::ExecuteGatheringAction()
 {
-	UGatheringService* GatheringService = GetWorld()->GetGameInstance()->GetSubsystem<UGatheringService>();
-	if (!GatheringService)
+	// TaskManagerに移行済みの採集実行
+	AC_PlayerController* PC = Cast<AC_PlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0));
+	if (!PC)
 	{
-		UE_LOG(LogTemp, Error, TEXT("🧠❌ %s: GatheringService not available"), *CharacterName);
+		UE_LOG(LogTemp, Error, TEXT("🧠❌ %s: PlayerController not available"), *CharacterName);
 		return;
 	}
 	
-	bool bSuccess = GatheringService->ExecuteGathering(this, PlannedAction.TargetItem);
+	UTaskManagerComponent* TaskManager = PC->FindComponentByClass<UTaskManagerComponent>();
+	if (!TaskManager)
+	{
+		UE_LOG(LogTemp, Error, TEXT("🧠❌ %s: TaskManager not available"), *CharacterName);
+		return;
+	}
+	
+	// チームインデックスを取得
+	UTeamComponent* TeamComp = PC->FindComponentByClass<UTeamComponent>();
+	int32 MyTeamIndex = -1;
+	if (TeamComp)
+	{
+		for (int32 i = 0; i < TeamComp->GetTeamCount(); i++)
+		{
+			FTeam Team = TeamComp->GetTeam(i);
+			if (Team.Members.Contains(this))
+			{
+				MyTeamIndex = i;
+				break;
+			}
+		}
+	}
+	
+	if (MyTeamIndex == -1)
+	{
+		UE_LOG(LogTemp, Error, TEXT("🧠❌ %s: Could not find team index"), *CharacterName);
+		return;
+	}
+	
+	// 現在地を取得
+	FString CurrentLocation = GetCurrentLocationDirect();
+	
+	bool bSuccess = TaskManager->ExecuteGathering(MyTeamIndex, PlannedAction.TargetItem, CurrentLocation);
 	
 	UE_LOG(LogTemp, VeryVerbose, TEXT("🧠⛏️ %s: Gathering %s %s"), 
 		*CharacterName, 
@@ -768,14 +840,9 @@ void AC_IdleCharacter::ExecuteGatheringAction()
 
 void AC_IdleCharacter::ExecuteCombatAction()
 {
-	UCombatService* CombatService = GetWorld()->GetGameInstance()->GetSubsystem<UCombatService>();
-	if (!CombatService)
-	{
-		UE_LOG(LogTemp, Error, TEXT("🧠❌ %s: CombatService not available"), *CharacterName);
-		return;
-	}
-	
-	bool bSuccess = CombatService->InitiateCombat(this, PlannedAction.TargetLocation);
+	// 戦闘機能は未実装
+	UE_LOG(LogTemp, Warning, TEXT("🧠⚔️ %s: Combat action not yet implemented"), *CharacterName);
+	bool bSuccess = false;
 	
 	UE_LOG(LogTemp, VeryVerbose, TEXT("🧠⚔️ %s: Combat at %s %s"), 
 		*CharacterName, 
@@ -811,65 +878,219 @@ void AC_IdleCharacter::ExecuteUnloadAction()
 	
 	UE_LOG(LogTemp, Warning, TEXT("🧠📦 %s: PlayerController found, checking inventory"), *CharName);
 	
-	// インベントリから拠点ストレージへ転送
-	if (!InventoryComponent)
+	// InventoryComponentを取得（既存のメンバ変数とFindComponentの両方を試す）
+	UInventoryComponent* MyInventory = InventoryComponent;
+	if (!MyInventory)
 	{
-		UE_LOG(LogTemp, Error, TEXT("🧠❌ %s: InventoryComponent is null"), *CharName);
+		UE_LOG(LogTemp, Warning, TEXT("🧠📦 %s: InventoryComponent member is null, trying FindComponentByClass"), *CharName);
+		MyInventory = FindComponentByClass<UInventoryComponent>();
+	}
+	
+	if (!MyInventory)
+	{
+		UE_LOG(LogTemp, Error, TEXT("🧠❌ %s: InventoryComponent not found"), *CharName);
 		return;
 	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("🧠📦 %s: InventoryComponent valid, getting items"), *CharName);
+	UE_LOG(LogTemp, Warning, TEXT("🧠📦 %s: InventoryComponent found, getting items"), *CharName);
 	
-	if (InventoryComponent)
+	TMap<FString, int32> AllItems = MyInventory->GetAllItems();
+	int32 TransferredCount = 0;
+	
+	UE_LOG(LogTemp, Warning, TEXT("🧠📦 %s: Found %d different item types in inventory"), 
+		*CharName, AllItems.Num());
+	
+	// 全アイテムを転送
+	for (const auto& ItemPair : AllItems)
 	{
-		TMap<FString, int32> AllItems = InventoryComponent->GetAllItems();
-		int32 TransferredCount = 0;
+		const FString& ItemId = ItemPair.Key;
+		int32 Quantity = ItemPair.Value;
 		
-		UE_LOG(LogTemp, Warning, TEXT("🧠📦 %s: Found %d different item types in inventory"), 
-			*CharName, AllItems.Num());
+		UE_LOG(LogTemp, Warning, TEXT("🧠📦 %s: Processing item %s x %d"), 
+			*CharName, *ItemId, Quantity);
 		
-		// 全アイテムを転送
+		// PlayerControllerのAddItemToStorageを直接呼び出し
+		PlayerController->AddItemToStorage_Implementation(ItemId, Quantity);
+		TransferredCount += Quantity;
+		UE_LOG(LogTemp, Warning, TEXT("🧠📦 %s: Transferred %d x %s to storage"), 
+			*CharName, Quantity, *ItemId);
+	}
+	
+	UE_LOG(LogTemp, Warning, TEXT("🧠📦 %s: Total items to transfer: %d"), 
+		*CharName, TransferredCount);
+	
+	// インベントリから転送したアイテムを削除
+	if (TransferredCount > 0)
+	{
+		// 転送済みアイテムを削除
 		for (const auto& ItemPair : AllItems)
 		{
-			const FString& ItemId = ItemPair.Key;
-			int32 Quantity = ItemPair.Value;
-			
-			UE_LOG(LogTemp, Warning, TEXT("🧠📦 %s: Processing item %s x %d"), 
-				*CharName, *ItemId, Quantity);
-			
-			// PlayerControllerのAddItemToStorageを直接呼び出し
-			PlayerController->AddItemToStorage_Implementation(ItemId, Quantity);
-			TransferredCount += Quantity;
-			UE_LOG(LogTemp, Warning, TEXT("🧠📦 %s: Transferred %d x %s to storage"), 
-				*CharName, Quantity, *ItemId);
+			MyInventory->RemoveItem(ItemPair.Key, ItemPair.Value);
 		}
-		
-		UE_LOG(LogTemp, Warning, TEXT("🧠📦 %s: Total items to transfer: %d"), 
+		UE_LOG(LogTemp, Warning, TEXT("🧠✅ %s: Unloaded %d items to storage"), 
 			*CharName, TransferredCount);
 		
-		// インベントリから転送したアイテムを削除
-		if (TransferredCount > 0)
+		// 荷下ろし完了後：状況を再分析して次の行動を決定
+		UE_LOG(LogTemp, Warning, TEXT("🧠✅ %s: Unload completed! Analyzing new situation..."), *CharName);
+		AnalyzeMySituation();
+		ConsultMyTeam(); 
+		DecideMyAction();
+		UE_LOG(LogTemp, Warning, TEXT("🧠🔄 %s: New action after unload: %d (%s)"), 
+			*CharName, (int32)PlannedAction.ActionType, *PlannedAction.ActionReason);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("🧠📦 %s: No items to unload"), *CharName);
+	}
+}
+
+// ===========================================
+// MovementService削除に伴うヘルパー関数
+// ===========================================
+
+FString AC_IdleCharacter::GetCurrentLocationDirect()
+{
+	// PlayerControllerからLocationMovementComponentを取得
+	AC_PlayerController* PC = Cast<AC_PlayerController>(
+		UGameplayStatics::GetPlayerController(GetWorld(), 0));
+	if (!PC)
+	{
+		return TEXT("base"); // デフォルト
+	}
+	
+	ULocationMovementComponent* MovementComp = PC->FindComponentByClass<ULocationMovementComponent>();
+	if (!MovementComp)
+	{
+		return TEXT("base"); // デフォルト
+	}
+	
+	// チームインデックスを取得
+	int32 MyTeamIndex = GetTeamIndex();
+	if (MyTeamIndex == -1)
+	{
+		return TEXT("base"); // デフォルト
+	}
+	
+	// LocationMovementComponentから移動情報を取得して現在地を判定
+	FMovementInfo MovementInfo = MovementComp->GetMovementInfo(MyTeamIndex);
+	
+	// 移動中でない場合は、移動状態に基づいて現在地を判定
+	if (MovementInfo.State == EMovementState::Stationary)
+	{
+		// 現在距離が0なら拠点
+		float CurrentDistance = MovementComp->GetCurrentDistanceFromBase(MyTeamIndex);
+		if (CurrentDistance <= 0.1f)
 		{
-			// 転送済みアイテムを削除
-			for (const auto& ItemPair : AllItems)
-			{
-				InventoryComponent->RemoveItem(ItemPair.Key, ItemPair.Value);
-			}
-			UE_LOG(LogTemp, Warning, TEXT("🧠✅ %s: Unloaded %d items to storage"), 
-				*CharName, TransferredCount);
-			
-			// 荷下ろし完了後：状況を再分析して次の行動を決定
-			UE_LOG(LogTemp, Warning, TEXT("🧠✅ %s: Unload completed! Analyzing new situation..."), *CharName);
-			AnalyzeMySituation();
-			ConsultMyTeam(); 
-			DecideMyAction();
-			UE_LOG(LogTemp, Warning, TEXT("🧠🔄 %s: New action after unload: %d (%s)"), 
-				*CharName, (int32)PlannedAction.ActionType, *PlannedAction.ActionReason);
+			return TEXT("base");
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("🧠📦 %s: No items to unload"), *CharName);
+			// 距離に基づいて場所を推定（簡易実装）
+			return TEXT("unknown_location");
 		}
 	}
+	else if (MovementInfo.State == EMovementState::MovingToBase)
+	{
+		return MovementInfo.FromLocation; // 移動元
+	}
+	else if (MovementInfo.State == EMovementState::MovingToDestination)
+	{
+		return MovementInfo.FromLocation; // 移動元
+	}
+	else if (MovementInfo.State == EMovementState::Arrived)
+	{
+		return MovementInfo.ToLocation; // 到着地
+	}
+	
+	return TEXT("base"); // デフォルト
 }
+
+bool AC_IdleCharacter::CheckMovementProgressDirect()
+{
+	AC_PlayerController* PC = Cast<AC_PlayerController>(
+		UGameplayStatics::GetPlayerController(GetWorld(), 0));
+	if (!PC)
+	{
+		return false;
+	}
+	
+	ULocationMovementComponent* MovementComp = PC->FindComponentByClass<ULocationMovementComponent>();
+	if (!MovementComp)
+	{
+		return false;
+	}
+	
+	int32 MyTeamIndex = GetTeamIndex();
+	if (MyTeamIndex == -1)
+	{
+		return false;
+	}
+	
+	// 移動状態をチェック
+	EMovementState State = MovementComp->GetMovementState(MyTeamIndex);
+	return (State == EMovementState::Stationary || State == EMovementState::Arrived);
+}
+
+bool AC_IdleCharacter::MoveToLocationDirect(const FString& TargetLocation)
+{
+	AC_PlayerController* PC = Cast<AC_PlayerController>(
+		UGameplayStatics::GetPlayerController(GetWorld(), 0));
+	if (!PC)
+	{
+		return false;
+	}
+	
+	ULocationMovementComponent* MovementComp = PC->FindComponentByClass<ULocationMovementComponent>();
+	if (!MovementComp)
+	{
+		return false;
+	}
+	
+	int32 MyTeamIndex = GetTeamIndex();
+	if (MyTeamIndex == -1)
+	{
+		return false;
+	}
+	
+	// 現在地を取得
+	FString CurrentLocation = GetCurrentLocationDirect();
+	
+	// 既に目的地にいる場合はスキップ
+	if (CurrentLocation == TargetLocation)
+	{
+		return true;
+	}
+	
+	// LocationMovementComponentで移動開始
+	return MovementComp->StartMovement(MyTeamIndex, CurrentLocation, TargetLocation);
+}
+
+int32 AC_IdleCharacter::GetTeamIndex()
+{
+	AC_PlayerController* PC = Cast<AC_PlayerController>(
+		UGameplayStatics::GetPlayerController(GetWorld(), 0));
+	if (!PC)
+	{
+		return -1;
+	}
+	
+	UTeamComponent* TeamComp = PC->FindComponentByClass<UTeamComponent>();
+	if (!TeamComp)
+	{
+		return -1;
+	}
+	
+	// チームメンバーから自分のチームインデックスを検索
+	for (int32 i = 0; i < TeamComp->GetTeamCount(); i++)
+	{
+		FTeam Team = TeamComp->GetTeam(i);
+		if (Team.Members.Contains(this))
+		{
+			return i;
+		}
+	}
+	
+	return -1;
+}
+
 

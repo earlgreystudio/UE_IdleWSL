@@ -34,6 +34,25 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Autonomous Time System", meta = (ClampMin = "0.1", ClampMax = "10.0"))
     float TimeUpdateInterval = 1.0f;
 
+    // === ゲーム速度制御 ===
+
+    // ゲーム速度プリセット
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Speed Control")
+    TMap<FString, float> GameSpeedPresets = {
+        {"Slow", 2.0f},
+        {"Normal", 1.0f}, 
+        {"Fast", 0.5f},
+        {"Ultra", 0.1f}
+    };
+
+    // 現在のゲーム速度設定
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game Speed Control")
+    FString CurrentGameSpeed = "Normal";
+
+    // ポーズ状態
+    UPROPERTY(BlueprintReadOnly, Category = "Game Speed Control")
+    bool bGamePaused = false;
+
     // 時間システムアクティブフラグ
     UPROPERTY(BlueprintReadWrite, Category = "Autonomous Time System")
     bool bTimeSystemActive = false;
@@ -66,6 +85,31 @@ public:
     /** 現在のターン番号取得 */
     UFUNCTION(BlueprintPure, Category = "Autonomous Time System")
     int32 GetCurrentTurn() const { return CurrentTurn; }
+
+    // === ゲーム速度制御API ===
+
+    /** ゲーム速度設定 */
+    UFUNCTION(BlueprintCallable, Category = "Game Speed Control")
+    void SetGameSpeed(const FString& SpeedName);
+
+    /** カスタム間隔設定 */
+    UFUNCTION(BlueprintCallable, Category = "Game Speed Control")
+    void SetCustomInterval(float NewInterval);
+
+    /** ゲームポーズ/再開 */
+    UFUNCTION(BlueprintCallable, Category = "Game Speed Control")
+    void PauseGame();
+
+    UFUNCTION(BlueprintCallable, Category = "Game Speed Control")
+    void ResumeGame();
+
+    /** 現在の実効間隔取得 */
+    UFUNCTION(BlueprintPure, Category = "Game Speed Control")
+    float GetCurrentInterval() const { return TimeUpdateInterval; }
+
+    /** ポーズ状態取得 */
+    UFUNCTION(BlueprintPure, Category = "Game Speed Control")
+    bool IsGamePaused() const { return bGamePaused; }
 
     /** 
      * メインの時間更新処理 - 唯一の責任：全キャラクターにターン開始通知

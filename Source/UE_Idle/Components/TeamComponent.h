@@ -275,8 +275,7 @@ private:
 	
 	// === 専門コンポーネント取得ヘルパー ===
 	
-	// 採集コンポーネント取得
-	class UGatheringComponent* GetGatheringComponent() const;
+	// 採集コンポーネントは削除済み - TaskManagerを使用
 	
 	// 移動コンポーネント取得
 	class ULocationMovementComponent* GetMovementComponent() const;
@@ -303,7 +302,7 @@ public:
 	// ======== チームInventory機能 ========
 
 	// 旧TeamInventory関連メソッド削除
-	// 新採集システムでは個人インベントリとGatheringComponentを使用
+	// 新採集システムでは個人インベントリとTaskManagerを使用
 
 	// ======== 旧チーム運搬手段機能（削除） ========
 	// 新採集システムでは個人キャラクターの積載量を使用

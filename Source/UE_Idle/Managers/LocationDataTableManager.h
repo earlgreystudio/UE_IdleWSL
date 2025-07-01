@@ -49,8 +49,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Location Manager")
     FString GetLocationDescription(const FString& LocationId) const;
 
+    // 移動システム関連（新マップ生成システム用）
     UFUNCTION(BlueprintCallable, Category = "Location Manager")
-    float GetLocationDistance(const FString& LocationId) const;
+    float GetLocationMovementCost(const FString& LocationId) const;
+
+    UFUNCTION(BlueprintCallable, Category = "Location Manager")
+    float GetLocationMovementDifficulty(const FString& LocationId) const;
+
+    UFUNCTION(BlueprintCallable, Category = "Location Manager")
+    int32 GetLocationDifficultyLevel(const FString& LocationId) const;
+
+    UFUNCTION(BlueprintCallable, Category = "Location Manager")
+    bool IsLocationWalkable(const FString& LocationId) const;
 
     UFUNCTION(BlueprintCallable, Category = "Location Manager")
     TArray<FGatherableItemInfo> GetGatherableItems(const FString& LocationId) const;

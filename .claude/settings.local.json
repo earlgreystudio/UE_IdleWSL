@@ -33,7 +33,8 @@
       "Bash(echo:*)",
       "Bash(echo \"3. ItemTypes.h -> (none)\")",
       "Bash(echo \"4. CommonTypes.h -> (none)\")",
-      "Bash(./compile_cpp.sh)"
+      "Bash(./compile_cpp.sh)",
+      "Bash(/usr/bin/dotnet:*)"
     ],
     "deny": []
   }

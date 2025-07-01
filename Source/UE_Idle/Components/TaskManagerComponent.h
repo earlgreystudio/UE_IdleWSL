@@ -181,6 +181,24 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Task Execution")
     TArray<FGlobalTask> GetExecutableGatheringTasksAtLocation(int32 TeamIndex, const FString& LocationId) const;
 
+    // === 採集実行機能（GatheringService/GatheringComponentからの移行） ===
+
+    // 指定場所で採集可能なアイテムを取得
+    UFUNCTION(BlueprintCallable, Category = "Gathering")
+    TArray<FString> GetGatherableItemsAt(const FString& LocationId) const;
+
+    // 指定アイテムの採集可能場所を検索
+    UFUNCTION(BlueprintCallable, Category = "Gathering")
+    TArray<FString> FindLocationsForItem(const FString& ItemId) const;
+
+    // チームの採集量を計算
+    UFUNCTION(BlueprintCallable, Category = "Gathering")
+    int32 CalculateGatheringAmount(int32 TeamIndex, const FString& ItemId, const FString& LocationId) const;
+
+    // 実際の採集処理を実行
+    UFUNCTION(BlueprintCallable, Category = "Gathering")
+    bool ExecuteGathering(int32 TeamIndex, const FString& ItemId, const FString& LocationId);
+
     // === ユーティリティ ===
 
     // タスクの有効性チェック

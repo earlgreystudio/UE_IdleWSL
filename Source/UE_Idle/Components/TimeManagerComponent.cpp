@@ -2,7 +2,6 @@
 #include "../Actor/C_IdleCharacter.h"
 #include "../C_PlayerController.h"
 #include "TeamComponent.h"
-#include "LocationMovementComponent.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -19,8 +18,16 @@ UTimeManagerComponent::UTimeManagerComponent()
     bTimeSystemActive = false;
     TimeUpdateInterval = 1.0f;  // 1秒 = 1ターン
     CurrentTurn = 0;
+    bGamePaused = false;
+    CurrentGameSpeed = "Normal";
     
-    UE_LOG(LogTemp, Log, TEXT("🕐 Simplified TimeManagerComponent created"));
+    // ゲーム速度プリセット初期化
+    GameSpeedPresets.Add("Slow", 2.0f);
+    GameSpeedPresets.Add("Normal", 1.0f);
+    GameSpeedPresets.Add("Fast", 0.5f);
+    GameSpeedPresets.Add("Ultra", 0.1f);
+    
+    UE_LOG(LogTemp, Log, TEXT("🕐 Simplified TimeManagerComponent created with game speed control"));
 }
 
 void UTimeManagerComponent::BeginPlay()
@@ -76,7 +83,7 @@ void UTimeManagerComponent::ProcessTimeUpdate()
     // 実装計画書に記載された新しい設計に従う
     // 唯一の責任：ターン開始通知
     
-    if (!bTimeSystemActive)
+    if (!bTimeSystemActive || bGamePaused)
     {
         return;
     }
@@ -84,7 +91,10 @@ void UTimeManagerComponent::ProcessTimeUpdate()
     // ターン番号を進める
     CurrentTurn++;
     
-    UE_LOG(LogTemp, Warning, TEXT("🕐⏰ Turn %d started - Notifying all autonomous characters"), CurrentTurn);
+    // ターン開始の目立つ区切り線を追加
+    UE_LOG(LogTemp, Warning, TEXT("■■■■■■■■■■■■■■■■■■"));
+    
+    // UE_LOG(LogTemp, Verbose, TEXT("🕐⏰ Turn %d started - Notifying all autonomous characters"), CurrentTurn);
     
     // 🚨 CRITICAL FIX: チーム戦略の定期更新
     // 実装計画書：「既存機能の完全再現」を保証
@@ -104,30 +114,23 @@ void UTimeManagerComponent::ProcessTimeUpdate()
         }
     }
     
-    // 🚨 CRITICAL: チーム移動進行処理
-    // 自律的キャラクターシステムでも、物理的な移動進行は TimeManager が担当
+    // 🚨 UPDATED: グリッドベース移動システム統合
+    // 自律的キャラクターが個別に移動を判断するため、TimeManagerは基本的な更新のみ
     AC_PlayerController* MovementPlayerController = Cast<AC_PlayerController>(
         UGameplayStatics::GetPlayerController(GetWorld(), 0));
     if (MovementPlayerController)
     {
         UTeamComponent* TeamComp = MovementPlayerController->FindComponentByClass<UTeamComponent>();
-        ULocationMovementComponent* MovementComp = MovementPlayerController->FindComponentByClass<ULocationMovementComponent>();
         
-        if (TeamComp && MovementComp)
+        if (TeamComp)
         {
-            int32 ProcessedTeams = 0;
-            for (int32 TeamIndex = 0; TeamIndex < TeamComp->GetTeamCount(); TeamIndex++)
-            {
-                // 各チームの移動を1ターン分進行
-                MovementComp->ProcessMovement(TeamIndex);
-                ProcessedTeams++;
-            }
+            // チーム状況の基本更新のみ実行
+            // 実際の移動はBehavior Treeが各キャラクター個別に処理
             
-            if (ProcessedTeams > 0)
-            {
-                UE_LOG(LogTemp, VeryVerbose, TEXT("🕐🚶 Turn %d: Processed movement for %d teams"), 
-                    CurrentTurn, ProcessedTeams);
-            }
+            // UI更新は引き続き実行（チーム状況変化の反映）
+            TeamComp->OnTeamsUpdated.Broadcast();
+            UE_LOG(LogTemp, VeryVerbose, TEXT("🕐🎮 Turn %d: Team status updated for autonomous system"), 
+                CurrentTurn);
         }
     }
     
@@ -147,8 +150,8 @@ void UTimeManagerComponent::ProcessTimeUpdate()
         }
     }
     
-    UE_LOG(LogTemp, Warning, TEXT("🕐✅ Turn %d completed - Notified %d characters"), 
-        CurrentTurn, NotifiedCharacters);
+    // UE_LOG(LogTemp, Verbose, TEXT("🕐✅ Turn %d completed - Notified %d characters"), 
+    //     CurrentTurn, NotifiedCharacters);
     
     // それだけ！
     // 複雑なタスク処理、チーム管理、リソース監視などは
@@ -186,5 +189,63 @@ void UTimeManagerComponent::ClearTimer()
         TimeUpdateTimerHandle.Invalidate();
         
         UE_LOG(LogTemp, Verbose, TEXT("🕐⏹️ Timer cleared"));
+    }
+}
+
+// ===============================================
+// ゲーム速度制御実装
+// ===============================================
+
+void UTimeManagerComponent::SetGameSpeed(const FString& SpeedName)
+{
+    if (const float* Speed = GameSpeedPresets.Find(SpeedName))
+    {
+        CurrentGameSpeed = SpeedName;
+        SetCustomInterval(*Speed);
+        
+        UE_LOG(LogTemp, Log, TEXT("🕐⚡ Game speed set to %s (%.2f seconds per turn)"), 
+            *SpeedName, *Speed);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("🕐❌ Unknown game speed: %s"), *SpeedName);
+    }
+}
+
+void UTimeManagerComponent::SetCustomInterval(float NewInterval)
+{
+    if (NewInterval < 0.1f || NewInterval > 10.0f)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("🕐❌ Invalid interval: %.2f (must be 0.1-10.0)"), NewInterval);
+        return;
+    }
+
+    TimeUpdateInterval = NewInterval;
+    
+    // タイマーが動いている場合は再設定
+    if (bTimeSystemActive)
+    {
+        StopTimeSystem();
+        StartTimeSystem();
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("🕐⚙️ Custom interval set to %.2f seconds"), NewInterval);
+}
+
+void UTimeManagerComponent::PauseGame()
+{
+    if (!bGamePaused)
+    {
+        bGamePaused = true;
+        UE_LOG(LogTemp, Log, TEXT("🕐⏸️ Game paused at turn %d"), CurrentTurn);
+    }
+}
+
+void UTimeManagerComponent::ResumeGame()
+{
+    if (bGamePaused)
+    {
+        bGamePaused = false;
+        UE_LOG(LogTemp, Log, TEXT("🕐▶️ Game resumed at turn %d"), CurrentTurn);
     }
 }

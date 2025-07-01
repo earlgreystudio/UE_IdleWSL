@@ -1,6 +1,7 @@
 #include "TaskManagerComponent.h"
 #include "../Components/InventoryComponent.h"
 #include "../Components/TeamComponent.h"
+#include "../Components/CharacterStatusComponent.h"
 #include "../Actor/C_IdleCharacter.h"
 #include "../Managers/LocationDataTableManager.h"
 #include "../Types/LocationTypes.h"
@@ -788,7 +789,7 @@ FGlobalTask UTaskManagerComponent::FindActiveGatheringTask(const FString& ItemId
 
 FString UTaskManagerComponent::GetTargetItemForTeam(int32 TeamIndex, const FString& LocationId) const
 {
-    UE_LOG(LogTemp, VeryVerbose, TEXT("📋🎯 GetTargetItemForTeam: Team %d, Location %s"), TeamIndex, *LocationId);
+    UE_LOG(LogTemp, Warning, TEXT("📋🎯 GetTargetItemForTeam: Team %d, Location %s"), TeamIndex, *LocationId);
     
     if (!IsValid(TeamComponentRef))
     {
@@ -799,7 +800,7 @@ FString UTaskManagerComponent::GetTargetItemForTeam(int32 TeamIndex, const FStri
     // 1. チームタスクを優先度順で取得
     TArray<FTeamTask> TeamTasks = TeamComponentRef->GetTeamTasks(TeamIndex);
     
-    UE_LOG(LogTemp, VeryVerbose, TEXT("📋📝 GetTargetItemForTeam: Found %d team tasks"), TeamTasks.Num());
+    UE_LOG(LogTemp, Warning, TEXT("📋📝 GetTargetItemForTeam: Found %d team tasks"), TeamTasks.Num());
     
     if (TeamTasks.Num() == 0)
     {
@@ -813,17 +814,17 @@ FString UTaskManagerComponent::GetTargetItemForTeam(int32 TeamIndex, const FStri
     {
         const FTeamTask& TeamTask = TeamTasks[i];
         
-        UE_LOG(LogTemp, VeryVerbose, TEXT("📋🔍 GetTargetItemForTeam: Checking team task %d - Type: %d, Priority: %d"), 
+        UE_LOG(LogTemp, Warning, TEXT("📋🔍 GetTargetItemForTeam: Checking team task %d - Type: %d, Priority: %d"), 
             i, (int32)TeamTask.TaskType, TeamTask.Priority);
         
         // 3. このチームタスクに対応するグローバルタスクを探す
         FString MatchedTarget = FindMatchingGlobalTask(TeamTask, TeamIndex, LocationId);
         
-        UE_LOG(LogTemp, VeryVerbose, TEXT("📋📦 GetTargetItemForTeam: FindMatchingGlobalTask returned: '%s'"), *MatchedTarget);
+        UE_LOG(LogTemp, Warning, TEXT("📋📦 GetTargetItemForTeam: FindMatchingGlobalTask returned: '%s'"), *MatchedTarget);
         
         if (!MatchedTarget.IsEmpty())
         {
-            UE_LOG(LogTemp, VeryVerbose, TEXT("📋✅ GetTargetItemForTeam: Returning matched target: '%s'"), *MatchedTarget);
+            UE_LOG(LogTemp, Warning, TEXT("📋✅ GetTargetItemForTeam: Returning matched target: '%s'"), *MatchedTarget);
             return MatchedTarget; // 最初にマッチしたものを返す
         }
     }
@@ -1113,25 +1114,34 @@ FString UTaskManagerComponent::FindMatchingGlobalTask(const FTeamTask& TeamTask,
 
 FString UTaskManagerComponent::FindMatchingGatheringTask(int32 TeamIndex, const FString& LocationId) const
 {
-    UE_LOG(LogTemp, VeryVerbose, TEXT("📋🌱 FindMatchingGatheringTask: Team %d, Location %s"), TeamIndex, *LocationId);
+    UE_LOG(LogTemp, Warning, TEXT("📋🌱 FindMatchingGatheringTask: Team %d, Location %s"), TeamIndex, *LocationId);
     
     // その場所で採集可能なグローバルタスクを優先度順で取得
+    UE_LOG(LogTemp, Warning, TEXT("📋🔍 FindMatchingGatheringTask: Checking global tasks count: %d"), GlobalTasks.Num());
+    
+    // 現在のグローバルタスクをログ出力
+    for (int32 i = 0; i < GlobalTasks.Num(); i++)
+    {
+        const FGlobalTask& Task = GlobalTasks[i];
+        UE_LOG(LogTemp, Warning, TEXT("📋📝 Global Task %d: ID=%s, Type=%d, TargetItem=%s, Completed=%s"), 
+            i, *Task.TaskId, (int32)Task.TaskType, *Task.TargetItemId, Task.bIsCompleted ? TEXT("YES") : TEXT("NO"));
+    }
     TArray<FGlobalTask> ExecutableTasks = GetExecutableGatheringTasksAtLocation(TeamIndex, LocationId);
     
     if (ExecutableTasks.Num() == 0)
     {
-        UE_LOG(LogTemp, VeryVerbose, TEXT("📋❌ FindMatchingGatheringTask: No executable tasks at location %s"), *LocationId);
+        UE_LOG(LogTemp, Warning, TEXT("📋❌ FindMatchingGatheringTask: No executable tasks at location %s"), *LocationId);
     }
     else
     {
-        UE_LOG(LogTemp, VeryVerbose, TEXT("📋📊 FindMatchingGatheringTask: Found %d executable tasks at location %s"), 
+        UE_LOG(LogTemp, Warning, TEXT("📋📊 FindMatchingGatheringTask: Found %d executable tasks at location %s"), 
             ExecutableTasks.Num(), *LocationId);
     }
     
     if (ExecutableTasks.Num() > 0)
     {
         const FGlobalTask& SelectedTask = ExecutableTasks[0]; // 最優先
-        UE_LOG(LogTemp, VeryVerbose, TEXT("📋✅ FindMatchingGatheringTask: Selected task target item: %s"), 
+        UE_LOG(LogTemp, Warning, TEXT("📋✅ FindMatchingGatheringTask: Selected task target item: %s"), 
             *SelectedTask.TargetItemId);
         return SelectedTask.TargetItemId;
     }
@@ -1451,4 +1461,227 @@ FTaskExecutionPlan UTaskManagerComponent::CreateAllModeExecutionPlan(int32 TeamI
                 *UTaskTypeUtils::GetTaskTypeDisplayName(NextTask.TaskType));
             return Plan;
     }
+}
+
+// === 採集実行機能（GatheringService/GatheringComponentからの移行） ===
+
+TArray<FString> UTaskManagerComponent::GetGatherableItemsAt(const FString& LocationId) const
+{
+    TArray<FString> GatherableItems;
+    
+    if (LocationId.IsEmpty())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("📋⛏️ GetGatherableItemsAt: Empty location ID"));
+        return GatherableItems;
+    }
+    
+    // LocationDataTableManagerから採集可能アイテムを取得
+    UGameInstance* GameInstance = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+    if (!GameInstance)
+    {
+        UE_LOG(LogTemp, Error, TEXT("📋⛏️ GetGatherableItemsAt: GameInstance not found"));
+        return GatherableItems;
+    }
+    
+    ULocationDataTableManager* LocationManager = GameInstance->GetSubsystem<ULocationDataTableManager>();
+    if (!LocationManager)
+    {
+        UE_LOG(LogTemp, Error, TEXT("📋⛏️ GetGatherableItemsAt: LocationDataTableManager not found"));
+        return GatherableItems;
+    }
+    
+    FLocationDataRow LocationData;
+    if (LocationManager->GetLocationData(LocationId, LocationData))
+    {
+        LocationData.GetGatherableItemIds(GatherableItems);
+        UE_LOG(LogTemp, VeryVerbose, TEXT("📋⛏️ GetGatherableItemsAt: Found %d gatherable items at %s"), 
+            GatherableItems.Num(), *LocationId);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("📋⛏️ GetGatherableItemsAt: Location %s not found"), *LocationId);
+    }
+    
+    return GatherableItems;
+}
+
+TArray<FString> UTaskManagerComponent::FindLocationsForItem(const FString& ItemId) const
+{
+    TArray<FString> Locations;
+    
+    if (ItemId.IsEmpty())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("📋🔍 FindLocationsForItem: Empty item ID"));
+        return Locations;
+    }
+    
+    // 全場所をチェックして該当アイテムが採集可能な場所を探す
+    TArray<FString> AllLocations = {TEXT("base"), TEXT("plains"), TEXT("forest"), TEXT("swamp"), TEXT("mountain"), TEXT("cave")};
+    
+    for (const FString& Location : AllLocations)
+    {
+        TArray<FString> GatherableItems = GetGatherableItemsAt(Location);
+        if (GatherableItems.Contains(ItemId))
+        {
+            Locations.Add(Location);
+            UE_LOG(LogTemp, VeryVerbose, TEXT("📋🔍 FindLocationsForItem: Item %s found at %s"), 
+                *ItemId, *Location);
+        }
+    }
+    
+    UE_LOG(LogTemp, VeryVerbose, TEXT("📋🔍 FindLocationsForItem: Item %s can be gathered at %d locations"), 
+        *ItemId, Locations.Num());
+    
+    return Locations;
+}
+
+int32 UTaskManagerComponent::CalculateGatheringAmount(int32 TeamIndex, const FString& ItemId, const FString& LocationId) const
+{
+    if (!IsValid(TeamComponentRef))
+    {
+        UE_LOG(LogTemp, Error, TEXT("📋📊 CalculateGatheringAmount: TeamComponent reference not set"));
+        return 0;
+    }
+    
+    if (ItemId.IsEmpty() || LocationId.IsEmpty())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("📋📊 CalculateGatheringAmount: Empty ItemId or LocationId"));
+        return 0;
+    }
+    
+    // チーム情報を取得
+    FTeam Team = TeamComponentRef->GetTeam(TeamIndex);
+    if (!Team.IsValidTeam() || Team.Members.Num() == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("📋📊 CalculateGatheringAmount: Invalid team %d"), TeamIndex);
+        return 0;
+    }
+    
+    // チーム全体の採集力を計算
+    float TotalGatheringPower = 0.0f;
+    int32 ValidMembers = 0;
+    
+    for (AC_IdleCharacter* Member : Team.Members)
+    {
+        if (IsValid(Member))
+        {
+            // CharacterStatusComponentから採集能力を取得
+            if (UCharacterStatusComponent* StatusComp = Member->GetStatusComponent())
+            {
+                FDerivedStats DerivedStats = StatusComp->GetDerivedStats();
+                TotalGatheringPower += DerivedStats.GatheringPower;
+                ValidMembers++;
+            }
+        }
+    }
+    
+    if (ValidMembers == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("📋📊 CalculateGatheringAmount: No valid team members"));
+        return 0;
+    }
+    
+    // 基本採集量計算（1ターンあたり）
+    // 採集効率係数を適用（GatheringComponentと同じ値を使用）
+    float GatheringEfficiencyMultiplier = 40.0f;
+    int32 BaseAmount = FMath::FloorToInt(TotalGatheringPower / GatheringEfficiencyMultiplier);
+    
+    // 最低1個は採集できるようにする
+    int32 FinalAmount = FMath::Max(BaseAmount, 1);
+    
+    UE_LOG(LogTemp, VeryVerbose, TEXT("📋📊 CalculateGatheringAmount: Team %d, Item %s, Amount %d (Power: %.1f, Members: %d)"), 
+        TeamIndex, *ItemId, FinalAmount, TotalGatheringPower, ValidMembers);
+    
+    return FinalAmount;
+}
+
+bool UTaskManagerComponent::ExecuteGathering(int32 TeamIndex, const FString& ItemId, const FString& LocationId)
+{
+    if (!IsValid(TeamComponentRef))
+    {
+        UE_LOG(LogTemp, Error, TEXT("📋⚡ ExecuteGathering: TeamComponent reference not set"));
+        return false;
+    }
+    
+    if (ItemId.IsEmpty() || LocationId.IsEmpty())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("📋⚡ ExecuteGathering: Empty ItemId or LocationId"));
+        return false;
+    }
+    
+    // チーム情報を取得
+    FTeam Team = TeamComponentRef->GetTeam(TeamIndex);
+    if (!Team.IsValidTeam() || Team.Members.Num() == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("📋⚡ ExecuteGathering: Invalid team %d"), TeamIndex);
+        return false;
+    }
+    
+    // 場所で該当アイテムが採集可能かチェック
+    TArray<FString> GatherableItems = GetGatherableItemsAt(LocationId);
+    if (!GatherableItems.Contains(ItemId))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("📋⚡ ExecuteGathering: Item %s not gatherable at %s"), 
+            *ItemId, *LocationId);
+        return false;
+    }
+    
+    // 採集量を計算
+    int32 GatheringAmount = CalculateGatheringAmount(TeamIndex, ItemId, LocationId);
+    if (GatheringAmount <= 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("📋⚡ ExecuteGathering: No gathering amount calculated"));
+        return false;
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("📋⚡🌱 ExecuteGathering: Team %d gathering %d x %s at %s"), 
+        TeamIndex, GatheringAmount, *ItemId, *LocationId);
+    
+    // 各チームメンバーのインベントリに均等配分
+    int32 AmountPerMember = FMath::Max(1, GatheringAmount / Team.Members.Num());
+    int32 RemainingAmount = GatheringAmount;
+    
+    for (AC_IdleCharacter* Member : Team.Members)
+    {
+        if (IsValid(Member) && RemainingAmount > 0)
+        {
+            if (UInventoryComponent* MemberInventory = Member->GetInventoryComponent())
+            {
+                int32 AmountToAdd = FMath::Min(AmountPerMember, RemainingAmount);
+                
+                if (MemberInventory->AddItem(ItemId, AmountToAdd))
+                {
+                    RemainingAmount -= AmountToAdd;
+                    
+                    UE_LOG(LogTemp, Warning, TEXT("📋⚡✅ ExecuteGathering: Added %d %s to %s"), 
+                        AmountToAdd, *ItemId, *Member->GetName());
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("📋⚡ ExecuteGathering: Failed to add %s to %s inventory"), 
+                        *ItemId, *Member->GetName());
+                }
+            }
+        }
+    }
+    
+    // タスク進捗を更新
+    int32 ActualGathered = GatheringAmount - RemainingAmount;
+    if (ActualGathered > 0)
+    {
+        // アクティブな採集タスクを見つけて進捗更新
+        FGlobalTask ActiveTask = FindActiveGatheringTask(ItemId);
+        if (!ActiveTask.TaskId.IsEmpty())
+        {
+            UpdateTaskProgress(ActiveTask.TaskId, ActualGathered);
+        }
+        
+        UE_LOG(LogTemp, VeryVerbose, TEXT("📋⚡ ExecuteGathering: Successfully gathered %d %s at %s"), 
+            ActualGathered, *ItemId, *LocationId);
+        
+        return true;
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("📋⚡ ExecuteGathering: No items were actually gathered"));
+    return false;
 }

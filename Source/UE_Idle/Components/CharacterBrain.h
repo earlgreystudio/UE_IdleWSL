@@ -137,6 +137,7 @@ protected:
      */
     FString GetTeamGatheringLocation(int32 TeamIndex);
 
+
     /**
      * 性格に基づく行動優先度の修正
      * @param BaseAction 基本行動

@@ -13,11 +13,11 @@ class UTeamComponent;
 class UEventLogManager;
 class UTaskManagerComponent;
 class UTimeManagerComponent;
-class UGatheringComponent;
 class UCraftingComponent;
 class UBaseComponent;
 class ULocationMovementComponent;
 class UCombatComponent;
+class UGridMapComponent;
 class AC_IdleCharacter;
 class UC__InventoryList;
 class UC_TaskList;
@@ -48,6 +48,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UEventLogManager> EventLogManager;
 
+	// Grid Map System
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UGridMapComponent> GridMapComponent;
+
 	// Task Management System Components
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Task Management")
 	TObjectPtr<UTaskManagerComponent> TaskManager;
@@ -55,8 +59,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Task Management")
 	TObjectPtr<UTimeManagerComponent> TimeManager;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Task Management")
-	TObjectPtr<UGatheringComponent> GatheringComponent;
+	// GatheringComponent削除済み - TaskManagerに統合
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Task Management")
 	TObjectPtr<UCraftingComponent> CraftingComponent;

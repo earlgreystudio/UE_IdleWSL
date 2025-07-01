@@ -6,11 +6,11 @@
 #include "Components/EventLogManager.h"
 #include "Components/TaskManagerComponent.h"
 #include "Components/TimeManagerComponent.h"
-#include "Components/GatheringComponent.h"
 #include "Components/CraftingComponent.h"
 #include "Components/LocationMovementComponent.h"
 #include "Components/CombatComponent.h"
 #include "Components/BaseComponent.h"
+#include "Components/GridMapComponent.h"
 #include "Actor/C_IdleCharacter.h"
 #include "UI/C__InventoryList.h"
 #include "UI/C_TaskList.h"
@@ -32,13 +32,24 @@ AC_PlayerController::AC_PlayerController()
 	// Create Task Management System components
 	TaskManager = CreateDefaultSubobject<UTaskManagerComponent>(TEXT("TaskManager"));
 	TimeManager = CreateDefaultSubobject<UTimeManagerComponent>(TEXT("TimeManager"));
-	GatheringComponent = CreateDefaultSubobject<UGatheringComponent>(TEXT("GatheringComponent"));
+	// GatheringComponent削除済み - TaskManagerに統合
 	CraftingComponent = CreateDefaultSubobject<UCraftingComponent>(TEXT("CraftingComponent"));
 	MovementComponent = CreateDefaultSubobject<ULocationMovementComponent>(TEXT("MovementComponent"));
 	CombatComponent = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
 
 	// Create Base Management System component
 	BaseComponent = CreateDefaultSubobject<UBaseComponent>(TEXT("BaseComponent"));
+	
+	// Create Grid Map System component
+	GridMapComponent = CreateDefaultSubobject<UGridMapComponent>(TEXT("GridMapComponent"));
+	if (GridMapComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("GridMapComponent created successfully"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to create GridMapComponent"));
+	}
 
 	// Initialize UI variables
 	InventoryListWidget = nullptr;
@@ -495,40 +506,25 @@ void AC_PlayerController::InitializeTaskManagementSystem()
 		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController: Missing components for TaskManager setup"));
 	}
 	
-	if (TimeManager && TaskManager && TeamComponent && GatheringComponent && MovementComponent)
+	if (TimeManager && TaskManager && TeamComponent && MovementComponent)
 	{
 		// TimeManager references（簡素化により削除済み）
 		// TimeManager->RegisterTaskManager(TaskManager);
 		// TimeManager->RegisterTeamComponent(TeamComponent);
-		// TimeManager->RegisterGatheringComponent(GatheringComponent);
+		// GatheringComponentは削除済み
 		// TimeManager->RegisterMovementComponent(MovementComponent);
 		
 		UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: TimeManager references set"));
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController: Missing components for TimeManager setup (TaskManager: %s, TeamComponent: %s, GatheringComponent: %s, MovementComponent: %s)"), 
+		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController: Missing components for TimeManager setup (TaskManager: %s, TeamComponent: %s, MovementComponent: %s)"), 
 			TaskManager ? TEXT("OK") : TEXT("NULL"),
 			TeamComponent ? TEXT("OK") : TEXT("NULL"),
-			GatheringComponent ? TEXT("OK") : TEXT("NULL"),
 			MovementComponent ? TEXT("OK") : TEXT("NULL"));
 	}
 	
-	// GatheringComponent initialization
-	if (GatheringComponent && TeamComponent && TaskManager)
-	{
-		// Set component references for GatheringComponent
-		GatheringComponent->RegisterTeamComponent(TeamComponent);
-		GatheringComponent->RegisterTaskManagerComponent(TaskManager);
-		
-		UE_LOG(LogTemp, Log, TEXT("AC_PlayerController: GatheringComponent references set"));
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("AC_PlayerController: Missing components for GatheringComponent setup (TeamComponent: %s, TaskManager: %s)"),
-			TeamComponent ? TEXT("OK") : TEXT("NULL"),
-			TaskManager ? TEXT("OK") : TEXT("NULL"));
-	}
+	// GatheringComponent初期化は削除済み - TaskManagerに統合済み
 	
 	// MovementComponent initialization
 	if (MovementComponent && TeamComponent)
@@ -557,7 +553,7 @@ void AC_PlayerController::InitializeTaskManagementSystem()
 // === デバッグ用採集テスト関数 ===
 void AC_PlayerController::TestGatheringSetup()
 {
-	if (!TeamComponent || !TimeManager || !GatheringComponent)
+	if (!TeamComponent || !TimeManager)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestGatheringSetup: Missing required components"));
 		return;

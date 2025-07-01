@@ -108,17 +108,31 @@ FCharacterAction UCharacterBrain::DecideOptimalAction(const FCharacterSituation&
     // 判断プロセスをログ出力
     LogDecisionProcess(Situation, DecidedAction);
     
+    // 決定されたアクションを明確にログ出力
+    FString CharName = CharacterRef ? CharacterRef->GetName() : TEXT("Unknown");
+    UE_LOG(LogTemp, Warning, TEXT("🧠✅ %s: DECIDED ACTION = %d (%s) at %s targeting %s"), 
+        *CharName, 
+        (int32)DecidedAction.ActionType, 
+        *DecidedAction.ActionReason,
+        *DecidedAction.TargetLocation,
+        *DecidedAction.TargetItem);
+    
     return DecidedAction;
 }
 
 FCharacterAction UCharacterBrain::DecideGatheringAction(const FCharacterSituation& Situation)
 {
-    // 拠点にいる場合は荷下ろしチェック
+    FString CharName = CharacterRef ? CharacterRef->GetName() : TEXT("Unknown");
+    
+    // 拠点にいる場合の完全処理
     if (Situation.CurrentLocation == TEXT("base"))
     {
+        UE_LOG(LogTemp, Warning, TEXT("🧠🏠 %s: At base, checking for unload"), *CharName);
+        
         // インベントリにアイテムがある場合は荷下ろし
         if (HasItemsToUnload(Situation))
         {
+            UE_LOG(LogTemp, Warning, TEXT("🧠📦 %s: Has items to unload, executing unload action"), *CharName);
             FCharacterAction UnloadAction;
             UnloadAction.ActionType = ECharacterActionType::UnloadItems;
             UnloadAction.TargetLocation = TEXT("base");
@@ -126,20 +140,87 @@ FCharacterAction UCharacterBrain::DecideGatheringAction(const FCharacterSituatio
             UnloadAction.ActionReason = TEXT("Unloading items at base");
             return UnloadAction;
         }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("🧠📦 %s: No items to unload at base"), *CharName);
+            
+            // 拠点で実行可能なタスクがあるかチェック
+            FString TargetItemAtBase = GetTargetItemForTeam(Situation.MyTeamIndex, TEXT("base"));
+            if (!TargetItemAtBase.IsEmpty())
+            {
+                UE_LOG(LogTemp, Warning, TEXT("🧠🎯 %s: Found new task %s at base"), *CharName, *TargetItemAtBase);
+                // 拠点でのタスクがある場合は、以降の採集ロジックで処理
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("🧠🔍 %s: No tasks at base, checking other locations"), *CharName);
+                
+                // 他の場所でタスクがあるかチェック
+                TArray<FString> LocationsToCheck = {TEXT("plains"), TEXT("forest"), TEXT("mountain"), TEXT("swamp")};
+                for (const FString& LocationToCheck : LocationsToCheck)
+                {
+                    FString TargetItemAtLocation = GetTargetItemForTeam(Situation.MyTeamIndex, LocationToCheck);
+                    if (!TargetItemAtLocation.IsEmpty())
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("🧠🚶 %s: Found task %s at %s, moving there"), 
+                            *CharName, *TargetItemAtLocation, *LocationToCheck);
+                        
+                        // 移動アクションを返す
+                        FCharacterAction MoveAction;
+                        MoveAction.ActionType = ECharacterActionType::MoveToLocation;
+                        MoveAction.TargetLocation = LocationToCheck;
+                        MoveAction.TargetItem = TargetItemAtLocation;
+                        MoveAction.ExpectedDuration = 3.0f; // 移動時間
+                        MoveAction.ActionReason = FString::Printf(TEXT("Moving to %s to gather %s"), 
+                            *LocationToCheck, *TargetItemAtLocation);
+                        return MoveAction;
+                    }
+                }
+                
+                UE_LOG(LogTemp, Warning, TEXT("🧠😴 %s: No tasks available anywhere, waiting at base"), *CharName);
+                return DecideWaitAction(Situation, TEXT("No tasks available anywhere"));
+            }
+        }
     }
     
-    // 拠点帰還判定（既存ロジックの移植）
-    if (ShouldReturnToBase(Situation))
+    // 拠点にいない場合のみ帰還判定を実行
+    if (Situation.CurrentLocation != TEXT("base"))
     {
-        FCharacterAction ReturnAction;
-        ReturnAction.ActionType = ECharacterActionType::ReturnToBase;
-        ReturnAction.TargetLocation = TEXT("base");
-        ReturnAction.ExpectedDuration = 2.0f; // 移動時間
-        ReturnAction.ActionReason = TEXT("Should return to base for unloading");
-        return ReturnAction;
+        // 拠点帰還判定（既存ロジックの移植）
+        if (ShouldReturnToBase(Situation))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("🧠🏠 %s: Should return to base from %s"), *CharName, *Situation.CurrentLocation);
+            FCharacterAction ReturnAction;
+            ReturnAction.ActionType = ECharacterActionType::ReturnToBase;
+            ReturnAction.TargetLocation = TEXT("base");
+            ReturnAction.ExpectedDuration = 2.0f; // 移動時間
+            ReturnAction.ActionReason = TEXT("Should return to base for unloading");
+            return ReturnAction;
+        }
     }
     
-    // 目標アイテムの取得（チームの採集場所を使用）
+    // 現在地でのターゲットアイテムチェック（直接アプローチ）
+    FString TargetItem = GetTargetItemForTeam(Situation.MyTeamIndex, Situation.CurrentLocation);
+    
+    UE_LOG(LogTemp, Warning, TEXT("🧠🎯 %s: At %s, found target item: %s"), 
+        *CharName, *Situation.CurrentLocation, *TargetItem);
+    
+    if (!TargetItem.IsEmpty())
+    {
+        // 現在地でタスクがある場合は即座に採集実行
+        UE_LOG(LogTemp, Warning, TEXT("🧠🌱 %s: Executing gathering for %s at current location %s"), 
+            *CharName, *TargetItem, *Situation.CurrentLocation);
+        
+        FCharacterAction GatherAction;
+        GatherAction.ActionType = ECharacterActionType::GatherResources;
+        GatherAction.TargetLocation = Situation.CurrentLocation;
+        GatherAction.TargetItem = TargetItem;
+        GatherAction.ExpectedDuration = 1.0f;
+        GatherAction.ActionReason = FString::Printf(TEXT("Gathering %s at %s"), *TargetItem, *Situation.CurrentLocation);
+        return GatherAction;
+    }
+    
+    // 現在地にタスクがない場合は、チームの採集場所を使用
     FString TeamGatheringLocation = GetTeamGatheringLocation(Situation.MyTeamIndex);
     if (TeamGatheringLocation.IsEmpty())
     {
@@ -147,8 +228,8 @@ FCharacterAction UCharacterBrain::DecideGatheringAction(const FCharacterSituatio
         return DecideWaitAction(Situation, TEXT("No gathering location set for team"));
     }
     
-    UE_LOG(LogTemp, Warning, TEXT("🧠🌱 Using team gathering location: %s"), *TeamGatheringLocation);
-    FString TargetItem = GetTargetItemForTeam(Situation.MyTeamIndex, TeamGatheringLocation);
+    UE_LOG(LogTemp, VeryVerbose, TEXT("🧠🌱 Using team gathering location: %s"), *TeamGatheringLocation);
+    TargetItem = GetTargetItemForTeam(Situation.MyTeamIndex, TeamGatheringLocation);
     
     if (TargetItem.IsEmpty())
     {
@@ -300,19 +381,45 @@ bool UCharacterBrain::ShouldReturnToBase(const FCharacterSituation& Situation)
         return false;
     }
     
-    // 体力が低い場合は帰還（簡易判定）
+    // 1. タスク完了時の帰還判定（最重要）
+    FString TargetItem = GetTargetItemForTeam(Situation.MyTeamIndex, Situation.CurrentLocation);
+    if (TargetItem.IsEmpty())
+    {
+        UE_LOG(LogTemp, VeryVerbose, TEXT("🧠🏠 %s: No target item at current location, should return to base"), 
+            CharacterRef ? *CharacterRef->GetName() : TEXT("Unknown"));
+        return true;
+    }
+    
+    // 2. インベントリ容量チェック
+    if (CharacterRef && CharacterRef->GetInventoryComponent())
+    {
+        TMap<FString, int32> AllItems = CharacterRef->GetInventoryComponent()->GetAllItems();
+        int32 TotalItems = 0;
+        for (const auto& Item : AllItems)
+        {
+            TotalItems += Item.Value;
+        }
+        
+        // 20個以上持っている場合は帰還
+        if (TotalItems >= 20)
+        {
+            UE_LOG(LogTemp, VeryVerbose, TEXT("🧠🏠 %s: Inventory full (%d items), should return to base"), 
+                CharacterRef ? *CharacterRef->GetName() : TEXT("Unknown"), TotalItems);
+            return true;
+        }
+    }
+    
+    // 3. 体力が低い場合は帰還（簡易判定）
     if (Situation.CurrentHealth < 50.0f)
     {
         return true;
     }
     
-    // スタミナが低い場合は帰還
+    // 4. スタミナが低い場合は帰還
     if (Situation.CurrentStamina < 30.0f)
     {
         return true;
     }
-    
-    // 将来: インベントリが満杯の場合の判定を追加予定
     
     return false;
 }
@@ -331,24 +438,32 @@ bool UCharacterBrain::HasItemsToUnload(const FCharacterSituation& Situation)
     UInventoryComponent* Inventory = CharacterRef->GetInventoryComponent();
     if (!Inventory)
     {
+        UE_LOG(LogTemp, Warning, TEXT("🧠📦 Character %s: No inventory component"), 
+            CharacterRef ? *CharacterRef->GetName() : TEXT("Unknown"));
         return false;
     }
     
     TMap<FString, int32> AllItems = Inventory->GetAllItems();
+    FString CharacterName = CharacterRef->GetName();
+    
     if (AllItems.Num() > 0)
     {
         int32 TotalItems = 0;
         for (const auto& Item : AllItems)
         {
             TotalItems += Item.Value;
+            UE_LOG(LogTemp, Warning, TEXT("🧠📦 Character %s has item: %s x%d"), 
+                *CharacterName, *Item.Key, Item.Value);
         }
-        FString CharacterName = CharacterRef->GetName();
-        UE_LOG(LogTemp, Warning, TEXT("🧠📦 Character %s has %d items to unload"), 
+        UE_LOG(LogTemp, Warning, TEXT("🧠📦 Character %s has %d total items to unload"), 
             *CharacterName, TotalItems);
         return true;
     }
-    
-    return false;
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("🧠📦 Character %s has no items to unload"), *CharacterName);
+        return false;
+    }
 }
 
 FString UCharacterBrain::GetTargetItemForTeam(int32 TeamIndex, const FString& LocationId)
@@ -503,3 +618,4 @@ void UCharacterBrain::InitializePersonalityPreferences()
     
     UE_LOG(LogTemp, Log, TEXT("🧠 CharacterBrain: Action preferences initialized for personality %d"), (int32)MyPersonality);
 }
+

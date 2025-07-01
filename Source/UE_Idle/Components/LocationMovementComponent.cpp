@@ -148,11 +148,11 @@ void ULocationMovementComponent::ProcessMovement(int32 TeamIndex)
 {
     if (!TeamMovementInfos.Contains(TeamIndex))
     {
-        UE_LOG(LogTemp, Warning, TEXT("ProcessMovement: No movement info for team %d"), TeamIndex);
+        UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessMovement: No movement info for team %d"), TeamIndex);
         return;
     }
     
-    UE_LOG(LogTemp, Warning, TEXT("ProcessMovement: Processing movement for team %d"), TeamIndex);
+    UE_LOG(LogTemp, VeryVerbose, TEXT("ProcessMovement: Processing movement for team %d"), TeamIndex);
     
     // 1秒分の移動処理
     UpdateMovementInfo(TeamIndex, 1.0f);
@@ -278,7 +278,7 @@ float ULocationMovementComponent::GetDistanceBetweenLocations(const FString& Fro
         FLocationDataRow LocationData;
         if (LocationManager->GetLocationData(LocationId, LocationData))
         {
-            return LocationData.Distance;
+            return LocationData.MovementCost * 100.0f; // 代替値
         }
         else
         {
@@ -310,7 +310,7 @@ float ULocationMovementComponent::GetLocationDistanceFromBase(const FString& Loc
     FLocationDataRow LocationData;
     if (LocationManager->GetLocationData(LocationId, LocationData))
     {
-        return LocationData.Distance;
+        return LocationData.MovementCost * 100.0f; // 代替値
     }
     else
     {
@@ -344,7 +344,7 @@ void ULocationMovementComponent::UpdateMovementInfo(int32 TeamIndex, float Delta
         return;
     }
     
-    UE_LOG(LogTemp, Warning, TEXT("🔍 UpdateMovementInfo: Team %d - Current: %.1f, Target: %.1f, Remaining: %.1f"), 
+    UE_LOG(LogTemp, VeryVerbose, TEXT("🔍 UpdateMovementInfo: Team %d - Current: %.1f, Target: %.1f, Remaining: %.1f"), 
         TeamIndex, MovementInfo->CurrentDistanceFromBase, MovementInfo->TargetDistanceFromBase, MovementInfo->RemainingTime);
     
     // 即座移動の場合
@@ -404,7 +404,7 @@ void ULocationMovementComponent::UpdateMovementInfo(int32 TeamIndex, float Delta
         ((MovementInfo->Distance - RemainingDistance) / MovementInfo->Distance) : 1.0f;
     MovementInfo->RemainingTime = (MovementInfo->Speed > 0.0f) ? (RemainingDistance / MovementInfo->Speed) : 0.0f;
     
-    UE_LOG(LogTemp, Warning, TEXT("MovementComponent: Team %d at %.1fm/%.1fm, progress %.2f, remaining %.1fs (speed: %.1f, delta: %.1f)"), 
+    UE_LOG(LogTemp, VeryVerbose, TEXT("MovementComponent: Team %d at %.1fm/%.1fm, progress %.2f, remaining %.1fs (speed: %.1f, delta: %.1f)"), 
         TeamIndex, MovementInfo->CurrentDistanceFromBase, MovementInfo->TargetDistanceFromBase, MovementInfo->Progress, MovementInfo->RemainingTime, MovementInfo->Speed, DeltaTime);
     
     // UI更新イベント発行

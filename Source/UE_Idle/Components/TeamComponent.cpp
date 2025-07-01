@@ -5,7 +5,6 @@
 #include "../C_PlayerController.h"
 #include "InventoryComponent.h"
 #include "CombatComponent.h"
-#include "GatheringComponent.h"
 #include "LocationMovementComponent.h"
 #include "TaskManagerComponent.h"
 #include "Engine/World.h"
@@ -602,7 +601,7 @@ void UTeamComponent::OnCombatEnd(const TArray<AC_IdleCharacter*>& Winners, const
 // 新採集システムでは個人キャラクターの積載量を使用
 
 // 旧運搬手段関連メソッド削除済み
-// 新採集システムでは個人キャラクターの積載量をGatheringComponentで管理
+// 新採集システムでは個人キャラクターの積載量をTaskManagerで管理
 
 // ======== 新しいチーム別タスク管理機能実装 ========
 
@@ -1023,14 +1022,7 @@ UCombatComponent* UTeamComponent::GetCombatComponent() const
 // === 新しい委譲型実行システム実装 ===
 
 // 専門コンポーネント取得ヘルパー
-UGatheringComponent* UTeamComponent::GetGatheringComponent() const
-{
-	if (AActor* Owner = GetOwner())
-	{
-		return Owner->FindComponentByClass<UGatheringComponent>();
-	}
-	return nullptr;
-}
+// GetGatheringComponent は削除済み - TaskManagerを使用
 
 ULocationMovementComponent* UTeamComponent::GetMovementComponent() const
 {
@@ -1137,10 +1129,15 @@ bool UTeamComponent::ExecuteGathering(int32 TeamIndex, const FString& TargetItem
 		return false;
 	}
 	
-	UGatheringComponent* GatheringComp = GetGatheringComponent();
-	if (!GatheringComp)
+	// TaskManagerを取得（GatheringComponentから移行）
+	UTaskManagerComponent* TaskManager = nullptr;
+	if (AActor* Owner = GetOwner())
 	{
-		UE_LOG(LogTemp, Error, TEXT("❌ GatheringComponent not found"));
+		TaskManager = Owner->FindComponentByClass<UTaskManagerComponent>();
+	}
+	if (!TaskManager)
+	{
+		UE_LOG(LogTemp, Error, TEXT("❌ TaskManager not found"));
 		return false;
 	}
 	
@@ -1175,12 +1172,17 @@ bool UTeamComponent::ExecuteGathering(int32 TeamIndex, const FString& TargetItem
 	
 	UE_LOG(LogTemp, Warning, TEXT("🌾 ExecuteGathering: Team %d at location %s"), TeamIndex, *CurrentLocation);
 	
-	// GatheringComponentに採集場所を登録
-	GatheringComp->SetTeamTargetLocation(TeamIndex, CurrentLocation);
-	
-	// GatheringComponentに採集処理を委譲
-	GatheringComp->ProcessTeamGatheringWithTarget(TeamIndex, TargetItem);
-	SetTeamActionState(TeamIndex, ETeamActionState::Working);
+	// TaskManagerで採集実行（シンプル化）
+	bool bSuccess = TaskManager->ExecuteGathering(TeamIndex, TargetItem, CurrentLocation);
+	if (bSuccess)
+	{
+		SetTeamActionState(TeamIndex, ETeamActionState::Working);
+		UE_LOG(LogTemp, VeryVerbose, TEXT("🌾 ExecuteGathering: Team %d gathering %s at %s"), TeamIndex, *TargetItem, *CurrentLocation);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("🌾 ExecuteGathering: Failed to execute gathering for team %d"), TeamIndex);
+	}
 	
 	UE_LOG(LogTemp, Log, TEXT("✅ Gathering initiated for %s"), *TargetItem);
 	return true;

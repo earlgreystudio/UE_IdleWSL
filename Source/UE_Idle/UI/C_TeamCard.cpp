@@ -562,93 +562,94 @@ FString UC_TeamCard::GetTeamStatusDisplayText() const
         return TEXT("無効");
     }
 
-    FTeam TeamData = GetTeamData();
+    // === 毎ターン判定ロジック（状態管理なし） ===
     
-    // 移動中の場合は残り時間を表示
-    if (TeamData.ActionState == ETeamActionState::Moving)
+    // 1. 現在地を取得
+    FString CurrentLocation = GetCurrentLocation();
+    
+    // 2. TaskManagerから実行可能タスクを確認
+    FString TargetItem = GetCurrentTargetItem();
+    
+    // 3. 移動中かチェック
+    bool bIsMoving = IsTeamMoving();
+    
+    // 4. ロジック分岐
+    if (CurrentLocation == TEXT("base"))
     {
-        // PlayerControllerからMovementComponentを取得
-        if (UWorld* World = GetWorld())
+        // 拠点にいる場合
+        if (bIsMoving)
         {
-            if (APlayerController* PC = World->GetFirstPlayerController())
+            // 移動準備中または移動開始
+            return GetMovementStatusText(false); // 移動
+        }
+        else if (ShouldUnloadItems())
+        {
+            return TEXT("荷下ろし");
+        }
+        else if (!TargetItem.IsEmpty())
+        {
+            // 新しいタスクがある場合
+            return GetMovementStatusText(false); // 移動
+        }
+        else
+        {
+            return TEXT("待機");
+        }
+    }
+    else
+    {
+        // 拠点以外にいる場合
+        if (bIsMoving)
+        {
+            // 移動中
+            if (TargetItem.IsEmpty())
             {
-                // AC_PlayerControllerにキャスト
-                if (AC_PlayerController* IdlePC = Cast<AC_PlayerController>(PC))
-                {
-                    if (ULocationMovementComponent* MovementComp = IdlePC->MovementComponent)
-                    {
-                        // ターンベース設計：残り距離から移動時間を計算
-                        float CurrentDistance = MovementComp->GetCurrentDistanceFromBase(TeamIndex);
-                        int32 CurrentDistanceInt = FMath::RoundToInt(CurrentDistance);
-                        
-                        // 目標距離を計算
-                        int32 TargetDistance = 0;
-                        if (TeamData.GatheringLocationId == TEXT("base"))
-                        {
-                            TargetDistance = 0;
-                        }
-                        else
-                        {
-                            // 既知の距離
-                            if (TeamData.GatheringLocationId == TEXT("plains")) TargetDistance = 100;
-                            else if (TeamData.GatheringLocationId == TEXT("forest")) TargetDistance = 200;
-                            else if (TeamData.GatheringLocationId == TEXT("mountain")) TargetDistance = 800;
-                            else if (TeamData.GatheringLocationId == TEXT("swamp")) TargetDistance = 500;
-                            else TargetDistance = 100; // デフォルト
-                        }
-                        
-                        int32 RemainingDistance = FMath::Abs(TargetDistance - CurrentDistanceInt);
-                        
-                        // 目標地で移動種別を判定
-                        FString MovementText = (TeamData.GatheringLocationId == TEXT("base")) ? TEXT("帰還中") : TEXT("移動中");
-                        
-                        if (RemainingDistance > 0)
-                        {
-                            // 移動速度30m/turnでターン数を計算 → 秒数に変換（1ターン=1秒と仮定）
-                            int32 MovementSpeed = 30; // m/turn
-                            int32 RemainingTurns = FMath::CeilToInt(static_cast<float>(RemainingDistance) / MovementSpeed);
-                            int32 RemainingSeconds = RemainingTurns; // 1ターン=1秒
-                            
-                            int32 Minutes = RemainingSeconds / 60;
-                            int32 Seconds = RemainingSeconds % 60;
-                            
-                            FString TimeText = FString::Printf(TEXT("%02d：%02d"), Minutes, Seconds);
-                            FString Result = FString::Printf(TEXT("%s（残り%s）"), *MovementText, *TimeText);
-                            return Result;
-                        }
-                        else
-                        {
-                            return MovementText;
-                        }
-                    }
-                }
+                return GetMovementStatusText(true); // 帰還
+            }
+            else
+            {
+                return GetMovementStatusText(false); // 目的地に向かって移動中
             }
         }
-        
-        // MovementComponentが取得できない場合のフォールバック
-        return TEXT("移動中");
-    }
-    
-    // 移動中や帰還中の場合は基本状態表示を使用
-    if (TeamData.ActionState == ETeamActionState::Moving || 
-        TeamData.ActionState == ETeamActionState::Returning)
-    {
-        return TeamData.GetActionStateDisplayName();
-    }
-    
-    // 作業中の場合は目標資源の個数を表示
-    if (TeamData.ActionState == ETeamActionState::Working)
-    {
-        int32 CurrentResourceCount = GetCurrentResourceCount();
-        if (CurrentResourceCount >= 0)
+        else
         {
-            FString WorkingText = FString::Printf(TEXT("作業中（%d個）"), CurrentResourceCount);
-            return WorkingText;
+            // 拠点以外で移動していない場合：作業中または帰還待機
+            int32 CurrentResourceCount = GetCurrentResourceCount();
+            
+            // チームが実際にアイテムを持っているかチェック
+            bool bHasItems = ShouldUnloadItems();
+            
+            if (!TargetItem.IsEmpty())
+            {
+                // タスクがある場合は作業中（採集中）
+                if (CurrentResourceCount >= 0)
+                {
+                    return FString::Printf(TEXT("採集（%d個）"), CurrentResourceCount);
+                }
+                else
+                {
+                    return TEXT("採集");
+                }
+            }
+            else if (bHasItems)
+            {
+                // タスクはないがアイテムを持っている場合
+                if (CurrentResourceCount >= 0)
+                {
+                    return FString::Printf(TEXT("作業完了（%d個）"), CurrentResourceCount);
+                }
+                else
+                {
+                    return TEXT("作業完了");
+                }
+            }
+            else
+            {
+                // タスクもアイテムもない場合は帰還
+                return GetMovementStatusText(true); // 帰還
+            }
         }
     }
-    
-    // その他の状態は通常の状態表示
-    return TeamData.GetActionStateDisplayName();
 }
 
 FString UC_TeamCard::GetDistanceFromBaseDisplayText() const
@@ -844,4 +845,220 @@ void UC_TeamCard::ShowTeamTaskMakeSheet()
     {
         UE_LOG(LogTemp, Error, TEXT("UC_TeamCard::ShowTeamTaskMakeSheet - Failed to create TaskMakeSheet widget"));
     }
+}
+
+// === 毎ターン判定用ヘルパー関数 ===
+
+FString UC_TeamCard::GetCurrentLocation() const
+{
+    // MovementComponentから現在地を取得
+    if (UWorld* World = GetWorld())
+    {
+        if (APlayerController* PC = World->GetFirstPlayerController())
+        {
+            if (AC_PlayerController* IdlePC = Cast<AC_PlayerController>(PC))
+            {
+                if (ULocationMovementComponent* MovementComp = IdlePC->MovementComponent)
+                {
+                    float CurrentDistance = MovementComp->GetCurrentDistanceFromBase(TeamIndex);
+                    
+                    // 距離から場所を判定
+                    if (CurrentDistance <= 0.0f)
+                    {
+                        return TEXT("base");
+                    }
+                    else if (FMath::IsNearlyEqual(CurrentDistance, 100.0f, 5.0f))
+                    {
+                        return TEXT("plains");
+                    }
+                    else if (FMath::IsNearlyEqual(CurrentDistance, 200.0f, 5.0f))
+                    {
+                        return TEXT("forest");
+                    }
+                    else if (FMath::IsNearlyEqual(CurrentDistance, 500.0f, 5.0f))
+                    {
+                        return TEXT("swamp");
+                    }
+                    else if (FMath::IsNearlyEqual(CurrentDistance, 800.0f, 5.0f))
+                    {
+                        return TEXT("mountain");
+                    }
+                    else
+                    {
+                        // 移動中の場合は最寄りの場所を返す
+                        if (CurrentDistance < 50.0f) return TEXT("base");
+                        else if (CurrentDistance < 150.0f) return TEXT("plains");
+                        else if (CurrentDistance < 350.0f) return TEXT("forest");
+                        else if (CurrentDistance < 650.0f) return TEXT("swamp");
+                        else return TEXT("mountain");
+                    }
+                }
+            }
+        }
+    }
+    
+    return TEXT("base"); // デフォルト
+}
+
+FString UC_TeamCard::GetCurrentTargetItem() const
+{
+    // TaskManagerから実行可能タスクを取得
+    if (UWorld* World = GetWorld())
+    {
+        if (APlayerController* PC = World->GetFirstPlayerController())
+        {
+            if (AC_PlayerController* IdlePC = Cast<AC_PlayerController>(PC))
+            {
+                if (UTaskManagerComponent* TaskManager = IdlePC->FindComponentByClass<UTaskManagerComponent>())
+                {
+                    FString CurrentLocation = GetCurrentLocation();
+                    return TaskManager->GetTargetItemForTeam(TeamIndex, CurrentLocation);
+                }
+            }
+        }
+    }
+    
+    return FString(); // タスクなし
+}
+
+bool UC_TeamCard::IsTeamMoving() const
+{
+    // MovementComponentから移動状態を確認
+    if (UWorld* World = GetWorld())
+    {
+        if (APlayerController* PC = World->GetFirstPlayerController())
+        {
+            if (AC_PlayerController* IdlePC = Cast<AC_PlayerController>(PC))
+            {
+                if (ULocationMovementComponent* MovementComp = IdlePC->MovementComponent)
+                {
+                    EMovementState State = MovementComp->GetMovementState(TeamIndex);
+                    
+                    // デバッグ：移動状態をログ出力
+                    UE_LOG(LogTemp, Warning, TEXT("🎮🔍 TeamCard %d: MovementState = %d"), 
+                        TeamIndex, (int32)State);
+                    
+                    return (State == EMovementState::MovingToDestination || State == EMovementState::MovingToBase);
+                }
+            }
+        }
+    }
+    
+    return false;
+}
+
+bool UC_TeamCard::ShouldUnloadItems() const
+{
+    // チームメンバーがResourceカテゴリアイテムを持っているかチェック
+    if (!IsValidTeamCard())
+    {
+        return false;
+    }
+    
+    FTeam TeamData = GetTeamData();
+    
+    for (AC_IdleCharacter* Member : TeamData.Members)
+    {
+        if (IsValid(Member))
+        {
+            if (UInventoryComponent* MemberInventory = Member->GetInventoryComponent())
+            {
+                // インベントリにResourceカテゴリのアイテムがあるかチェック
+                // 簡易判定：wood, stone, ironなどの基本資源があるかチェック
+                TArray<FString> ResourceItems = {TEXT("wood"), TEXT("stone"), TEXT("iron"), TEXT("food"), TEXT("ingredient")};
+                
+                for (const FString& ResourceItem : ResourceItems)
+                {
+                    if (MemberInventory->GetItemCount(ResourceItem) > 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    
+    return false;
+}
+
+FString UC_TeamCard::GetMovementStatusText(bool bReturning) const
+{
+    // 移動中の残り時間を計算
+    if (UWorld* World = GetWorld())
+    {
+        if (APlayerController* PC = World->GetFirstPlayerController())
+        {
+            if (AC_PlayerController* IdlePC = Cast<AC_PlayerController>(PC))
+            {
+                if (ULocationMovementComponent* MovementComp = IdlePC->MovementComponent)
+                {
+                    float CurrentDistance = MovementComp->GetCurrentDistanceFromBase(TeamIndex);
+                    int32 CurrentDistanceInt = FMath::RoundToInt(CurrentDistance);
+                    
+                    // 目標距離を取得
+                    int32 TargetDistance = 0;
+                    if (bReturning)
+                    {
+                        TargetDistance = 0; // 拠点
+                    }
+                    else
+                    {
+                        // 新しいタスクの目的地を取得
+                        FTeam TeamData = GetTeamData();
+                        FString GatheringLocationId = TeamData.GatheringLocationId;
+                        
+                        if (GatheringLocationId == TEXT("plains")) TargetDistance = 100;
+                        else if (GatheringLocationId == TEXT("forest")) TargetDistance = 200;
+                        else if (GatheringLocationId == TEXT("mountain")) TargetDistance = 800;
+                        else if (GatheringLocationId == TEXT("swamp")) TargetDistance = 500;
+                        else TargetDistance = 100; // デフォルト
+                    }
+                    
+                    int32 RemainingDistance = FMath::Abs(TargetDistance - CurrentDistanceInt);
+                    
+                    // MovementComponentから実際の移動情報を取得
+                    FMovementInfo MovementInfo = MovementComp->GetMovementInfo(TeamIndex);
+                    
+                    // State で移動中かチェック
+                    if (MovementInfo.State == EMovementState::MovingToDestination || 
+                        MovementInfo.State == EMovementState::MovingToBase)
+                    {
+                        // 実際の残り時間を使用
+                        int32 RemainingSeconds = FMath::CeilToInt(MovementInfo.RemainingTime);
+                        int32 Minutes = RemainingSeconds / 60;
+                        int32 Seconds = RemainingSeconds % 60;
+                        
+                        FString TimeText = FString::Printf(TEXT("%02d：%02d"), Minutes, Seconds);
+                        FString MovementText = bReturning ? TEXT("帰還") : TEXT("移動");
+                        
+                        UE_LOG(LogTemp, Warning, TEXT("🎮⏱️ TeamCard %d: Actual remaining time = %.1fs (displayed as %s)"), 
+                            TeamIndex, MovementInfo.RemainingTime, *TimeText);
+                        
+                        return FString::Printf(TEXT("%s（残り%s）"), *MovementText, *TimeText);
+                    }
+                    else if (RemainingDistance > 0)
+                    {
+                        // フォールバック：簡易計算
+                        int32 MovementSpeed = 30;
+                        int32 RemainingTurns = FMath::CeilToInt(static_cast<float>(RemainingDistance) / MovementSpeed);
+                        int32 RemainingSeconds = RemainingTurns;
+                        
+                        int32 Minutes = RemainingSeconds / 60;
+                        int32 Seconds = RemainingSeconds % 60;
+                        
+                        FString TimeText = FString::Printf(TEXT("%02d：%02d"), Minutes, Seconds);
+                        FString MovementText = bReturning ? TEXT("帰還") : TEXT("移動");
+                        
+                        return FString::Printf(TEXT("%s（残り%s）"), *MovementText, *TimeText);
+                    }
+                    else
+                    {
+                        return bReturning ? TEXT("帰還") : TEXT("移動");
+                    }
+                }
+            }
+        }
+    }
+    
+    return bReturning ? TEXT("帰還中") : TEXT("移動中");
 }

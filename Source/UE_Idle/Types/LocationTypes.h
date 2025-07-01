@@ -80,9 +80,21 @@ struct FLocationDataRow : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemies")
     FString EnemySpawnListString;
 
-    // 拠点からの距離（メートル）
+    // 移動コスト
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
-    float Distance;
+    float MovementCost;
+
+    // 歩行可能フラグ
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
+    bool bIsWalkable;
+
+    // 移動時の係数（新マップ生成システム用）
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
+    float MovementDifficulty;
+
+    // 基本難易度レベル（新マップ生成システム用）
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
+    int32 DifficultyLevel;
 
     // 採集可能アイテムリスト文字列 (CSV用: "wood:2|stone:1")
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gathering")
@@ -94,7 +106,10 @@ struct FLocationDataRow : public FTableRowBase
         Description = TEXT("");
         LocationType = ELocationType::Base;
         EnemySpawnListString = TEXT("");
-        Distance = 0.0f;
+        MovementCost = 1.0f;
+        bIsWalkable = true;
+        MovementDifficulty = 1.0f;
+        DifficultyLevel = 1;
         GatherableItemsString = TEXT("");
     }
 

@@ -3,20 +3,24 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Actor.h"
+#include "GameFramework/Pawn.h"
+#include "Components/StaticMeshComponent.h"
+#include "GameFramework/PawnMovementComponent.h"
 #include "../Interfaces/IdleCharacterInterface.h"
 #include "../Types/ItemTypes.h"
 #include "../Types/CharacterTypes.h"
 #include "../Types/TeamTypes.h"
 #include "../Types/TaskTypes.h"
+#include "Engine/Engine.h"
 #include "C_IdleCharacter.generated.h"
 
 class UCharacterStatusComponent;
 class UInventoryComponent;
 class UCharacterBrain;
+class UGridMapComponent;
 
 UCLASS()
-class UE_IDLE_API AC_IdleCharacter : public AActor, public IIdleCharacterInterface
+class UE_IDLE_API AC_IdleCharacter : public APawn, public IIdleCharacterInterface
 {
 	GENERATED_BODY()
 	
@@ -192,7 +196,17 @@ protected:
 	void HandleItemUnequipped(const FString& ItemId, EEquipmentSlot Slot);
 
 protected:
-	// コンポーネント
+	// === UE標準コンポーネント ===
+	
+	// 移動コンポーネント（2D移動用）
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement")
+	TObjectPtr<UPawnMovementComponent> FloatingMovement;
+	
+	// 2D表示コンポーネント（シンプルな3Dメッシュ使用）
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Display")
+	TObjectPtr<UStaticMeshComponent> IconMesh;
+	
+	// === 既存コンポーネント（維持） ===
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UCharacterStatusComponent> StatusComponent;
 
@@ -254,5 +268,56 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Autonomous Character")
 	bool bShowDebugInfo;
+
+	// ===========================================
+	// グリッドシステム（Phase 1-3）
+	// ===========================================
+	
+	/**
+	 * 現在のグリッド位置
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Grid")
+	FIntPoint CurrentGridPosition;
+	
+	/**
+	 * 目標グリッド位置
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Grid")
+	FIntPoint TargetGridPosition;
+	
+	// グリッド関連ヘルパー関数
+	UFUNCTION(BlueprintCallable, Category = "Grid")
+	FIntPoint GetCurrentGridPosition() const { return CurrentGridPosition; }
+	
+	UFUNCTION(BlueprintCallable, Category = "Grid")
+	void SetCurrentGridPosition(const FIntPoint& NewPosition) { CurrentGridPosition = NewPosition; }
+
+	// ===========================================
+	// Direct access helper methods
+	// ===========================================
+	
+	/**
+	 * Get current location directly from LocationMovementComponent
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Character Movement")
+	FString GetCurrentLocationDirect();
+	
+	/**
+	 * Get team index this character belongs to
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Team")
+	int32 GetTeamIndex();
+	
+	/**
+	 * Check if movement is complete
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Character Movement")
+	bool CheckMovementProgressDirect();
+	
+	/**
+	 * Move to specified location directly
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Character Movement")
+	bool MoveToLocationDirect(const FString& TargetLocation);
 
 };
